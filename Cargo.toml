@@ -1,0 +1,15 @@
+[package]
+
+name = "libbolt"
+version = "0.0.1"
+authors = ["J. Ayo Akinyele <ayo@yeletech.org>"]
+description = "library for Blind Off-chain Lightweight Transactions (BOLT)"
+keywords = ["zcash", "payment channels", "bolt"]
+readme = "README.md"
+homepage = "https://github.com/yeletech/libbolt"
+repository = "https://github.com/yeletech/libbolt"
+license = "MIT License"
+
+[dependencies]
+bn = "0.4.3"
+rand = "~0.3.14"
