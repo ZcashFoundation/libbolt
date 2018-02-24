@@ -1,7 +1,6 @@
 [package]
-
 name = "libbolt"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["J. Ayo Akinyele <ayo@yeletech.org>"]
 description = "library for Blind Off-chain Lightweight Transactions (BOLT)"
 keywords = ["zcash", "payment channels", "bolt"]
@@ -13,3 +12,7 @@ license = "MIT License"
 [dependencies]
 bn = "0.4.3"
 rand = "~0.3.14"
+
+[[bin]]
+name = "bolt"
+path = "bin/bolt.rs"

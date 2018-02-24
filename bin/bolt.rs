@@ -1,5 +1,6 @@
 extern crate bn;
 extern crate rand;
+extern crate libbolt;
 use bn::{Group, Fr, G1, G2, pairing};
 
 fn main() {
@@ -23,4 +24,6 @@ fn main() {
 
     assert!(alice_ss == bob_ss && bob_ss == carol_ss);
     println!("All bn tests succeeded!");
+
+    libbolt::setup();
 }
