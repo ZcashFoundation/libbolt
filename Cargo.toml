@@ -12,6 +12,13 @@ license = "MIT License"
 [dependencies]
 bn = "0.4.3"
 rand = "~0.3.14"
+bincode = "0.5.9"
+sodiumoxide = "0.0.16"
+
+[dev-dependencies.bincode]
+version = "~0.6.0"
+default-features = false
+features = ["rustc-serialize"]
 
 [[bin]]
 name = "bolt"

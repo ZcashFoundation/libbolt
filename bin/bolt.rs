@@ -25,5 +25,8 @@ fn main() {
     assert!(alice_ss == bob_ss && bob_ss == carol_ss);
     println!("All bn tests succeeded!");
 
-    libbolt::setup();
+    let pk = libbolt::setup();
+    // let msg = String::from("Hello, World!");
+
+    // let cm = libbolt::commit(pk, msg);
 }
