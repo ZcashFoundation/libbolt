@@ -3,6 +3,7 @@ extern crate rand;
 extern crate libbolt;
 use bn::{Group, Fr, G1, G2, pairing};
 
+use libbolt::sym;
 use libbolt::clsigs;
 use libbolt::commit_scheme;
 
@@ -28,6 +29,27 @@ fn main() {
     assert!(alice_ss == bob_ss && bob_ss == carol_ss);
     println!("All bn unit tests succeeded!");
 
+
+    println!("******************************************");
+    sym::init();
+    // SymKeyEnc tests
+    let l = 128; // TODO: figure out how to apply this to secretbox
+    let key1 = sym::keygen(l);
+    let key2 = sym::keygen(l);
+
+    // println!("key: {:?}", key);
+
+    let pt1 = String::from("hello world");
+    let ciphertext = sym::encrypt(&key1, &pt1);
+    println!("{}", ciphertext);
+
+    let pt2 = sym::decrypt(&key1, &ciphertext);
+    println!("Recovered plaintext: {}", pt2);
+    assert!(pt1 == pt2);
+
+//    let pt3 = sym::decrypt(&key2, &ciphertext);
+//    assert!(pt1 != pt3);
+    println!("SymKeyEnc is complete!");
     println!("******************************************");
 
     // CL sig tests
@@ -35,12 +57,12 @@ fn main() {
     let keypair = clsigs::keygen(&mpk);
     println!("{}", keypair.pk);
 
-    let msg1 = clsigs::Message::new(String::from("refund"), alice_sk, 10);
-    let msg2 = clsigs::Message::new(String::from("refund"), alice_sk, 12);
-    let signature = clsigs::sign(&keypair.sk, &msg1);
+    let msg1 = libbolt::RefundMessage::new(alice_sk, 10).hash(); // TODO: add ck (l-bit key)
+    let msg2 = libbolt::RefundMessage::new(alice_sk, 11).hash(); // TODO: add ck (l-bit key)
+    let signature = clsigs::sign(&keypair.sk, msg1);
     println!("{}", signature);
-    assert!(clsigs::verify(&mpk, &keypair.pk, &msg1, &signature) == true);
-    assert!(clsigs::verify(&mpk, &keypair.pk, &msg2, &signature) == false);
+    assert!(clsigs::verify(&mpk, &keypair.pk, msg1, &signature) == true);
+    assert!(clsigs::verify(&mpk, &keypair.pk, msg2, &signature) == false);
 
     println!("CL signature verified!");
 
@@ -49,9 +71,9 @@ fn main() {
     let pk = commit_scheme::setup();
     // let sk = libbolt::SecretKeySigs { x: Fr::random(rng), y: Fr::random(rng) };
     // let msg = String::from("Hello, World!");
-    let msg1 = commit_scheme::Message::new(alice_sk, bob_sk, 10);
-    let msg2 = commit_scheme::Message::new(alice_sk, bob_sk, 11);
-    let msg3 = commit_scheme::Message::new(bob_sk, alice_sk, 10);
+    let msg1 = commit_scheme::Message::new(keypair.sk, alice_sk, bob_sk, 10);
+    let msg2 = commit_scheme::Message::new(keypair.sk, alice_sk, bob_sk, 11);
+    let msg3 = commit_scheme::Message::new(keypair.sk, bob_sk, alice_sk, 10);
 
     let cm = commit_scheme::commit(&pk, &msg1);
 
