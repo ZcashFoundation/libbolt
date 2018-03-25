@@ -71,15 +71,15 @@ fn main() {
     let pk = commit_scheme::setup();
     // let sk = libbolt::SecretKeySigs { x: Fr::random(rng), y: Fr::random(rng) };
     // let msg = String::from("Hello, World!");
-    let msg1 = commit_scheme::Message::new(keypair.sk, alice_sk, bob_sk, 10);
-    let msg2 = commit_scheme::Message::new(keypair.sk, alice_sk, bob_sk, 11);
-    let msg3 = commit_scheme::Message::new(keypair.sk, bob_sk, alice_sk, 10);
+    let msg1 = libbolt::Message::new(keypair.sk, alice_sk, bob_sk, 10).hash();
+    let msg2 = libbolt::Message::new(keypair.sk, alice_sk, bob_sk, 11).hash();
+    let msg3 = libbolt::Message::new(keypair.sk, bob_sk, alice_sk, 10).hash();
 
-    let cm = commit_scheme::commit(&pk, &msg1);
+    let cm = commit_scheme::commit(&pk, msg1);
 
-    assert!(commit_scheme::decommit(&pk, &cm, &msg1) == true);
-    assert!(commit_scheme::decommit(&pk, &cm, &msg2) == false);
-    assert!(commit_scheme::decommit(&pk, &cm, &msg3) == false);
+    assert!(commit_scheme::decommit(&pk, &cm, msg1) == true);
+    assert!(commit_scheme::decommit(&pk, &cm, msg2) == false);
+    assert!(commit_scheme::decommit(&pk, &cm, msg3) == false);
     println!("Commitment scheme works!");
 
     println!("******************************************");

@@ -385,7 +385,7 @@ impl Message {
         }
     }
 
-    fn hash(&self) -> Fr {
+    pub fn hash(&self) -> Fr {
         let mut input_buf = self.sk.encode();
         // TODO: add sk_sigs to encode it
         let k1_vec: Vec<u8> = encode(&self.k1, Infinite).unwrap();
