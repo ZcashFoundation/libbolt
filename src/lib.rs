@@ -181,6 +181,7 @@ pub mod prf {
 
 ////////////////////////////////// CL Sigs /////////////////////////////////////
 
+pub mod zkp;
 pub mod sym;
 pub mod clsigs;
 pub mod commit_scheme;
