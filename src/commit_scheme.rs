@@ -76,10 +76,11 @@ commit(pk, msg) -> cm where
 - msg is the message structure for the commitment scheme
 - cm is the output commitment message for the given message
 */
-pub fn commit(pk: &PublicKey, m: Fr) -> Commitment {
+pub fn commit(pk: &PublicKey, m: Fr, R: Option<Fr>) -> Commitment {
     let rng = &mut rand::thread_rng();
 
-    let r = Fr::random(rng);
+    let r = R.unwrap_or(Fr::random(rng));
+    //let r = Fr::random(rng);
 
     //let m = msg.hash();
     let p = "commit -> m";

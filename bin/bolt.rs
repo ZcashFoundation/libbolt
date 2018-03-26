@@ -35,7 +35,7 @@ fn main() {
     // SymKeyEnc tests
     let l = 128; // TODO: figure out how to apply this to secretbox
     let key1 = sym::keygen(l);
-    let key2 = sym::keygen(l);
+    //let key2 = sym::keygen(l);
 
     // println!("key: {:?}", key);
 
@@ -75,7 +75,7 @@ fn main() {
     let msg2 = libbolt::Message::new(keypair.sk, alice_sk, bob_sk, 11).hash();
     let msg3 = libbolt::Message::new(keypair.sk, bob_sk, alice_sk, 10).hash();
 
-    let cm = commit_scheme::commit(&pk, msg1);
+    let cm = commit_scheme::commit(&pk, msg1, None);
 
     assert!(commit_scheme::decommit(&pk, &cm, msg1) == true);
     assert!(commit_scheme::decommit(&pk, &cm, msg2) == false);

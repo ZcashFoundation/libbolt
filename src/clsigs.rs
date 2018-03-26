@@ -14,6 +14,7 @@ pub struct PublicParams {
     g: G1
 }
 
+#[derive(Copy, Clone)]
 pub struct PublicKey {
     X: G1,
     Y: G1
