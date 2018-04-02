@@ -11,6 +11,10 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 use sodiumoxide::crypto::hash::sha512;
 
+pub mod sym;
+pub mod clsigs;
+pub mod commit_scheme;
+
 // Begin CL Signature scheme data structures
 
 // End CL Signature scheme data structures
@@ -81,6 +85,290 @@ pub fn misc_tests() {
     print!("\n");
 
 }
+
+////////////////////////////////// ZK proof compiler ///////////////////////////////////
+
+//pub mod zkp {
+//
+//#[macro_export]
+//macro_rules! log {
+//    ($msg:expr) => {{
+//        let state: i32 = get_log_state();
+//        if state > 0 {
+//            println!("log({}): {}", state, $msg);
+//        }
+//    }};
+//}
+//
+//#[doc(hidden)]
+//#[macro_export]
+//macro_rules! __compute_formula_scalarlist {
+//    // Unbracket a statement
+//    (($publics:ident, $scalars:ident) ($($x:tt)*)) => {
+//        // Add a trailing +
+//        __compute_formula_scalarlist!(($publics,$scalars) $($x)* +)
+//    };
+//    // Inner part of the formula: give a list of &Scalars
+//    // Since there's a trailing +, we can just generate the list as normal...
+//    (($publics:ident, $scalars:ident)
+//     $( $point:ident * $scalar:ident +)+ ) => {
+//        &[ $( $scalars.$scalar ,)* ]
+//    };
+//}
+//
+//#[doc(hidden)]
+//#[macro_export]
+//macro_rules! __compute_formula_pointlist {
+//    // Unbracket a statement
+//    (($publics:ident, $scalars:ident) ($($x:tt)*)) => {
+//        // Add a trailing +
+//        __compute_formula_pointlist!(($publics,$scalars) $($x)* +)
+//    };
+//    // Inner part of the formula: give a list of &Scalars
+//    // Since there's a trailing +, we can just generate the list as normal...
+//    (($publics:ident, $scalars:ident)
+//     $( $point:ident * $scalar:ident +)* ) => {
+//        &[ $( *($publics.$point) ,)* ]
+//    };
+//}
+//
+//#[doc(hidden)]
+//#[macro_export]
+//macro_rules! __compute_commitments_consttime {
+//    (($publics:ident, $scalars:ident) $($lhs:ident = $statement:tt),+) => {
+//        Commitments {
+//            $( $lhs :
+//               multiscalar_mult(
+//                   __compute_formula_scalarlist!(($publics, $scalars) $statement),
+//                   __compute_formula_pointlist!(($publics, $scalars) $statement),
+//               )
+//            ),+
+//        }
+//    }
+//}
+//
+//#[doc(hidden)]
+//#[macro_export]
+//macro_rules! __recompute_commitments_vartime {
+//    (($publics:ident, $scalars:ident, $minus_c:ident) $($lhs:ident = $statement:tt),+) => {
+//        Commitments {
+//            $( $lhs :
+//               vartime::multiscalar_mult(
+//                   __compute_formula_scalarlist!(($publics, $scalars) $statement)
+//                       .into_iter()
+//                       .chain(iter::once(&($minus_c)))
+//                   ,
+//                   __compute_formula_pointlist!(($publics, $scalars) $statement)
+//                       .into_iter()
+//                       .chain(iter::once($publics.$lhs))
+//               )
+//            ),+
+//        }
+//    }
+//}
+//
+//#[macro_export]
+//macro_rules! create_nipk {
+//(
+//    $proof_module_name:ident // Name of the module to create
+//    ,
+//    ( $($secret:ident),+ ) // Secret variables, sep by commas
+//    ,
+//    ( $($public:ident),+ ) // Public variables, sep by commas
+//    :
+//    // List of statements to prove
+//    // Format: LHS = ( ... RHS expr ... ),
+//    $($lhs:ident = $statement:tt),+
+//) => {
+//    mod $proof_module_name {
+//        use $crate::{Group, Fr, G1}
+//        use $crate::sodiumoxide::crypto::hash;
+//        // use $crate::sha2::{Digest, Sha512};
+//        use $crate::rand::Rng;
+//
+//        use std::iter;
+//
+//        #[derive(Copy, Clone)]
+//        pub struct Secrets<'a> {
+//            // Create a parameter for each secret value
+//            $(
+//                pub $secret : &'a Fr,
+//            )+
+//        }
+//
+//        #[derive(Copy, Clone)]
+//        pub struct Publics<'a> {
+//            // Create a parameter for each public value
+//            $(
+//                pub $public : &'a G1,
+//            )+
+//        }
+//
+//        // Hack because we can't concat identifiers,
+//        // so do responses.x instead of responses_x
+//        // rand.x instead of rand_x, etc.
+//
+//        struct Commitments {$($lhs: G1,)+ }
+//        struct Randomnesses {$($secret : Scalar,)+}
+//        #[derive(Serialize, Deserialize)]
+//        struct Responses {$($secret : Scalar,)+}
+//
+//        #[derive(Serialize, Deserialize)]
+//        pub struct Proof {
+//            challenge: Fr,
+//            responses: Responses,
+//        }
+//
+//        impl Proof {
+//            /// Create a `Proof`, in constant time, from the given
+//            /// `Publics` and `Secrets`.
+//            #[allow(dead_code)]
+//            pub fn create<R: Rng>(
+//                rng: &mut R,
+//                publics: Publics,
+//                secrets: Secrets,
+//            ) -> Proof {
+//                let rand = Randomnesses{
+//                    $(
+//                        $secret : Fr::random(rng),
+//                    )+
+//                };
+//                // $statement_rhs = `X * x + Y * y + Z * z`
+//                // should become
+//                // `publics.X * rand.x + publics.Y * rand.y + publics.Z * rand.z`
+//                let commitments: Commitments;
+//                commitments = __compute_commitments_consttime!(
+//                    (publics, rand) $($lhs = $statement),*
+//                );
+//
+//                let mut hash_state = hash::State::new();
+//
+//                $(
+//                    hash_state.update(publics.$public.as_bytes());
+//                )+
+//                $(
+//                    hash_state.update(commitments.$lhs.as_bytes());
+//                )+
+//
+//                let digest = hash_state.finalize();
+//                let mut digest_buf: [u8; 64] = [0; 64];
+//                digest_buf.copy_from_slice(&digest[0..64]);
+//                let challenge = Fr::interpret(&digest_buf); // Scalar::from_hash(hash);
+//
+//                let responses = Responses{
+//                    $(
+//                        $secret : &(&challenge * secrets.$secret) + &rand.$secret,
+//                    )+
+//                };
+//
+//                Proof{ challenge: challenge, responses: responses }
+//            }
+//
+//            /// Verify the `Proof` using the public parameters `Publics`.
+//            #[allow(dead_code)]
+//            pub fn verify(&self, publics: Publics) -> Result<(),()> {
+//                // `A = X * x + Y * y`
+//                // should become
+//                // `publics.X * responses.x + publics.Y * responses.y - publics.A * self.challenge`
+//                let responses = &self.responses;
+//                let minus_c = -&self.challenge;
+//                let commitments = __recompute_commitments_vartime!(
+//                    (publics, responses, minus_c) $($lhs = $statement),*
+//                );
+//
+//                let mut hash_state = hash::State::new();
+//                // Add each public point into the hash
+//                $(
+//                    hash_state.update(publics.$public.as_bytes());
+//                )+
+//                // Add each (recomputed) commitment into the hash
+//                $(
+//                    hash_state.update(commitments.$lhs.as_bytes());
+//                )*
+//
+//                let digest = hash_state.finalize();
+//                let mut digest_buf: [u8; 64] = [0; 64];
+//                digest_buf.copy_from_slice(&digest[0..64]);
+//                // Recompute challenge
+//                let challenge = Fr::interpret(&digest_buf); // Scalar::from_hash(hash);
+//
+//                if challenge == self.challenge { Ok(()) } else { Err(()) }
+//            }
+//        }
+//
+//        #[cfg(test)]
+//        mod bench {
+//            extern crate test;
+//
+//            use $crate::rand;
+//
+//            use super::*;
+//
+//            use self::test::Bencher;
+//
+//            #[bench]
+//            #[allow(dead_code)]
+//            fn create(b: &mut Bencher) {
+//                let rng = &mut rand::thread_rng();
+//                //let mut rng = OsRng::new().unwrap();
+//
+//                // Need somewhere to actually put the public points
+//                struct DummyPublics { $( pub $public : G1, )+ }
+//                let dummy_publics = DummyPublics {
+//                    $( $public : G1::random(&mut rng) , )+
+//                };
+//
+//                let publics = Publics {
+//                    $( $public : &dummy_publics.$public , )+
+//                };
+//
+//                struct DummySecrets { $( pub $secret : Fr, )+ }
+//                let dummy_secrets = DummySecrets {
+//                    $( $secret : Fr::random(&mut rng) , )+
+//                };
+//
+//                let secrets = Secrets {
+//                    $( $secret : &dummy_secrets.$secret , )+
+//                };
+//
+//                b.iter(|| Proof::create(&mut rng, publics, secrets));
+//            }
+//
+//            #[bench]
+//            #[allow(dead_code)]
+//            fn verify(b: &mut Bencher) {
+//                let mut rng = OsRng::new().unwrap();
+//
+//                // Need somewhere to actually put the public points
+//                struct DummyPublics { $( pub $public : G1, )+ }
+//                let dummy_publics = DummyPublics {
+//                    $( $public : G1::random(&mut rng) , )+
+//                };
+//
+//                let publics = Publics {
+//                    $( $public : &dummy_publics.$public , )+
+//                };
+//
+//                struct DummySecrets { $( pub $secret : Fr, )+ }
+//                let dummy_secrets = DummySecrets {
+//                    $( $secret : Fr::random(&mut rng) , )+
+//                };
+//
+//                let secrets = Secrets {
+//                    $( $secret : &dummy_secrets.$secret , )+
+//                };
+//
+//                let p = Proof::create(&mut rng, publics, secrets);
+//
+//                b.iter(|| p.verify(publics));
+//            }
+//        }
+//    }
+//}
+//}
+//
+//}
+////////////////////////////////// ZK proof compiler ///////////////////////////////////
 
 ////////////////////////////////// SymKeyEnc ///////////////////////////////////
 /*
@@ -180,11 +468,6 @@ pub mod prf {
 }
 
 ////////////////////////////////// CL Sigs /////////////////////////////////////
-
-pub mod zkp;
-pub mod sym;
-pub mod clsigs;
-pub mod commit_scheme;
 
 #[derive(Clone)]
 pub struct RefundMessage<'a> {
@@ -344,7 +627,7 @@ pub mod unidirectional {
         let k2 = Fr::random(rng);
         let r = Fr::random(rng);
         let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
-        // TODO: for 1 to B, generate a key
+        // TODO: for 1 to b0_customer, generate a key
         let ck_vec: Vec<u8> = Vec::new();
         let w_com = commit_scheme::commit(&pp.cm_mpk, msg, Some(r));
         let t_c = CustTData { w_com: w_com, pk: keypair.pk };
@@ -370,7 +653,7 @@ pub mod unidirectional {
         println!("Run pay algorithm...");
     }
 
-//    pub fn refund(pp: &PublicParams, imd : &InitMerchantData, w: String) {
+//    pub fn refund(pp: &PublicParams, imd : &InitMerchantData, w: Wallet) {
 //        println!("Run Refund...");
 //    }
 //

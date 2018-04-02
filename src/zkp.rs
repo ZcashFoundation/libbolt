@@ -16,6 +16,7 @@
 //! statements about discrete logarithms in the Ristretto group on
 //! BLS-381, as implemented in
 //! [`bn module`](https://github.com/zcash-hackworks/bn).
+
 #![allow(non_snake_case)]
 #![feature(test)]
 
@@ -110,7 +111,7 @@ macro_rules! __recompute_commitments_vartime {
 ///
 /// This creates a module `dleq` with code for proving knowledge of a
 /// secret `x: Scalar` such that `A = G*x`, `B = H*x` for public
-/// parameters `A, B, G, H: RistrettoPoint`.  In general the syntax is
+/// parameters `A, B, G, H: G1`.  In general the syntax is
 ///
 /// ```rust,ignore
 /// create_nipk!{
@@ -135,7 +136,7 @@ macro_rules! __recompute_commitments_vartime {
 /// form
 ///
 /// ```rust,ignore
-/// pub struct Publics<'a> { pub A: &'a RistrettoPoint, ... }
+/// pub struct Publics<'a> { pub A: &'a G1, ... }
 /// ```
 ///
 /// A `Secrets` struct corresponding to the secret parameters, of the
@@ -179,16 +180,8 @@ macro_rules! __recompute_commitments_vartime {
 /// #[macro_use]
 /// extern crate zkp;
 ///
-/// extern crate curve25519_dalek;
-/// use curve25519_dalek::constants as dalek_constants;
-/// use curve25519_dalek::ristretto::RistrettoPoint;
-/// use curve25519_dalek::scalar::Scalar;
-///
 /// extern crate rand;
-/// use rand::OsRng;
-///
-/// extern crate sha2;
-/// use sha2::Sha256;
+/// use rand;
 ///
 /// extern crate bincode;
 ///
@@ -199,7 +192,7 @@ macro_rules! __recompute_commitments_vartime {
 ///
 /// create_nipk!{dleq, (x), (A, B, G, H) : A = (G * x), B = (H * x) }
 ///
-/// let x = Scalar::from_u64(89327492234);
+/// let x = Fr::from_str("89327492234");
 /// let A =  G * &x;
 /// let B = &H * &x;
 ///
@@ -235,7 +228,7 @@ macro_rules! create_nipk {
         $($lhs:ident = $statement:tt),+
     ) => {
         mod $proof_module_name {
-            use $crate::{Group, Fr, G1, G2}
+            use $crate::{Group, Fr, G1}
             use $crate::sodiumoxide::crypto::hash;
             // use $crate::sha2::{Digest, Sha512};
             use $crate::rand::Rng;
@@ -246,7 +239,7 @@ macro_rules! create_nipk {
             pub struct Secrets<'a> {
                 // Create a parameter for each secret value
                 $(
-                    pub $secret : &'a Scalar,
+                    pub $secret : &'a Fr,
                 )+
             }
 
@@ -254,7 +247,7 @@ macro_rules! create_nipk {
             pub struct Publics<'a> {
                 // Create a parameter for each public value
                 $(
-                    pub $public : &'a RistrettoPoint,
+                    pub $public : &'a G1,
                 )+
             }
 
@@ -262,14 +255,14 @@ macro_rules! create_nipk {
             // so do responses.x instead of responses_x
             // rand.x instead of rand_x, etc.
 
-            struct Commitments {$($lhs: RistrettoPoint,)+ }
+            struct Commitments {$($lhs: G1,)+ }
             struct Randomnesses {$($secret : Scalar,)+}
             #[derive(Serialize, Deserialize)]
             struct Responses {$($secret : Scalar,)+}
 
             #[derive(Serialize, Deserialize)]
             pub struct Proof {
-                challenge: Scalar,
+                challenge: Fr,
                 responses: Responses,
             }
 
@@ -284,7 +277,7 @@ macro_rules! create_nipk {
                 ) -> Proof {
                     let rand = Randomnesses{
                         $(
-                            $secret : Scalar::random(rng),
+                            $secret : Fr::random(rng),
                         )+
                     };
                     // $statement_rhs = `X * x + Y * y + Z * z`
@@ -298,10 +291,10 @@ macro_rules! create_nipk {
                     let mut hash_state = hash::State::new();
 
                     $(
-                        hash_state.update(publics.$public.compress().as_bytes());
+                        hash_state.update(publics.$public.as_bytes());
                     )+
                     $(
-                        hash_state.update(commitments.$lhs.compress().as_bytes());
+                        hash_state.update(commitments.$lhs.as_bytes());
                     )+
 
                     let digest = hash_state.finalize();
@@ -333,11 +326,11 @@ macro_rules! create_nipk {
                     let mut hash_state = hash::State::new();
                     // Add each public point into the hash
                     $(
-                        hash_state.update(publics.$public.compress().as_bytes());
+                        hash_state.update(publics.$public.as_bytes());
                     )+
                     // Add each (recomputed) commitment into the hash
                     $(
-                        hash_state.update(commitments.$lhs.compress().as_bytes());
+                        hash_state.update(commitments.$lhs.as_bytes());
                     )*
 
                     let digest = hash_state.finalize();
@@ -367,7 +360,7 @@ macro_rules! create_nipk {
                     //let mut rng = OsRng::new().unwrap();
 
                     // Need somewhere to actually put the public points
-                    struct DummyPublics { $( pub $public : RistrettoPoint, )+ }
+                    struct DummyPublics { $( pub $public : G1, )+ }
                     let dummy_publics = DummyPublics {
                         $( $public : G1::random(&mut rng) , )+
                     };
@@ -376,7 +369,7 @@ macro_rules! create_nipk {
                         $( $public : &dummy_publics.$public , )+
                     };
 
-                    struct DummySecrets { $( pub $secret : Scalar, )+ }
+                    struct DummySecrets { $( pub $secret : Fr, )+ }
                     let dummy_secrets = DummySecrets {
                         $( $secret : Fr::random(&mut rng) , )+
                     };
@@ -394,18 +387,18 @@ macro_rules! create_nipk {
                     let mut rng = OsRng::new().unwrap();
 
                     // Need somewhere to actually put the public points
-                    struct DummyPublics { $( pub $public : RistrettoPoint, )+ }
+                    struct DummyPublics { $( pub $public : G1, )+ }
                     let dummy_publics = DummyPublics {
-                        $( $public : RistrettoPoint::random(&mut rng) , )+
+                        $( $public : G1::random(&mut rng) , )+
                     };
 
                     let publics = Publics {
                         $( $public : &dummy_publics.$public , )+
                     };
 
-                    struct DummySecrets { $( pub $secret : Scalar, )+ }
+                    struct DummySecrets { $( pub $secret : Fr, )+ }
                     let dummy_secrets = DummySecrets {
-                        $( $secret : Scalar::random(&mut rng) , )+
+                        $( $secret : Fr::random(&mut rng) , )+
                     };
 
                     let secrets = Secrets {
@@ -427,30 +420,38 @@ mod tests {
     extern crate test;
 
     use rand;
-    use bn::{Group, Fr, G1, G2};
-    use sha2::Sha256;
-    use self::test::Bencher;
+    use bn::{Group, Fr, G1};
+//    use self::test::Bencher;
 
 //    use curve25519_dalek::constants as dalek_constants;
 //    use curve25519_dalek::ristretto::RistrettoPoint;
 //    use curve25519_dalek::scalar::Scalar;
 
-    #[bench]
+    #[test]
     fn create_gen_dleq(b: &mut Bencher) {
-        let rng = &mut rand::thread_rng(); // OsRng::new().unwrap();
+        let rng = &mut rand::thread_rng();
         let G = G1::random(rng); // &dalek_constants::RISTRETTO_BASEPOINT_POINT;
         let H = G1::random(rng); // RistrettoPoint::hash_from_bytes::<Sha256>(G.compress().as_bytes());
 
         create_nipk!{dleq, (x), (A, B, G, H) : A = (G * x), B = (H * x) }
 
         let x = Fr::from_str("89327492234").unwrap();
-        let A =  G * &x;
-        let B = &H * &x;
+        let A =  G * x;
+        let B = H * x;
 
         let publics = dleq::Publics{A: &A, B: &B, G: G, H: &H};
         let secrets = dleq::Secrets{x: &x};
 
-        b.iter(|| dleq::Proof::create(&mut rng, publics, secrets));
+        let proof = dleq::Proof::create(&mut rng, publics, secrets);
+        // serialize to bincode representation
+        let proof_bytes = bincode::serialize(&proof, bincode::Infinite).unwrap();
+        // parse bytes back to memory
+        let parsed_proof: dleq::Proof
+            = bincode::deserialize(&proof_bytes).unwrap();
+
+        assert!(parsed_proof.verify(publics).is_ok());
+
+//        b.iter(|| dleq::Proof::create(&mut rng, publics, secrets));
     }
 
 //    #[bench]
