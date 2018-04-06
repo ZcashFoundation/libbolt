@@ -1,0 +1,321 @@
+\documentclass[10pt]{report}
+\usepackage{listings,cite,amsmath,amsfonts,amssymb,fullpage,url}
+\usepackage{underscore,dsfont,vhistory}
+\usepackage[bookmarks=true]{hyperref}
+\usepackage{fancyvrb}
+\hypersetup{
+    bookmarks=false,    % show bookmarks bar?
+    pdftitle={BOLT},    % title
+    pdfauthor={Joseph Ayo Akinyele},                     % author
+    pdfsubject={TeX and LaTeX},                        % subject of the document
+    pdfkeywords={TeX, LaTeX, graphics, images}, % list of keywords
+    colorlinks=true,       % false: boxed links; true: colored links
+    linkcolor=blue,       % color of internal links
+    citecolor=black,       % color of links to bibliography
+    filecolor=black,        % color of file links
+    urlcolor=blue,        % color of external links
+    linktoc=page            % only page is linked
+}%
+\def\myversion{1.0} % keep in sync with the revision history
+
+\title{%
+\vspace{-1in}
+\center
+%\includegraphics[scale=0.7]{yeletech-logo}
+\vspace{1in}
+\center
+\textcolor{black}{
+  {\selectfont{\huge{Blind Off-Chain\\Lightweight Transactions\\(BOLT)}}}}
+  \center
+  \textcolor{black}{
+  {\selectfont{\huge{Version \myversion}}}}
+\vspace{1in}
+\\
+{{\bf Authors}\\J. Ayo Akinyele (ayo@yeletech.org) \\ Matthew D. Green (mgreen@cs.jhu.edu) \\ Ian Miers (imiers@jhu.edu)}
+\\
+\vspace{2in}
+  \textcolor{black}{
+  {{\small{MIT License\\Copyright {\textcopyright} 2018}}}}
+}
+%\newpage
+%\pagenumbering{arabic}
+%\\
+%\vspace{0.2in}
+%\rule{16cm}{1pt}\vskip1cm
+
+\date{}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+%\pagestyle{fancy}
+\fancypagestyle{myfancypage}{
+\fancyhf{}
+%\lhead{\large{\textbf{\textit{xxx}}}}
+%\chead{\vpsace{1in}}
+%\rhead{\large\textbf{\textit{xxx}}}
+\lfoot{\small{YeleTech Security, Inc}}
+%\cfoot{\small\textit{xxx}}
+\rfoot{\small{ \thepage{}  }} 
+}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\newcommand{\company}{YeleTech Security, Inc}
+\pagestyle{myfancypage}
+\setlength{\headsep}{0.2in}
+
+\input{myheader}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\thispagestyle{myfancypage}
+
+\newpage
+\chapter*{Abstract}
+\label{ch:abstract}
+\thispagestyle{myfancypage}
+
+This document describes the design and implementation of the Blind Off-chain Lightweight Transactions (BOLT) library. The BOLT protocol comprises a number of techniques for enabling privacy-preserving unlinkable payment channels for decentralized crypto-currencies between pairs of individual parties. BOLTis designed to provide a ``Layer 2'' payment protocol for privacy-preserving crypto-currencies such as Zerocash (or Zcash)~\cite{TODO}, by allowing individuals to establish and use payment channels for rapid or instantaneous payments that do not require an on-chain transaction. This document describes the cryptographic instantiations of the BOLT protocol according to the published paper by Matthew Green and Ian Miers~\cite{TODO}.
+
+%In addition, any person obtaining a copy of this design document, associated software implementation, to deal in the software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+
+%The purpose of the document is two fold. First, the document introduces Attribute-Based Encryption (ABE), the problems ABE addresses, and places it in the context of prior encryption approaches.  Second, the document describes the Zeutro Functional Encryption Toolkit library (or the {\em Zeutro Toolkit} hereafter), which includes support for ABE and other cryptographic tools.
+The intended use of this document is for understanding BOLT and the associated software implementation in the Rust programming language.  
+This document is hereby released to the public domain free of charge.
+
+\thispagestyle{myfancypage}
+\chapter{Introduction}
+\label{sec:introduction}
+\thispagestyle{myfancypage}
+\rhead{\small\textit{Introduction}}
+
+BOLT is a system for conducting privacy-preserving off chain payments between pairs of individual parties. We refer to these parties as ``customers'', ``merchants'' and ``hubs'', with definitions provided below. BOLT is designed to provide a ``Layer 2'' payment protocol for privacy-preserving cryptocurrencies such as ZCash, by allowing individuals to establish and use payment channels for rapid/instantaneous payments that do not require an on-chain transaction.
+
+\paragraph{Parties and Terminology.} Financial transactions in the BOLT system are conducted between two parties, possibly with the assistance of an intermediate third party. Each party runs the BOLT software. These parties fall into three categories, which we describe below:
+\begin{itemize}
+\item {\bf Customers.} Customers are users who establish payment channels and initiate payment transactions to a merchant, possibly via an intermediate party known as a ``hub''. These payments may have positive or negative value, provided there are sufficient funds in the payment channel to allow the transaction.
+\item {\bf Merchants.} Merchants are users who cooperate in the establishment of payment channels (with customers and hubs), and receive payments from customers or hubs.
+\item {\bf Hubs.} In some settings, customers may pay merchants directly. In other settings, a customer may pay a merchant via an intermediate party known as a ``hub''. Hubs establish channels with both customer and merchant, and relay transactions (of positive or negative value) between two such parties.
+\end{itemize} 
+
+BOLT can be deployed in one of two settings, called ``Pairwise'' and ``Hub'' mode, as illustrated in Figure~\ref{fig:bolt}.
+
+\begin{figure}
+  \caption{Pairwise and Hub modes for BOLT protocol}
+  \centering
+    \includegraphics[width=0.7\textwidth]{bolt-diagram}
+\label{fig:bolt}
+\end{figure}
+
+Note that these diagrams represent only one set of channel(s) between the parties. In practice, every party may have many relationships with different customers, merchants, or hubs.
+
+\noindent
+{\bf Software components.} Each BOLT participant requires must run the BOLT software, which consists of up to three pieces. These are:
+
+\begin{itemize}
+\item A full node for a BOLT-compatible cryptocurrency, {\em e.g.}, zcashd. This node is connected to the currency P2P network, and must support commands via an ({\em e.g.}, RPC) interface.
+\item A BOLT library ({\bf libbolt}) that constructs and parses the messages required for interactive off-chain transactions with (one or more) remote BOLT participant(s), and interfaces with the cryptocurrency node via its interface.
+\end{itemize}
+
+The actual BOLT data transfer may be implemented by an application designer, via a channel such as HTTP or some alternative data transfer mechanism. Alternatively, parties can receive inbound connections using a dedicated daemon:
+
+\begin{itemize}
+\item A dedicated daemon ({\bf boltd}) that implements BOLT communications with remote parties. This daemon uses HTTPS/JSON communications, incorporates libbolt and interfaces directly with the cryptocurrency node.
+\end{itemize}
+
+\section{BOLT Privacy Guarantees}
+\label{sec:privacy}
+
+BOLT provides a more limited set of privacy guarantees than a standard payment network. This is inherent in the fact that BOLT uses payment channels, which are pairwise relationships that must be established between a Customer and Merchant before payment can take place.
+
+The BOLT privacy guarantees can be summarized as follows:
+\begin{itemize}
+\item The Merchant will be aware of the number of channels she has open at any given time, and the total funding amount of each channel. We assuming an anonymous underlying currency network, so the Merchant does not know the identity of the Customer that opens each channel (this information should be protected by the underlying currency network).
+\item The Customer (who initiates transactions) always knows the identity of the Merchant she is paying, and the instantaneous balance of each of her open channels.
+\item The Merchant (who responds to transactions) does not learn the identity of the Customer, or which channel a payment is associated with. She knows only that the payment is associated with one of her current active payment channels.
+\item The sole exception to rule (3) is when a payment interaction fails or is disputed. In this case, the Merchant learns which channel is associated with the final (failed) payment, but cannot link this channel to any previous payments. 
+\end{itemize}
+
+In practice this guarantee is sufficient to protect customer identities. Channels are not linked to customer identities (due to the anonymous payment network), and the merchant cannot link any pervious payments to the failed payment or channel.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% BOLT Design
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\chapter{BOLT Library}
+\label{ch:bolt}
+\thispagestyle{myfancypage}
+\rhead{\small\textit{libbolt}}
+
+\section{Overview}
+
+\todo{Add description on Anonymous Payment Channels use...}
+
+\section{Core Cryptographic Building Blocks}
+\label{sec:core}
+
+This section describes the core cryptographic primitives required to implement the BOLT protocol. They include the following:
+
+\begin{itemize}
+
+\item FOO
+%\item support for multiple types of attribute-based encryption (ABE) Key Encapsulation (KEM) schemes including for Key-Policy ABE, Ciphertext-Policy ABE and Multi-Authority ABE. We provide chosen-ciphertext security for each ABE KEM scheme type as well.
+
+%\item support for public-key encryption with chosen-ciphertext security, digital signatures, and authenticated symmetric-key encryption.
+
+%\item support for several common cryptographic tools including a linear secret sharing scheme (LSSS), key derivation functions (KDF), pseudo-random functions (PRF), and message authentication codes (MAC). We also include support for a random number generator (RNG) that can be modularly swapped with a pseudo-random generator (PRG).
+
+\end{itemize}
+
+\subsection{Commitment Scheme}
+\label{sec:commit}
+
+BOLT instantiates a commitment primitive using the Pedersen commitment scheme~\cite{TODO}. The scheme has the following interface:
+\medskip \noindent
+${\sf CSetup}() \rightarrow PP$:  the algorithm generates public parameters and outputs the $PP$.
+
+\medskip \noindent
+${\sf Commit}(PP, M; r) \rightarrow C$: On input parameters $PP$, a message $M$, and optional random coins $r$, the algorithm outputs a commitment $C$. 
+
+\medskip \noindent
+${\sf Decommit}(PP, C, M) =  \{0, 1\}$: On input parameters $PP$, and a tuple $(C, M, r)$ outputs 1 if $C$ is a valid commitment to the message or 0 otherwise.
+
+\subsection{Symmetric-Key Encryption}
+\label{sec:authenc}
+
+BOLT includes an symmetric-key encryption (SymEnc) primitive for providing confidentiality and integrity. 
+
+\medskip \noindent
+${\sf Encrypt}(K, M, N) \rightarrow C$. The encryption algorithm takes as input a symmetric-key, a message $M \in \{0,1\}^\ell$ and the associated nonce $N \in \{0,1\}^k$. The algorithm outputs the ciphertext $C$. 
+
+\medskip \noindent
+${\sf Decrypt}(K, C, N) = M \cup \bot$. The decryption algorithm takes as input a symmetric-key, the ciphertext $C$ and the associated nonce $N$. The algorithm outputs the message $M$ or returns $\bot$.
+
+
+\subsection{Digital Signatures with Efficient Protocols} % CL sigs
+\label{sec:signatures}
+
+BOLT includes signatures due to Camenisch and Lysyanskaya~\cite{TODO} which features: (1) a protocol for a user to obtain a signature on the value(s) in a commitment without the signer learning anything about the message(s), and (2) a non-interactive protocol for proving knowledge of a signature.
+
+\medskip \noindent
+${\sf SigKeygen}(\tau) \rightarrow (\PK, \SK)$. The key generation algorithm takes as input a security parameter $\tau$, runs the ${\sf ECSetup}(1^\tau)$ to select the elliptic curve parameters and outputs the public and secret key.
+
+\medskip \noindent
+${\sf Sign}(\SK, M) \rightarrow \sigma$. The signing algorithm takes as input a secret key $\SK$ and message $M \in \{0,1\}^*$ and outputs a signature $\sigma$.
+
+\medskip \noindent
+${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. The verification algorithm takes as input a public key $\PK$, the message $M$ and the signature $\sigma$. The algorithm outputs $true$ if the signatures is valid with respect to $M$ and $\PK$. Otherwise, it outputs $false$.
+
+% include blind signature algorithm here
+
+\subsection{One-Time Encryption} 
+\label{sec:ote}
+
+\todo{Add description here.}
+
+\subsection{Pseudo-random Function (PRF)}
+\label{sec:prf}
+
+\todo{Add description here.}
+
+\subsection{Non-interactive Zero Knowledge Proofs}
+\label{sec:nizkp}
+
+\todo{Add description here.}
+
+%%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
+
+\section{Constructions}
+\label{sec:constructs}
+
+\subsection{Unidirectional Scheme}
+\label{sec:unidirectional}
+
+\todo{Explain the purpose of the construction. Mention how many algorithms it has, etc.}
+
+\medskip \noindent
+${\sf Setup}(1^\lambda) \rightarrow PP$. On input $\lambda$, optionally generate CRS parameters for (1) a secure commitment scheme (see Section~\ref{sec:commit}), (2) a non-interactive zero knowledge proof system (see Section~\ref{sec:nizkp}). Output all of these as ${\sf PP}$.
+
+\medskip \noindent
+${\sf KeyGen}(PP) \rightarrow (pk, sk)$. 
+\begin{itemize}
+\item Compute $(pk, sk) \leftarrow \prod_{sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
+\end{itemize}
+
+\medskip \noindent
+${\sf Init_{C}}(PP, BC_{0}, BM_{0}, pk_c, sk_c) \rightarrow (T_c, csk_c)$. On input a keypair $(pk_c, sk_c)$, perform the following:
+
+\begin{itemize} 
+\item Uniformly sample two distinct PRF seeds $k_1, k_2$ and random coins $r$ for the commitment scheme. 
+\item Compute ${\sf wCom} = {\sf Commit}(sk_c, k_1, k_2, BC_{0}; r)$
+\item For $i = 1$ to $BC_0$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $ck$. 
+\item Output $T_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, k_1, k_2, r, BC_{0}, ck)$.
+\end{itemize}
+
+\medskip \noindent
+${\sf Init_{M}}(PP, BC_{0}, BM_{0}, pk_m, sk_m) \rightarrow T_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
+
+\begin{itemize} 
+\item Output $T_m = pk_m$ and $csk_m = (sk_m, BC_{0})$.
+\end{itemize}
+
+
+\subsection{Bidirectional Scheme}
+
+\todo{Add description and intro}
+
+\subsection{Pairing Library}
+\label{sec:pairings}
+
+\todo{Add description of BN curve and library being used}
+%% 1. Choice of asymmetric curves -- BN curves, BLS?
+%This module is built on top of the RELIC library~\cite{relic-toolkit} which supplies all of the bilinear operations (including the pairing operation $-$ see Section~\ref{sec:definitions}).  We instantiate the schemes using the state-of-the-art Barreto-Naehrig (BN) curves~\cite{bn2005} with the embedding degree $k = 12$ (or commonly referred to as {\sf BN-254}).\footnote{Note that we can also use {\sf BN-638} which provides a higher-security level (roughly equivalent to AES-256).} This particular asymmetric curve is known to yield a very efficient pairing implementation and a security level equivalent to AES-128. As a result, this boosts the overall performance of ABE scheme implementations over prior efforts. Other benefits of BN curves include the ability to compress the representation of group elements. This directly translates to making ABE ciphertexts more compact which considerably reduces transmission costs. One downside is that because BN curves are {\em Type-III} pairings, it only permits efficient hashing to the group $\G_1$.
+%
+%Alternatively, the pairing module could also be instantiated with similar asymmetric curves that yield less efficient pairing implementations but provide higher security levels. These include the Barreto-Lynn-Scott (BLS) curve~\cite{bls2003} with the embedding degree $k = 24$ and the Kachisa-Schaefer-Scott (KSS) curves~\cite{kss2008} with embedding degree $k = 18$. In general, the choice of pairing curve will depend on a variety of factors including the number of pairing computations required and non-pairing operations needed ({\em e.g.}, exponentiations, multiplication, hashing, etc). As new pairing-friendly curves are discovered, these curves can be integrated if they maximize efficiency while preserving security.
+
+\chapter{BOLT Usage}
+\label{ch:usage}
+
+\section{Overview}
+
+BOLT is a payment channel protocol. In order to use BOLT, a Customer and Merchant must establish and fund a payment channel on the network of a compatible cryptocurrency. Customer and Merchant represent defined roles in the BOLT system.
+
+\paragraph{Pairwise channels.} A standard pairwise BOLT interaction consists of five phases. At a high level they are as follows:
+
+\begin{enumerate}
+\item {\bf Channel negotiation.} To initiate an interaction, Customer and Merchant agree on the initial balances of the channel, which we denote by A (customer initial balance) and B (merchant initial balance) respectively. The Merchant provides a public key and signed channel opening transaction to Customer. 
+
+{\bf Note}: this may or may not be a formal BOLT protocol step, and can be done in various ways. One approach is to have both parties sign a transaction for the underlying currency network. The other is to have both parties do separate transactions on the currency network. We need to figure this out BUT it will be currency specific, so it?s the hardest part.
+
+\item {\bf Channel funding.} Customer transmits the channel opening transaction to the currency network, which causes the Customer and Merchant to fund the channel with (A, B) units of currency respectively. This funding is conducted on-chain, and should be conducted using a privacy-preserving currency so as to protect the customer?s identity.
+
+\item {\bf Channel activation.} Once the channel has been funded and the transaction confirmed on the network, the parties now interact directly to activate the channel and prepare it for online payments. 
+
+\item {\bf Payment.} This step may occur many times. To initiate a payment, the customer initiates an off-chain payment of D units of currency (of positive or negative value) to the merchant. This payment maintains the total channel balance, but updates the Customer and Merchant?s ownership of the balances. The merchant does not learn which Customer or Channel was involved in the payment. This produces updated state at each party.
+
+\item {\bf Channel closure.} At the conclusion of a channel interaction, the customer or merchant may initiate the closure of the channel. If the parties dispute the balance of the channel, each party transmits a ``closure token'' to the currency network. The payment network must include logic to evaluate the tokens to determine the correct balances {\bf (A,  B)} to pay out to the Customer and Merchant respectively. The parties may now withdraw their shares of the resulting channel.
+
+\end{enumerate}
+
+A key design consideration of BOLT is that no party should ever be at risk of losing their funds because the other party has become unresponsive or has submitted invalid information. At each of the above steps, either party may abort and close the channel using the most recent balance information. The cryptocurrency network must enforce a time-delay before releasing funds, in order to ensure that both parties have the opportunity to dispute closure. 
+
+We include a discussion of the precise requirements for the cryptocurrency network further below.
+
+\paragraph{Hub channels.} BOLT also supports a ``Hub'' mode in which a Customer and Merchant interact via a payment hub. The use of a payment hub significantly increases the flexibility of BOLT, by enabling a hub and spoke model without the need for direct payment channel relationships between each individual Customer and Merchant. More significantly, the Hub does not learn the identity of the Customer or Merchant, nor does it see the payment amount.
+
+The use of a Hub between a given Customer and Merchant requires the creation of two separate channels, one Customer <-> Hub (``CH'') channel, and one Hub<->Merchant (?HM?) channel. The steps in opening and closing each channel are similar to steps (1), (2), (3) and (5) in the description above. However, the payment step (4) differs as follows:
+
+\begin{itemize}
+\item {\bf (Hub-based) Payment.} The Customer initiates an off-chain payment of D units of currency (of positive or negative value) to the Merchant, via the Hub. This payment atomically updates the CH and HM channels such that the Hub?s balance on the CH channel is increased by D units, and the Merchant?s balance on the HM channel is increased by D units. If either channel update fails, the entire transaction fails and both channels fall back to the previous channel balances.
+\end{itemize}
+
+The Hub learns only that a transaction took place, but not the amount or the identities of the Customer or Merchant.
+
+% add bibliography
+\bibliographystyle{plain}
+{\normalsize
+\bibliography{bib}
+}
+\rhead{}
+
+\end{document}

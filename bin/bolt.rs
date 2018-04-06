@@ -315,18 +315,27 @@ fn main() {
 
     println!("******************************************");
 
-    let rng = &mut rand::thread_rng();
-    let G = G1::random(rng); // &dalek_constants::RISTRETTO_BASEPOINT_POINT;
-    let H = G1::random(rng); // RistrettoPoint::hash_from_bytes::<Sha256>(G.compress().as_bytes());
+//    let rng = &mut rand::thread_rng();
+//    let G = G1::random(rng); // &dalek_constants::RISTRETTO_BASEPOINT_POINT;
+//    let H = G1::random(rng); // RistrettoPoint::hash_from_bytes::<Sha256>(G.compress().as_bytes());
+//
+//    // simple ZKP
+//    generate_nipk!{dleq, (x), (A, G) : A = (G * x) }
+//
+//    let x = Fr::from_str("89327492234").unwrap();
+//    let A =  G * x;
+//    let B = H * x;
+//
+//    let publics = dleq::Publics{A: &A, G: G};
+//    let secrets = dleq::Secrets{x: &x};
 
-//    let state: &str = "reticulating splines";
-//    log!(state);
-    generate_nipk!{dleq, (x), (A, B, G, H) : A = (G * x), B = (H * x) }
 
-    let x = Fr::from_str("89327492234").unwrap();
-    let A =  G * x;
-    let B = H * x;
-
+//    generate_nipk!{dleq, (x), (A, B, G, H) : A = (G * x), B = (H * x) }
+//
+//    let x = Fr::from_str("89327492234").unwrap();
+//    let A =  G * x;
+//    let B = H * x;
+//
 //    let publics = dleq::Publics{A: &A, B: &B, G: G, H: &H};
 //    let secrets = dleq::Secrets{x: &x};
 //

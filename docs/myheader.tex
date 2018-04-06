@@ -1,0 +1,140 @@
+%% Common header
+\usepackage{amsmath,amsfonts,amssymb,url}
+\usepackage{mdwlist}
+\usepackage{graphicx,graphpap}
+\usepackage{soul}
+
+\usepackage{color}
+\newcommand{\todo}[1]{\color{red}{\bf To do: #1} \color{black}}
+\newcommand{\myul}[2][red]{\setulcolor{#1}\ul{#2}\setulcolor{red}}
+
+\newcommand{\squish}{
+      \setlength{\topsep}{0pt}
+      \setlength{\itemsep}{0ex}
+      \vspace{-1ex}
+      \setlength{\parskip}{0pt}}
+\newcommand{\squishend}{\vskip -1ex\relax}
+
+\newenvironment{gamequote}
+               {\list{}{\rightmargin0pt\relax}\item\relax}
+               {\endlist}
+               
+\newcommand{\Adv}{\mathcal{A}}
+\newcommand{\game}{\mathrm{Game~}}
+\newcommand{\negl}{\mathit{negl}}
+
+\newcommand{\hash}{\ensuremath{F}}
+\newcommand{\hashone}{\ensuremath{H_1}}
+\newcommand{\hashtwo}{\ensuremath{H_2}}
+
+\newcommand{\bigO}{\ensuremath{\mathcal{O}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\F}{\ensuremath{\mathbb{F}}}
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\C}{\ensuremath{\mathbb{C}}}
+\newcommand{\Q}{\ensuremath{\mathbb{Q}}}
+\newcommand{\G}{\ensuremath{\mathbb{G}}}
+\newcommand{\GT}{\ensuremath{\mathbb{G}_T}}
+\newcommand{\map}{e}
+\newcommand{\BMsetup}{\mathsf{BSetup}}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{cor}[theorem]{Corollary}
+\newtheorem{fact}[theorem]{Fact}
+%\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\newcommand{\bit}{\{0,1\}}
+\newcommand{\half}{{\frac{1}{2}}}
+\newcommand{\Zp}{\ensuremath{{\Z_p}}}
+\newcommand{\Zps}{\ensuremath{{\Z_p^*}}}
+\newcommand{\SSS}{\ensuremath{\Sigma}}
+\newcommand{\Attrmax}{\ensuremath{Attr_{\mathrm{max}}}}
+\newcommand{\lmax}{\ensuremath{\ell_{\mathrm{max}}}}
+\newcommand{\nmax}{\ensuremath{n_{\mathrm{max}}}}
+\newcommand{\kmax}{\ensuremath{k_{\mathrm{max}}}}
+\newcommand{\MM}{\ensuremath{\mathcal{M}}}
+\newcommand{\weil}{\ensuremath{\hat{e}}}
+\newcommand{\tuple}[1]{\langle #1 \rangle}
+\newcommand{\e}{\epsilon}
+%\newcommand{\st}{\;\;\mbox{s.t.}\;\;}
+\newcommand{\rgets}{\stackrel{\scriptscriptstyle{R}}{\leftarrow}}
+
+\newcommand{\Setup}{\mathsf{Setup}}
+\newcommand{\Encrypt}{\mathsf{Encrypt}}
+\newcommand{\Decrypt}{\mathsf{Decrypt}}
+\newcommand{\KeyGen}{\mathsf{KeyGen}}
+
+%\newcommand{\Pr}{\ensuremath{\mathrm{Pr}}}
+\newcommand{\CT}{\ensuremath{\mathrm{CT}}}
+\newcommand{\TK}{\ensuremath{\mathrm{TK}}}
+\newcommand{\SK}{\ensuremath{\mathrm{SK}}}
+\newcommand{\MK}{\ensuremath{\mathrm{MK}}}
+\newcommand{\PK}{\ensuremath{\mathrm{PK}}}
+\newcommand{\PP}{\ensuremath{\mathrm{PK}}}
+\newcommand{\MSK}{\ensuremath{\mathrm{MSK}}}
+\newcommand{\GP}{\ensuremath{\mathrm{GP}}}
+\newcommand{\ASK}{\ensuremath{\mathrm{ASK}}}
+\newcommand{\GID}{\ensuremath{\mathrm{GID}}}
+
+\newcommand{\Phve}{P^{\scriptscriptstyle{\mathrm{HVE}}}}
+\newcommand{\AlgA}{\ensuremath{{\cal A}}}
+\newcommand{\AlgB}{\ensuremath{{\cal B}}}
+\newcommand{\Pdist}[1]{{\cal P}_{#1}}
+\newcommand{\Rdist}[1]{{\cal R}_{#1}}
+\newcommand{\EXP}[1]{\mathsf{EXP}_{\scriptscriptstyle{\text{#1}}}}
+\newcommand{\deq}{\mathrel{:=}}
+\newcommand{\GG}{\ensuremath{\mathcal{G}}}
+\newcommand{\PhiHVE}{\ensuremath{\Phi_{\scriptscriptstyle \mathrm{HVE}}}}
+\newcommand{\PhiEq}{\ensuremath{\Phi_{\mathrm{eq}}}}
+\newcommand{\true}{\ensuremath{\textsf{true}}}
+
+\newcommand{\ID}{\ensuremath{\mathcal{I}}}
+\newcommand{\EE}{\ensuremath{\mathcal{E}}}
+\newcommand{\Etr}{\ensuremath{\mathcal{E}_{\scriptscriptstyle{\text{TR}}}}}
+
+\newcommand{\abort}{\ensuremath{\mathsf{abort}}}
+\newcommand{\valid}{\ensuremath{\mathsf{valid}}}
+\newcommand{\invalid}{\ensuremath{\mathsf{invalid}}}
+
+\newcommand{\eDBDH}{\ensuremath{\e_{\scriptscriptstyle{DBDH}}}}
+\newcommand{\eDTPDH}{\ensuremath{\e_{\scriptscriptstyle{D3DH}}}}
+\newcommand{\eSD}{\ensuremath{\e_{\scriptscriptstyle{SD}}}}
+\newcommand{\eBSD}{\ensuremath{\e_{\scriptscriptstyle{BSD}}}}
+\newcommand{\eDSTPDH}{\ensuremath{\e_{\scriptscriptstyle{DS3DH}}}}
+
+\newcommand{\inputenc}{I_{enc}}
+\newcommand{\inputkey}{I_{key}}
+
+\newtheorem{defn}{Definition}
+
+\def\x{{\vec{x}}}
+\def\y{{\vec{y}}}
+
+\newenvironment{tightenum}
+{\begin{enumerate}
+\setlength{\itemsep}{1pt}
+\setlength{\parskip}{0pt}
+\setlength{\parsep}{0pt}}
+{\end{enumerate}}
+
+\newcommand{\qed}{\hfill\Box}
+\newenvironment{proof}{
+\vspace*{-\parskip}\noindent\textit{Proof.}}{$\qed$
+
+\medskip
+}
+
+\newenvironment{proofsketch}{
+\vspace*{-\parskip}\noindent\textit{Proof sketch.}}{$\qed$
+
+\medskip
+}
+
+\newcommand{\ourparagraph}[1]{\smallskip\noindent {\bf #1}  }
+\newcommand{\betterparagraph}[1]{\smallskip\noindent {\em #1.}  }
+
+\newcommand{\etal}{{\em et al.}}
+\newcommand{\var}{\mathrm}

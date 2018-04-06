@@ -564,17 +564,19 @@ pub mod unidirectional {
     use std::fmt;
     use rand;
     use bn::{Group, Fr};
+    use sym;
     use commit_scheme;
     use clsigs;
     use Message;
 
     pub struct PublicParams {
         cm_mpk: commit_scheme::PublicKey,
-        cl_mpk: clsigs::PublicParams
+        cl_mpk: clsigs::PublicParams,
+        l_bits: i32
         // TODO: add NIZK proof system pub params
     }
 
-    pub struct CustTData {
+    pub struct ChannelToken {
         w_com: commit_scheme::Commitment,
         pk: clsigs::PublicKey
     }
@@ -585,7 +587,7 @@ pub mod unidirectional {
         k2: Fr, // seed 2 for PRF
         r: Fr, // random coins for commitment scheme
         balance: i32, // the balance for the user
-        ck_vec: Vec<u8>
+        ck_vec: Vec<sym::SymKey>
     }
 
     pub struct MerchSecretKey {
@@ -594,7 +596,7 @@ pub mod unidirectional {
     }
 
     pub struct InitCustomerData {
-        T: CustTData,
+        T: ChannelToken,
         csk: CustSecretKey
     }
 
@@ -607,8 +609,9 @@ pub mod unidirectional {
         // TODO: provide option for generating CRS parameters
         let cm_pk = commit_scheme::setup();
         let cl_mpk = clsigs::setup();
+        let l = 256;
         // let nizk = "nizk proof system";
-        let pp = PublicParams { cm_mpk: cm_pk, cl_mpk: cl_mpk };
+        let pp = PublicParams { cm_mpk: cm_pk, cl_mpk: cl_mpk, l_bits: l };
         return pp;
     }
 
@@ -621,16 +624,23 @@ pub mod unidirectional {
 
     pub fn init_customer(pp: &PublicParams, b0_customer: i32, keypair: &clsigs::KeyPair) -> InitCustomerData {
         println!("Run Init customer...");
+        sym::init();
         let rng = &mut rand::thread_rng();
         // pick two distinct seeds
+        let l = 256;
         let k1 = Fr::random(rng);
         let k2 = Fr::random(rng);
         let r = Fr::random(rng);
         let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
-        // TODO: for 1 to b0_customer, generate a key
-        let ck_vec: Vec<u8> = Vec::new();
+
+        let mut ck_vec: Vec<sym::SymKey> = Vec::new();
+        // generate the vector ck of sym keys
+        for i in 1 .. b0_customer {
+            let ck = sym::keygen(l);
+            ck_vec.push(ck);
+        }
         let w_com = commit_scheme::commit(&pp.cm_mpk, msg, Some(r));
-        let t_c = CustTData { w_com: w_com, pk: keypair.pk };
+        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
         let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
         return InitCustomerData { T: t_c, csk: csk_c };
     }
@@ -644,7 +654,8 @@ pub mod unidirectional {
     // TODO: requires NIZK proof system
     pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
         println ! ("Run establish_customer algorithm...");
-        // let sk_0 =
+        // set sk_0 to random bytes of length l
+        // let sk_0 = random_bytes(pp.l);
 
     }
 
