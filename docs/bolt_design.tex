@@ -1,4 +1,4 @@
-\documentclass[10pt]{report}
+\documentclass[11pt]{report}
 \usepackage{listings,cite,amsmath,amsfonts,amssymb,fullpage,url}
 \usepackage{underscore,dsfont,vhistory}
 \usepackage[bookmarks=true]{hyperref}
@@ -59,6 +59,9 @@
 \renewcommand{\headrulewidth}{0.3pt}
 \renewcommand{\footrulewidth}{0.4pt}
 \newcommand{\company}{YeleTech Security, Inc}
+\newcommand{\BC}{B^{\text{\sf cust}}_{\text{0}}}
+\newcommand{\BM}{B^{\text{\sf merch}}_{\text{0}}}
+
 \pagestyle{myfancypage}
 \setlength{\headsep}{0.2in}
 
@@ -76,10 +79,6 @@
 
 This document describes the design and implementation of the Blind Off-chain Lightweight Transactions (BOLT) library. The BOLT protocol comprises a number of techniques for enabling privacy-preserving unlinkable payment channels for decentralized crypto-currencies between pairs of individual parties. BOLTis designed to provide a ``Layer 2'' payment protocol for privacy-preserving crypto-currencies such as Zerocash (or Zcash)~\cite{TODO}, by allowing individuals to establish and use payment channels for rapid or instantaneous payments that do not require an on-chain transaction. This document describes the cryptographic instantiations of the BOLT protocol according to the published paper by Matthew Green and Ian Miers~\cite{TODO}.
 
-%In addition, any person obtaining a copy of this design document, associated software implementation, to deal in the software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-
-%The purpose of the document is two fold. First, the document introduces Attribute-Based Encryption (ABE), the problems ABE addresses, and places it in the context of prior encryption approaches.  Second, the document describes the Zeutro Functional Encryption Toolkit library (or the {\em Zeutro Toolkit} hereafter), which includes support for ABE and other cryptographic tools.
 The intended use of this document is for understanding BOLT and the associated software implementation in the Rust programming language.  
 This document is hereby released to the public domain free of charge.
 
@@ -167,6 +166,8 @@ This section describes the core cryptographic primitives required to implement t
 
 \end{itemize}
 
+%%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
+
 \subsection{Commitment Scheme}
 \label{sec:commit}
 
@@ -208,15 +209,24 @@ ${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. The verification algorithm ta
 
 % include blind signature algorithm here
 
+\subsection{Pseudo-random Functions (PRF)}
+\label{sec:prf}
+
+For the unidirectional construction, BOLT includes a pseudo-random function $F$ that supports efficient proofs of knowledge. $F$ is instantiated using the Dodis-Yampolskiy PRF~\cite{TODO}, the public parameters are a group $\G_1$ of prime order $q$ with generator $g$. The seed is a random value $s \in \Z_q$ and the function is computed as $F_{s}(x) = g^{1/(s+x)}$.
+ 
 \subsection{One-Time Encryption} 
 \label{sec:ote}
 
-\todo{Add description here.}
+For the bidirectional construction, BOLT includes a IND-CPA secure one-time encryption scheme with a keyspace that is also the range of the pseudo-random function (PRF) described in Section~\ref{sec:prf}. In addition, the message space is the domain of the public key for the CL signature scheme instantiated in Section~\ref{sec:signatures}.
 
-\subsection{Pseudo-random Function (PRF)}
-\label{sec:prf}
+\medskip \noindent
+${\sf OTKeyGen}(\tau) \rightarrow K$. On input parameters, the algorithm outputs a random key, $K \in \G_1$.
 
-\todo{Add description here.}
+\medskip \noindent
+${\sf OTEnc}(K, M) \rightarrow C$. The algorithm takes as input a one-time key $K$ and a message tuple $(M_1, M_2) \in \G_1$ and outputs a ciphertext $C$.
+ 
+ \medskip \noindent
+${\sf OTDec}(K, C) = M$ or $\bot$. The algorithm takes as input a key $K$ and the ciphertext $C$ and outputs the message tuple as $M$ or $\bot$.
 
 \subsection{Non-interactive Zero Knowledge Proofs}
 \label{sec:nizkp}
@@ -239,24 +249,24 @@ ${\sf Setup}(1^\lambda) \rightarrow PP$. On input $\lambda$, optionally generate
 \medskip \noindent
 ${\sf KeyGen}(PP) \rightarrow (pk, sk)$. 
 \begin{itemize}
-\item Compute $(pk, sk) \leftarrow \prod_{sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
+\item Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
 \end{itemize}
 
 \medskip \noindent
-${\sf Init_{C}}(PP, BC_{0}, BM_{0}, pk_c, sk_c) \rightarrow ({\sf T}_c, csk_c)$. On input a keypair $(pk_c, sk_c)$, perform the following:
+${\sf Init_{C}}(PP, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_c, csk_c)$. On input a keypair $(pk_c, sk_c)$, perform the following:
 
 \begin{itemize} 
 \item Uniformly sample two distinct PRF seeds $k_1, k_2$ and random coins $r$ for the commitment scheme. 
-\item Compute ${\sf wCom} = {\sf Commit}(sk_c, k_1, k_2, BC_{0}; r)$
-\item For $i = 1$ to $BC_0$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
-\item Output ${\sf T}_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, k_1, k_2, r, BC_{0}, \vec{ck})$.
+\item Compute ${\sf wCom} = {\sf Commit}(sk_c, k_1, k_2, \BC; r)$
+\item For $i = 1$ to $\BC$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
+\item Output ${\sf T}_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, k_1, k_2, r, \BC, \vec{ck})$.
 \end{itemize}
 
 \medskip \noindent
-${\sf Init_{M}}(PP, BC_{0}, BM_{0}, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
+${\sf Init_{M}}(PP, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
 
 \begin{itemize} 
-\item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, BC_{0})$.
+\item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, \BM)$.
 \end{itemize}
 
 
