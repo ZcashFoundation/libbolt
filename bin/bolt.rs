@@ -6,11 +6,14 @@ extern crate bincode;
 extern crate serde_derive;
 extern crate serde;
 
+use std::fmt;
 use bn::{Group, Fr, G1, G2, pairing};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 
+use libbolt::prf;
 use libbolt::sym;
+use libbolt::ote;
 use libbolt::clsigs;
 use libbolt::commit_scheme;
 
@@ -314,6 +317,14 @@ fn main() {
 
 
     println!("******************************************");
+
+    let s = Fr::random(rng);
+    let key = prf::initPRF(s, None);
+
+    let x = Fr::random(rng);
+    let y = prf::compute(&key, x);
+
+    println!("Compute y = 0x{}", libbolt::print(&y));
 
 //    let rng = &mut rand::thread_rng();
 //    let G = G1::random(rng); // &dalek_constants::RISTRETTO_BASEPOINT_POINT;

@@ -85,7 +85,7 @@ pub fn commit(pk: &PublicKey, m: Fr, R: Option<Fr>) -> Commitment {
     //let m = msg.hash();
     let p = "commit -> m";
     debug_elem_in_hex(p, &m);
-
+    // c = g^m * h^r
     let c = (pk.g * m) + (pk.h * r);
     // return (c, r) <- d=r
     let commitment = Commitment { c: c, d: r };

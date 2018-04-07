@@ -11,7 +11,9 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 use sodiumoxide::crypto::hash::sha512;
 
+pub mod prf;
 pub mod sym;
+pub mod ote;
 pub mod clsigs;
 pub mod commit_scheme;
 
@@ -84,6 +86,16 @@ pub fn misc_tests() {
     }
     print!("\n");
 
+}
+
+pub fn print(g: &G1) -> String {
+    let c_vec: Vec<u8> = encode(g, Infinite).unwrap();
+    let mut c_s = String::new();
+    for x in c_vec.iter() {
+        c_s = format!("{}{:x}", c_s, x);
+    }
+
+    return c_s;
 }
 
 ////////////////////////////////// ZK proof compiler ///////////////////////////////////
@@ -428,44 +440,6 @@ pub fn misc_tests() {
 //}
 
 ////////////////////////////////// SymKeyEnc ///////////////////////////////////
-
-////////////////////////////////// OTEnc ///////////////////////////////////////
-
-// TODO: implement this next
-pub mod ot {
-    use std::fmt;
-    use rand;
-    use bn::{Group, Fr, G1, G2};
-
-    pub fn keygen() {
-
-    }
-
-    // encryption scheme can be implemented by encoding the plaintext as an element in a cyclic group G
-    // and multiplying by a random group element.
-
-    // Our schemes additionally require a one-time encryption algorithm OTEnc where the keyspace
-    // of the algorithm is also the range of the pseudorandom function F.
-//    pub fn encrypt(pk: G1, plaintext: String) {
-//        let rng = &mut rand::thread_rng();
-//        r = G1::random(rng);
-//        // TODO: encode plaintext as a group element
-//
-//    }
-
-    pub fn decrypt() {
-
-    }
-}
-
-////////////////////////////////// OTEnc ///////////////////////////////////////
-
-pub mod prf {
-    use std::fmt;
-    use bn::{Group, Fr, G1, G2};
-
-
-}
 
 ////////////////////////////////// CL Sigs /////////////////////////////////////
 

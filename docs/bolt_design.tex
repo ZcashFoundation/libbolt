@@ -243,20 +243,20 @@ ${\sf KeyGen}(PP) \rightarrow (pk, sk)$.
 \end{itemize}
 
 \medskip \noindent
-${\sf Init_{C}}(PP, BC_{0}, BM_{0}, pk_c, sk_c) \rightarrow (T_c, csk_c)$. On input a keypair $(pk_c, sk_c)$, perform the following:
+${\sf Init_{C}}(PP, BC_{0}, BM_{0}, pk_c, sk_c) \rightarrow ({\sf T}_c, csk_c)$. On input a keypair $(pk_c, sk_c)$, perform the following:
 
 \begin{itemize} 
 \item Uniformly sample two distinct PRF seeds $k_1, k_2$ and random coins $r$ for the commitment scheme. 
 \item Compute ${\sf wCom} = {\sf Commit}(sk_c, k_1, k_2, BC_{0}; r)$
-\item For $i = 1$ to $BC_0$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $ck$. 
-\item Output $T_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, k_1, k_2, r, BC_{0}, ck)$.
+\item For $i = 1$ to $BC_0$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
+\item Output ${\sf T}_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, k_1, k_2, r, BC_{0}, \vec{ck})$.
 \end{itemize}
 
 \medskip \noindent
-${\sf Init_{M}}(PP, BC_{0}, BM_{0}, pk_m, sk_m) \rightarrow T_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
+${\sf Init_{M}}(PP, BC_{0}, BM_{0}, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
 
 \begin{itemize} 
-\item Output $T_m = pk_m$ and $csk_m = (sk_m, BC_{0})$.
+\item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, BC_{0})$.
 \end{itemize}
 
 

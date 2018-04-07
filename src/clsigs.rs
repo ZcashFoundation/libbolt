@@ -111,7 +111,7 @@ pub fn keygen(mpk : &PublicParams) -> KeyPair {
 pub fn sign(sk: &SecretKey, m: Fr) -> Signature {
     let rng = &mut rand::thread_rng();
     let a = G2::random(rng);
-    //let m = msg.hash();
+
     let b = a * sk.y;
     let c = a * (sk.x + (m * sk.x * sk.y));
     let sig = Signature { a: a, b: b, c: c };
@@ -119,7 +119,6 @@ pub fn sign(sk: &SecretKey, m: Fr) -> Signature {
 }
 
 pub fn verify(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> bool {
-    //let m = msg.hash();
     let lhs1 = pairing(pk.Y, sig.a);
     let rhs1 = pairing(mpk.g, sig.b);
     let lhs2 = pairing(pk.X, sig.a) * (pairing(pk.X, sig.b).pow(m));
