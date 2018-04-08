@@ -9,6 +9,7 @@ use std::default;
 use bn::{Group, Fr, G1, G2, pairing};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
+use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 
 pub mod prf;
@@ -542,6 +543,7 @@ pub mod unidirectional {
     use commit_scheme;
     use clsigs;
     use Message;
+    use sodiumoxide::randombytes;
 
     pub struct PublicParams {
         cm_mpk: commit_scheme::PublicKey,
@@ -626,10 +628,16 @@ pub mod unidirectional {
     }
 
     // TODO: requires NIZK proof system
-    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
+    pub fn establish_customer_send(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
         println ! ("Run establish_customer algorithm...");
         // set sk_0 to random bytes of length l
         // let sk_0 = random_bytes(pp.l);
+        let buf_len: usize = pp.l_bits as usize;
+        let mut sk0 = vec![0; buf_len];
+        randombytes::randombytes_into(&mut sk0);
+    }
+
+    pub fn estalibsh_mercahnt_send() {
 
     }
 

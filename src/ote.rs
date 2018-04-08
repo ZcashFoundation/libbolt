@@ -7,8 +7,8 @@ use bn::{Group, Fr, G1};
 use rand;
 
 pub struct OTMessage {
-    m1: G1,
-    m2: G1
+    pub m1: G1,
+    pub m2: G1
 }
 
 pub struct OTCiphertext {

@@ -269,6 +269,40 @@ ${\sf Init_{M}}(PP, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On inpu
 \item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, \BM)$.
 \end{itemize}
 
+\medskip \noindent
+${\sf Establish}( C\{PP, {\sf T}_m, csk_c)\}, \{M(PP, {\sf T}_c, csk_{m})\}$. On input public parameters and each of the initialchannel tokens, the {\sf Establish} protocol activates a channel between customer and merchant who have previouslyescrowed funds. If the interaction succeeds, the merchant receives {\sf established} message and the customerreceives a wallet $w$. Either party may receive an error denoted by $\bot$.
+
+\medskip \noindent
+The customer executes the following algorithm:
+\begin{itemize}
+\item Parse $csk_c$ as $(pk_c, sk_c, k_1, k_2, r, \BC)$.
+\item Sample $sk_0 \in \{0,1\}^\ell$.
+\item Generate $\pi_1 = PK\{ (sk_c, k_1, k_2, r) : {\sf wCom} = {\sf Commit}(sk_c, k_1, k_2; r) \wedge (pk_c, sk_c) \in {\sf KeyGen}(1^\lambda)\}$
+% breakdown Proof of knowledge statement
+\begin{itemize}
+\item Proof of statement: ${\sf wCom} = g^m \cdot h^r \wedge X = g^x \wedge Y = g^y$ where $m = H(sk_c, k_1, k_2)$
+\end{itemize}
+\item For $j  = 1$ to $B$:
+\begin{enumerate}
+\item Compute $s_j  \leftarrow F_{k_1}(j), u_j \leftarrow F_{k_2}(j)$.
+\item $\pi_{j}^r = PK\{ (sk_c, k_1, k_2, r) : s_j  \leftarrow F_{k_1}(j) \wedge u_j \leftarrow F_{k_2}(j) \\ \wedge {\sf wCom} = {\sf Commit}(sk_c, k_1, k_2; r)  \\ \wedge (pk_c, sk_c) \in {\sf KeyGen}(1^\lambda)\}$
+\item Compute internal signature $\sigma_j = {\sf Sign}(sk_c, {\sf spend}||j||s_j||u_j||\pi_{j}^r||ck_{j+1})$.
+\item Compute $C_j = {\sf SymEnc}(ck_j, j||s_j||u_j||\pi_{j}^r||\sigma_j||ck_{j+1})$
+\item Compute external signature $\sigma_j = {\sf Sign}(sk_c, {\sf coin}||j||C_j)$.
+\end{enumerate}
+\item Customer sends ${\sf wCom}, \pi, (C_1, \sigma_1,\dots,C_B,\sigma_B)$ to the merchant.
+\end{itemize}
+
+\noindent
+The merchant executes the following algorithm in response:
+\begin{itemize}
+\item Verify the signature on ${\sf T}_c$.
+\item Check that $\BC = B$.
+\item Verify $\pi_1$.
+\item For $i = 1$ to $B$, verify the signature $\sigma_j$ on $C_j$.
+\item If any of the above conditions do not hold, abort and output $\bot$.
+\item Return a blind signature $\sigma_w$ on the contents of {\sf wCom}.
+\end{itemize}
 
 \subsection{Bidirectional Scheme}
 
