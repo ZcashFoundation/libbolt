@@ -207,7 +207,8 @@ ${\sf Sign}(\SK, M) \rightarrow \sigma$. The signing algorithm takes as input a 
 \medskip \noindent
 ${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. The verification algorithm takes as input a public key $\PK$, the message $M$ and the signature $\sigma$. The algorithm outputs $true$ if the signatures is valid with respect to $M$ and $\PK$. Otherwise, it outputs $false$.
 
-% include blind signature algorithm here
+% include protocol for obtaining a blind signature -- on the values in a commitment
+% include protocol for proving knowledge of a valid signature
 
 \subsection{Pseudo-random Functions (PRF)}
 \label{sec:prf}
@@ -243,17 +244,19 @@ ${\sf OTDec}(K, C) = M$ or $\bot$. The algorithm takes as input a key $K$ and th
 
 \todo{Explain the purpose of the construction. Mention how many algorithms it has, etc.}
 
-\medskip \noindent
-${\sf Setup}(1^\lambda) \rightarrow PP$. On input $\lambda$, optionally generate CRS parameters for (1) a secure commitment scheme (see Section~\ref{sec:commit}), (2) a non-interactive zero knowledge proof system (see Section~\ref{sec:nizkp}). Output all of these as ${\sf PP}$.
+\begin{enumerate}
 
-\medskip \noindent
-${\sf KeyGen}(PP) \rightarrow (pk, sk)$. 
+% Setup description
+\item ${\sf Setup}(1^\lambda) \rightarrow {\sf PP}$. On input $\lambda$, optionally generate CRS parameters for (1) a secure commitment scheme (see Section~\ref{sec:commit}), (2) a non-interactive zero knowledge proof system (see Section~\ref{sec:nizkp}). Output all of these as ${\sf PP}$.
+
+% Key generation description
+${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$. 
 \begin{itemize}
 \item Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
 \end{itemize}
 
 \medskip \noindent
-${\sf Init_{C}}(PP, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_c, csk_c)$. On input a keypair $(pk_c, sk_c)$, perform the following:
+\item ${\sf Init_{C}}({\sf PP}, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_c, csk_c)$. On input a keypair $(pk_c, sk_c)$, perform the following:
 
 \begin{itemize} 
 \item Uniformly sample two distinct PRF seeds $k_1, k_2$ and random coins $r$ for the commitment scheme. 
@@ -262,15 +265,18 @@ ${\sf Init_{C}}(PP, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_c, csk_c)$. On in
 \item Output ${\sf T}_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, k_1, k_2, r, \BC, \vec{ck})$.
 \end{itemize}
 
-\medskip \noindent
-${\sf Init_{M}}(PP, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
+% Init algorithm description
+${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
 
 \begin{itemize} 
 \item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, \BM)$.
 \end{itemize}
 
-\medskip \noindent
-${\sf Establish}( C\{PP, {\sf T}_m, csk_c)\}, \{M(PP, {\sf T}_c, csk_{m})\}$. On input public parameters and each of the initialchannel tokens, the {\sf Establish} protocol activates a channel between customer and merchant who have previouslyescrowed funds. If the interaction succeeds, the merchant receives {\sf established} message and the customerreceives a wallet $w$. Either party may receive an error denoted by $\bot$.
+% Establish protocol description
+\item ${\sf Establish}( C\{{\sf PP}, {\sf T}_m, csk_c)\}, \{M({\sf PP}, {\sf T}_c, csk_{m})\})$. On input public parameters and each of the initial
+channel tokens, the {\sf Establish} protocol activates a channel between customer and merchant who have previously
+escrowed funds. If the interaction succeeds, the merchant receives {\sf established} message and the customer
+receives a wallet $w$. Either party may receive an error denoted by $\bot$.
 
 \medskip \noindent
 The customer executes the following algorithm:
@@ -280,14 +286,14 @@ The customer executes the following algorithm:
 \item Generate $\pi_1 = PK\{ (sk_c, k_1, k_2, r) : {\sf wCom} = {\sf Commit}(sk_c, k_1, k_2; r) \wedge (pk_c, sk_c) \in {\sf KeyGen}(1^\lambda)\}$
 % breakdown Proof of knowledge statement
 \begin{itemize}
-\item Proof of statement: ${\sf wCom} = g^m \cdot h^r \wedge X = g^x \wedge Y = g^y$ where $m = H(sk_c, k_1, k_2)$
+\item {\sf NIZK} statement: ${\sf wCom} = {g_1}^{x_c} \cdot {g_2}^{y_c} \cdot {g_3}^{k_1} \cdot {g_4}^{k_2} \cdot h^r \wedge X_c = {g_1}^{x_c} \wedge Y_c = {g_2}^{y_c}$  where $sk_c = (x_c, y_c)$.
 \end{itemize}
 \item For $j  = 1$ to $B$:
 \begin{enumerate}
 \item Compute $s_j  \leftarrow F_{k_1}(j), u_j \leftarrow F_{k_2}(j)$.
 \item $\pi_{j}^r = PK\{ (sk_c, k_1, k_2, r) : s_j  \leftarrow F_{k_1}(j) \wedge u_j \leftarrow F_{k_2}(j) \\ \wedge {\sf wCom} = {\sf Commit}(sk_c, k_1, k_2; r)  \\ \wedge (pk_c, sk_c) \in {\sf KeyGen}(1^\lambda)\}$
-\item Compute internal signature $\sigma_j = {\sf Sign}(sk_c, {\sf spend}||j||s_j||u_j||\pi_{j}^r||ck_{j+1})$.
-\item Compute $C_j = {\sf SymEnc}(ck_j, j||s_j||u_j||\pi_{j}^r||\sigma_j||ck_{j+1})$
+\item Compute internal signature $\hat{\sigma_j} = {\sf Sign}(sk_c, {\sf spend}||j||s_j||u_j||\pi_{j}^r||ck_{j+1})$.
+\item Compute $C_j = {\sf SymEnc}(ck_j, j||s_j||u_j||\pi_{j}^r||\hat{\sigma_j}||ck_{j+1})$
 \item Compute external signature $\sigma_j = {\sf Sign}(sk_c, {\sf coin}||j||C_j)$.
 \end{enumerate}
 \item Customer sends ${\sf wCom}, \pi, (C_1, \sigma_1,\dots,C_B,\sigma_B)$ to the merchant.
@@ -295,14 +301,69 @@ The customer executes the following algorithm:
 
 \noindent
 The merchant executes the following algorithm in response:
+\begin{enumerate}
+\item Verify the signature on ${\sf T}_c$
+\item Check that $\BC = B$
+\item Verify $\pi_1$
+\item For $j = 1$ to $B$, verify the signature $\sigma_j$ on $C_j$
+\item If any of the above conditions (1-4) do not hold, abort and output $\bot$
+\item Return a blind signature $\sigma_w$ on the contents of {\sf wCom}
+\end{enumerate}
+
+\noindent
+The merchant sets state to {\sf established} and the customer obtains $w = (sk_0, sk_c, k_1, k_2, r, B, \sigma_w, 1)$.
+
+% Pay protocol description
+\item ${\sf Pay}( C\{{\sf PP}, \epsilon, w_{\sf old})\}, \{M({\sf PP}, \epsilon, {\bf S}_{\sf old})\})$. On input parameters, a payment amount $\epsilon$, and a wallet $w_{\sf old}$ from a customer, and the merchant's current state ${\bf S}_{\sf old}$ (initially set to $0$) from the merchant: the customer receives a payment success bit $R_{\sf C}$ and the new wallet $w_{\sf new}$ on success. The merchant receives a payment success bit $R_{\sf M}$ and an updated ${\bf S}_{\sf new}$ on success.
+
+\medskip \noindent
+The customer executes the following algorithm:
 \begin{itemize}
-\item Verify the signature on ${\sf T}_c$.
-\item Check that $\BC = B$.
-\item Verify $\pi_1$.
-\item For $i = 1$ to $B$, verify the signature $\sigma_j$ on $C_j$.
-\item If any of the above conditions do not hold, abort and output $\bot$.
-\item Return a blind signature $\sigma_w$ on the contents of {\sf wCom}.
+\item Parse $w_{\sf old}$ as $(sk_0, sk_c, k_1, k_2, r, B, \sigma_w, i)$. Return $\bot$ if $i \geq B$.
+\item Compute $s \leftarrow F_{k_1}(i)$
+\item Compute $t \rightarrow {\sf OTEnc}(F_{k_2}(i), pk_c)$
+\item Compute $\pi = PK\{ (pk_c, sk_c, k_1, k_2, r, i, \sigma_w): s = F_{k_1}(i) \wedge 0 < i \leq B\\  \wedge t = {\sf OTEnc}(F_{k_2}(i), pk_c) \\ \wedge {\sf Verify}(pk_m, (k_1, k_2, sk_c), \sigma_w) \\ \wedge (pk_c, sk_c) \in {\sf KeyGen}(1^\lambda) \}$
+\begin{enumerate}
+\item Compute $C_1 = g^B \cdot h^{r_1}$
+\item Compute $C_2 = C_1 / g^\epsilon$
+\item Compute $C_3 = g_1^{x_1} \cdot g_2^{x_2} \cdot h^{r_3}$
+\item Compute ${\sf wCom'} = C_2 \cdot C_3$. Keep ${\sf wCom'}$ private.
+\item Prove commitment ${\sf wCom'}$ in zero knowledge (via {\sf NIZK}).
+\item Prove knowledge of valid signature $\sigma_w$ on $(x_1, x_2, B)$ in $C_1 \cdot C_3$.
+\item Prove that $i$ is in the range $0 < i \leq B$.
+\end{enumerate}
+\item Return $(s, t, \pi)$
 \end{itemize}
+
+\medskip \noindent
+The merchant executes the following:
+\begin{itemize}
+\item Verify $\pi$ and $(s,\cdot, \cdot) \notin {\bf S}$.
+\item If this holds, then set ${\bf S} \leftarrow {\bf S}  \cup (s, t, \pi)$ and $R_{M} \leftarrow 1$.
+\item Otherwise, set $R_{M} \leftarrow \bot$.
+\end{itemize}
+
+\medskip \noindent
+The customer obtains a new wallet $w_{new} := (sk_0, sk_c, k_1, k_2, r, B, \sigma_w, i+1)$.
+
+% Refund algorithm description
+\item ${\sf Refund}({\sf PP}, {\sf T}_{M} csk_c, \sigma)$. On input wallet $w$, output a customer channel closure message $rc_c$. This algorithm is executed by the customer.
+\begin{itemize}
+\item Parse $w$ to obtain $\vec{ck}$ and the current coin index $i$.
+\item Compute $\sigma \leftarrow {\sf Sign}(sk_c, {\sf refund}||{\sf cID}||i||ck_i)$
+\\	NOTE: {\sf cID} uniquely identifies the channel being closed
+\item Output ${\sf rc}_{C} := ({\sf cID}, i, ck_i, \sigma)$
+\end{itemize}
+
+% Refute algorithm description
+\item ${\sf Refute}({\sf PP}, {\sf T}_{C}, {\sf rc}_{C})$. On input the merchant's current state ${\bf S}_{\sf old}$ and a customer channel closure message, output a merchant channel closure message ${\sf rc}_{M}$ and an updated merchant state ${\bf S}_{new}$. This algorithm is executed by the merchant.
+
+% this is next
+
+% Resolve algorithm description
+\item ${\sf Resolve}({\sf PP}, {\sf T}_{C}, {\sf T}_{M}, {\sf rc}_{C}, {\sf rc}_{M})$. On input the customer and merchant channel tokens ${\sf T}_{C}$ and ${\sf T}_{M}$, along with closure messages ${\sf rc}_{C}, {\sf rc}_{M}$ (where either message may be {\sf null}), this algorithm outputs the final channel balance ${B_{\sf final}^{\sf merch}}$, ${B_{\sf final}^{\sf cust}}$.
+
+\end{enumerate}
 
 \subsection{Bidirectional Scheme}
 
