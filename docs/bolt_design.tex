@@ -52,7 +52,7 @@
 %\lhead{\large{\textbf{\textit{xxx}}}}
 %\chead{\vpsace{1in}}
 %\rhead{\large\textbf{\textit{xxx}}}
-\lfoot{\small{YeleTech Security, Inc}}
+%\lfoot{\small{YeleTech Security, Inc}}
 %\cfoot{\small\textit{xxx}}
 \rfoot{\small{ \thepage{}  }} 
 }
@@ -242,7 +242,7 @@ ${\sf OTDec}(K, C) = M$ or $\bot$. The algorithm takes as input a key $K$ and th
 \subsection{Unidirectional Scheme}
 \label{sec:unidirectional}
 
-\todo{Explain the purpose of the construction. Mention how many algorithms it has, etc.}
+The unidirectional payment construction only supports payments from a customer to a merchant and only supports transfer of fixed-value coins. 
 
 \begin{enumerate}
 
@@ -350,29 +350,121 @@ The customer obtains a new wallet $w_{new} := (sk_0, sk_c, k_1, k_2, r, B, \sigm
 \item ${\sf Refund}({\sf PP}, {\sf T}_{M} csk_c, \sigma)$. On input wallet $w$, output a customer channel closure message $rc_c$. This algorithm is executed by the customer.
 \begin{itemize}
 \item Parse $w$ to obtain $\vec{ck}$ and the current coin index $i$.
-\item Compute $\sigma \leftarrow {\sf Sign}(sk_c, {\sf refund}||{\sf cID}||i||ck_i)$
+\item Compute $\sigma \leftarrow {\sf Sign}(sk_c, {\sf refund}||{\sf cID}||i||ck_i)$.
 \\	NOTE: {\sf cID} uniquely identifies the channel being closed
-\item Output ${\sf rc}_{C} := ({\sf cID}, i, ck_i, \sigma)$
+\item Output ${\sf rc}_{C} := ({\sf cID}, i, ck_i, \sigma)$.
 \end{itemize}
 
 % Refute algorithm description
-\item ${\sf Refute}({\sf PP}, {\sf T}_{C}, {\sf rc}_{C})$. On input the merchant's current state ${\bf S}_{\sf old}$ and a customer channel closure message, output a merchant channel closure message ${\sf rc}_{M}$ and an updated merchant state ${\bf S}_{new}$. This algorithm is executed by the merchant.
+\item ${\sf Refute}({\sf PP}, {\sf T}_{C}, {\bf S}, {\sf rc}_{C})$. On input the merchant's current state ${\bf S}_{\sf old}$ and a customer channel closure message, output a merchant channel closure message ${\sf rc}_{M}$ and an updated merchant state ${\bf S}_{new}$. This algorithm is executed by the merchant.
 
-% this is next
+\begin{enumerate}
+\item Parse the customer's channel closure message ${\sf rc}_{C}$ as $({\sf cID}, i, ck_i, \sigma)$.
+\item Verify ${\sf cID}$ and the signature $\sigma$.
+\item If signature is valid, obtain the ciphertexts $C_i, \dots, C_{B}$ (from the {\sf Establish} protocol)
+\item For $j = i$ to $B$, compute $(j||s_j||u_j || \pi_{j}^r || ck_j || \hat{\sigma_j}) \leftarrow {\sf SymDec}(ck_j, C_j)$ and verify the signature $\hat{\sigma_j}$ and proof ${\pi_j^r}$.
+\item Failure conditions: (1) fail to verify $\hat{\sigma_j}$ and proof ${\pi_j^r}$, or (2) decryption of any ciphertext $C_j$ results in $\bot$, or (3) decrypted values $(s_j, u_j) \in {\bf S}$ where ${\sf OTDec}(u_j, t_j) = pk_c$.
+\item If failure, then record invalid result ${\sf rc}_{M} = ({\sf fail}, {\sf cID})$
+\item If success, then record valid result ${\sf rc}_{M} = ({\sf accept})$ 
+\item Sign result using $sk_m$ (verified by payment network)
+\item For each valid $C_j$, set ${\bf S} \leftarrow {\bf S} \cup (s_j, t_b, \pi)$ 
+\item Output {\bf S} as new merchant state
+\end{enumerate}
 
 % Resolve algorithm description
 \item ${\sf Resolve}({\sf PP}, {\sf T}_{C}, {\sf T}_{M}, {\sf rc}_{C}, {\sf rc}_{M})$. On input the customer and merchant channel tokens ${\sf T}_{C}$ and ${\sf T}_{M}$, along with closure messages ${\sf rc}_{C}, {\sf rc}_{M}$ (where either message may be {\sf null}), this algorithm outputs the final channel balance ${B_{\sf final}^{\sf merch}}$, ${B_{\sf final}^{\sf cust}}$.
+\begin{enumerate}
+\item Parse the customer and merchant closure messages and verify all signatures
+\item If there are any invalid signatures, grant the balance of the channel to the opposing party.
+\item If ${\sf rc}_{C} = (N, sk_{N}, \sigma)$ and ${\sf rc}_{M} = {\sf accept}$, then set ${B_{\sf final}^{\sf cust}} = ({B_{0}^{\sf cust}} - N) + 1$.
+\item Evaluate the merchant closure message to determine whether the customer misbehaved. \todo{how do we evaluate this exactly?}
+\item If so, assign the merchant the full balance of the channel.
+\end{enumerate}
 
 \end{enumerate}
 
 \subsection{Bidirectional Scheme}
 
-\todo{Add description and intro}
+The bidirectional payment construction enables compact closure and compact wallets in addition to a single run of the {\sf Pay} protocol to transfer arbitrary values (constrained by a maximum payment amount).
 
-\subsection{Pairing Library}
-\label{sec:pairings}
+\begin{enumerate}
 
-\todo{Add description of BN curve and library being used}
+% Setup description
+\item ${\sf Setup}(1^\lambda) \rightarrow {\sf PP}$. On input $\lambda$, optionally generate CRS parameters for (1) a secure commitment scheme (see Section~\ref{sec:commit}), (2) a non-interactive zero knowledge proof system (see Section~\ref{sec:nizkp}). Output all of these as ${\sf PP}$.
+
+% Key generation description
+${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$. 
+\begin{itemize}
+\item Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
+\end{itemize}
+
+\medskip \noindent
+\item ${\sf Init_{C}}({\sf PP}, {\sf cID}, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_{C}, csk_{C})$. On input a keypair $(pk_c, sk_c)$, perform the following:
+
+\begin{itemize} 
+\item Customer generates wallet commitment by sampling random coins $r$
+\item Compute ephemeral keypair $(wpk, wsk) \leftarrow {\sf KeyGen}({\sf PP})$
+\item Compute ${\sf wCom} = {\sf Commit}(sk_c, wpk, \BC; r)$
+\item For $i = 1$ to $\BC$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
+\item Output ${\sf T}_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, {\sf cID}, wpk, wsk, r, \BC)$.
+\end{itemize}
+
+% Init algorithm description
+${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
+
+\begin{itemize} 
+\item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, \BM)$.
+\end{itemize}
+
+% Establish protocol description
+\item ${\sf Establish}( C\{{\sf PP}, {\sf T}_m, csk_c)\}, \{M({\sf PP}, {\sf T}_c, csk_{m})\})$. On input public parameters and each of the initial
+channel tokens, the {\sf Establish} protocol activates a channel between the two parties who have previously
+escrowed funds. If the interaction succeeds, the merchant receives {\sf established} message and the customer
+receives a wallet $w$. Either party may receive an error denoted by $\bot$.
+
+\todo{finish phases}
+
+% Pay protocol description
+\item ${\sf Pay}( C\{{\sf PP}, \epsilon, w_{\sf old})\}, \{M({\sf PP}, \epsilon, {\bf S}_{\sf old})\})$. On input parameters, a payment amount $\epsilon$, and a wallet $w_{\sf old}$ from a customer, and the merchant's current state ${\bf S}_{\sf old}$ (initially set to $0$) from the merchant: the customer receives a payment success bit $R_{\sf C}$ and the new wallet $w_{\sf new}$ on success. The merchant receives a payment success bit $R_{\sf M}$ and an updated ${\bf S}_{\sf new}$ on success.
+
+\todo{finish phases}
+
+% Refund algorithm description
+\item ${\sf Refund}({\sf PP}, {\sf T}_{M} csk_{C}, w) \rightarrow (m, \sigma)$. 
+\begin{enumerate}
+\item If the customer has not invoked {\sf Pay} protocol, then $m := ({\sf refundUnsigned}, ({\sf cID}, wpk, B), r)$.
+\item Otherwise, set $m := ({\sf refundToken}, ({\sf cID}, wpk, B), rt_w)$.
+\item Compute $\sigma = {\sf Sign}(sk_c, m)$.
+\item Output ${\sf rc}_{C} = (m, \sigma)$.
+\end{enumerate}
+
+% Refute algorithm description
+\item ${\sf Refute}({\sf PP}, {\sf T}_{C}, {\bf S}, {\sf rc}_{C})$.
+\begin{enumerate}
+\item If a merchant sees a channel closure message, it first parses ${\sf T}_{C}$ to obtain $pk_c$.
+\item Parse tuple $(m, \sigma) \leftarrow {\sf rc}_{C}$ 
+\item ${\sf Verify}(pk_c, \sigma) = 1$ or $\bot$ 
+\item If signature $\sigma$ verifies, then parse tuple $({\sf cID}, wpk, B) \leftarrow m$.
+\item Verify that {\sf cID} matches the channel.
+\item If previous record of $(wpk, \sigma_{rev}) \in {\bf S}$, then output ${\sf rc}_{M} = (({\sf revoked}, \sigma_{rev}), \sigma)$.
+\\ NOTE: $\sigma$ is a valid signature over $({\sf revoked}, \sigma_{rev})$
+\item Otherwise, add new key ${\bf S} = {\bf S} \cup wpk$.
+\end{enumerate}
+
+% Resolve algorithm description
+\item ${\sf Resolve}({\sf PP}, {\sf T}_{C}, {\sf T}_{M}, {\sf rc}_{C}, {\sf rc}_{M})$
+\begin{enumerate}
+\item Parse $(pk_c, {\sf wCom}) \leftarrow {\sf T}_{C}$.
+\item Parse $({\sf type}, ({\sf cID}, wpk, B), {\sf Token}) \leftarrow m$
+\item \todo{finish me}
+\end{enumerate}
+
+\end{enumerate}
+
+%\subsection{Pairing Library}
+%\label{sec:pairings}
+%
+%\todo{Add description of BN curve and library being used}
 %% 1. Choice of asymmetric curves -- BN curves, BLS?
 %This module is built on top of the RELIC library~\cite{relic-toolkit} which supplies all of the bilinear operations (including the pairing operation $-$ see Section~\ref{sec:definitions}).  We instantiate the schemes using the state-of-the-art Barreto-Naehrig (BN) curves~\cite{bn2005} with the embedding degree $k = 12$ (or commonly referred to as {\sf BN-254}).\footnote{Note that we can also use {\sf BN-638} which provides a higher-security level (roughly equivalent to AES-256).} This particular asymmetric curve is known to yield a very efficient pairing implementation and a security level equivalent to AES-128. As a result, this boosts the overall performance of ABE scheme implementations over prior efforts. Other benefits of BN curves include the ability to compress the representation of group elements. This directly translates to making ABE ciphertexts more compact which considerably reduces transmission costs. One downside is that because BN curves are {\em Type-III} pairings, it only permits efficient hashing to the group $\G_1$.
 %
