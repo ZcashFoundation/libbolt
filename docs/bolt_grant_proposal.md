@@ -37,7 +37,7 @@ In terms of qualifications, a majority of my work is cryptographic engineering r
 
 Evaluation Plan
 ===============
-We anticipate five milestones that mirror the technical approach described earlier:
+I anticipate five milestones that mirror the technical approach described earlier:
 
 1. Produce a design document that describes libbolt design and primitive choices. In addition, the document will expand on the NIZKP statements and interatctive protocols for generating blind signatures and so on.
 2. Implement in Rust the core cryptographic building blocks required by libbolt -- Commitment scheme, Signatures with efficient protocols, Symmetric key Encryption, etc.
@@ -53,13 +53,13 @@ The security implications of this project is to mitigate the bottleneck of on-ch
 Schedule
 ========
 
-Task 1 & 2: May 15, 2018 - These two tasks will be done in parallel and the design document will be reviewed by Ian Miers and Matthew Green.
+**Task 1 & 2: May 15, 2018** - These two tasks will be done in parallel and the design document will be reviewed by Ian Miers and Matthew Green.
 
-Task 3: June 15, 2018 - Will deliver the bidirectional payment construction implementation along with unit tests.
+**Task 3: June 15, 2018** - Will deliver the bidirectional payment construction implementation along with unit tests.
 
-Task 4: July 1, 2018 - Will explore optimizations for the range proofs with assistance from Ian Miers. Will refine the design document accordingly.
+**Task 4: July 1, 2018** - Will explore optimizations for the range proofs with assistance from Ian Miers. Will refine the design document accordingly.
 
-Task 5: July 31, 2018 - Will deliver the unidirectional payment construction implementation along with unit tests. Note that the unidirectional construction is considerably more complex than the bidirectional construction and thus may take longer.
+**Task 5: July 31, 2018** - Will deliver the unidirectional payment construction implementation along with unit tests. Note that the unidirectional construction is considerably more complex than the bidirectional construction and thus may take longer.
 
 
 Budget and Justification
