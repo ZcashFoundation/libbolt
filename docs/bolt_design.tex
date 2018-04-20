@@ -77,7 +77,7 @@
 \label{ch:abstract}
 \thispagestyle{myfancypage}
 
-This document describes the design and implementation of the Blind Off-chain Lightweight Transactions (BOLT) library. The BOLT protocol comprises a number of techniques for enabling privacy-preserving unlinkable payment channels for decentralized crypto-currencies between pairs of individual parties. BOLT is designed to provide a ``Layer 2'' payment protocol for privacy-preserving crypto-currencies such as Zerocash (or Zcash)~\cite{TODO}, by allowing individuals to establish and use payment channels for rapid or instantaneous payments that do not require an on-chain transaction. This document describes the cryptographic instantiations of the BOLT protocol according to the published paper by Matthew Green and Ian Miers~\cite{TODO}.
+This document describes the design and implementation of the Blind Off-chain Lightweight Transactions (BOLT) library. The BOLT protocol comprises a number of techniques for enabling privacy-preserving unlinkable payment channels for decentralized crypto-currencies between pairs of individual parties. BOLT is designed to provide a ``Layer 2'' payment protocol for privacy-preserving crypto-currencies such as Zerocash (or Zcash)~\cite{Zerocash}, by allowing individuals to establish and use payment channels for rapid or instantaneous payments that do not require an on-chain transaction. This document describes the cryptographic instantiations of the BOLT protocol according to the published paper by Matthew Green and Ian Miers~\cite{BoltCCS}.
 
 The intended use of this document is for understanding BOLT and the associated software implementation in the Rust programming language.  
 This document is hereby released to the public domain free of charge.
@@ -157,7 +157,12 @@ This section describes the core cryptographic primitives required to implement t
 
 \begin{itemize}
 
-\item FOO
+\item Commitment Scheme
+\item Signatures with efficient protocols ({\em e.g.} includes interactive protocols for generating blind or partially blind signatures)
+\item Symmetric Key Encryption
+\item Pseudo-random Functions
+\item One-time Encryption
+\item Non-interactive Zero-Knowledge Proofs
 %\item support for multiple types of attribute-based encryption (ABE) Key Encapsulation (KEM) schemes including for Key-Policy ABE, Ciphertext-Policy ABE and Multi-Authority ABE. We provide chosen-ciphertext security for each ABE KEM scheme type as well.
 
 %\item support for public-key encryption with chosen-ciphertext security, digital signatures, and authenticated symmetric-key encryption.
@@ -171,7 +176,8 @@ This section describes the core cryptographic primitives required to implement t
 \subsection{Commitment Scheme}
 \label{sec:commit}
 
-BOLT instantiates a commitment primitive using the Pedersen commitment scheme~\cite{TODO}. The scheme has the following interface:
+BOLT instantiates a commitment primitive using the Pedersen commitment scheme~\cite{PedersenCommits}. The scheme has the following interface:
+
 \medskip \noindent
 ${\sf CSetup}() \rightarrow PP$:  the algorithm generates public parameters and outputs the $PP$.
 
@@ -196,7 +202,7 @@ ${\sf Decrypt}(K, C, N) = M \cup \bot$. The decryption algorithm takes as input 
 \subsection{Digital Signatures with Efficient Protocols} % CL sigs
 \label{sec:signatures}
 
-BOLT includes signatures due to Camenisch and Lysyanskaya~\cite{TODO} which features: (1) a protocol for a user to obtain a signature on the value(s) in a commitment without the signer learning anything about the message(s), and (2) a non-interactive protocol for proving knowledge of a signature.
+BOLT includes signatures due to Camenisch and Lysyanskaya~\cite{CLSigs02} which features: (1) a protocol for a user to obtain a signature on the value(s) in a commitment without the signer learning anything about the message(s), and (2) a non-interactive protocol for proving knowledge of a signature.
 
 \medskip \noindent
 ${\sf SigKeygen}(\tau) \rightarrow (\PK, \SK)$. The key generation algorithm takes as input a security parameter $\tau$, runs the ${\sf ECSetup}(1^\tau)$ to select the elliptic curve parameters and outputs the public and secret key.
@@ -213,7 +219,7 @@ ${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. The verification algorithm ta
 \subsection{Pseudo-random Functions (PRF)}
 \label{sec:prf}
 
-For the unidirectional construction, BOLT includes a pseudo-random function $F$ that supports efficient proofs of knowledge. $F$ is instantiated using the Dodis-Yampolskiy PRF~\cite{TODO}, the public parameters are a group $\G_1$ of prime order $q$ with generator $g$. The seed is a random value $s \in \Z_q$ and the function is computed as $F_{s}(x) = g^{1/(s+x)}$.
+For the unidirectional construction, BOLT includes a pseudo-random function $F$ that supports efficient proofs of knowledge. $F$ is instantiated using the Dodis-Yampolskiy PRF~\cite{DY05}, the public parameters are a group $\G_1$ of prime order $q$ with generator $g$. The seed is a random value $s \in \Z_q$ and the function is computed as $F_{s}(x) = g^{1/(s+x)}$.
  
 \subsection{One-Time Encryption} 
 \label{sec:ote}
@@ -232,8 +238,11 @@ ${\sf OTDec}(K, C) = M$ or $\bot$. The algorithm takes as input a key $K$ and th
 \subsection{Non-interactive Zero Knowledge Proofs}
 \label{sec:nizkp}
 
-\todo{Add description here.}
-
+BOLT features non-interactive zero-knowledge proofs of knowledge for the purposes of proving statements  about committed values: 
+\begin{enumerate}
+\item a proof of knowledge of a committed value
+\item a proof of that a committed value is in a range
+\end{enumerate}
 %%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
 
 \section{Constructions}
