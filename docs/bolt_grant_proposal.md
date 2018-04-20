@@ -55,7 +55,7 @@ Schedule
 
 Task 1 & 2: May 15, 2018 - These two tasks will be done in parallel and the design document will be reviewed by Ian Miers and Matthew Green.
 
-Task 3: June 1, 2018 - Will deliver the bidirectional payment construction implementation along with unit tests.
+Task 3: June 15, 2018 - Will deliver the bidirectional payment construction implementation along with unit tests.
 
 Task 4: July 1, 2018 - Will explore optimizations for the range proofs with assistance from Ian Miers. Will refine the design document accordingly.
 
@@ -65,4 +65,4 @@ Task 5: July 31, 2018 - Will deliver the unidirectional payment construction imp
 Budget and Justification
 ========================
 
-To ensure a high-quality implementation, I am estimating a budget of $30k to support the development of libbolt in Rust and exploring a possible Go implementation. This budget reflects compensation of my effort and time over a three month period dedicated to this project.
+To ensure a high-quality implementation, I am estimating a budget of $30k to support the development of libbolt in Rust and exploring a possible Go implementation. This budget reflects compensation of my effort over a three month period dedicated to this project.
