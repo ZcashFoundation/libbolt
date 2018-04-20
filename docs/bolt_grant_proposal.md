@@ -8,8 +8,7 @@ J. Ayo Akinyele, <ayo@yeletech.org>
 Motivation and Overview
 =======================
 
-​BOLT is a system for conducting privacy-preserving off-chain payments between
-pairs of individual parties. BOLT is designed to provide a "Layer 2" payment protocol for privacy-preserving cryptocurrencies such as ZCash, by allowing individuals to establish and use payment channels for rapid/instantaneous payments that do not require an on-chain transaction. 
+​BOLT is a system for conducting privacy-preserving off-chain payments between pairs of individual parties. BOLT is designed to provide a "Layer 2" payment protocol for privacy-preserving cryptocurrencies such as ZCash, by allowing individuals to establish and use payment channels for rapid/instantaneous payments that do not require an on-chain transaction. 
 
 BOLT currently exists as a specification and proof of concept implementation partially in Charm by Ian Miers and Matthew Green (the original authors of the BOLT protocol). The goal in this effort is to develop a production quality implementation of BOLT in the Rust programming language (a memory-safe and type-safe language that improves security by preventing common low-level bugs). The project is intended to be released as open source to benefit the Zcash ecosystem and further the broader goals of addressing the scalability problems of cryptocurrencies like Zcash and beyond.
 
@@ -52,17 +51,18 @@ The security implications of this project is to mitigate the bottleneck of on-ch
 
 Schedule
 ========
+I anticipate the following timeline for when each milestone will be delivered:
 
-**Task 1 & 2: May 15, 2018** - These two tasks will be done in parallel and the design document will be reviewed by Ian Miers and Matthew Green.
+**Milestone 1 & 2: May 15, 2018** - The first two tasks will be done in parallel and the design document will be reviewed by Ian Miers and Matthew Green.
 
-**Task 3: June 15, 2018** - Will deliver the bidirectional payment construction implementation along with unit tests.
+**Milestone 3: June 15, 2018** - Will deliver the bidirectional payment construction implementation along with unit tests.
 
-**Task 4: July 1, 2018** - Will explore optimizations for the range proofs with assistance from Ian Miers. Will refine the design document accordingly.
+**Milestone 4: July 1, 2018** - Will explore optimizations for the range proofs with assistance from Ian Miers. Will refine the design document accordingly.
 
-**Task 5: July 31, 2018** - Will deliver the unidirectional payment construction implementation along with unit tests. Note that the unidirectional construction is considerably more complex than the bidirectional construction and thus may take longer.
+**Milestone 5: July 31, 2018** - Will deliver the unidirectional payment construction implementation along with unit tests. Note that the unidirectional construction is considerably more complex than the bidirectional construction and thus may take longer.
 
 
 Budget and Justification
 ========================
 
-To ensure a high-quality implementation, I am estimating a budget of $30k to support the development of libbolt in Rust and exploring a possible Go implementation. This budget reflects compensation of my effort over a three month period dedicated to this project.
+To ensure a high-quality implementation, I am estimating a budget of $30k to support the development of libbolt in Rust and exploring a possible Go implementation after Rust version has been released. This budget reflects compensation of my effort over a three month period dedicated to this project.
