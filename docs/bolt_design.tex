@@ -77,7 +77,7 @@
 \label{ch:abstract}
 \thispagestyle{myfancypage}
 
-This document describes the design and implementation of the Blind Off-chain Lightweight Transactions (BOLT) library. The BOLT protocol comprises a number of techniques for enabling privacy-preserving unlinkable payment channels for decentralized crypto-currencies between pairs of individual parties. BOLTis designed to provide a ``Layer 2'' payment protocol for privacy-preserving crypto-currencies such as Zerocash (or Zcash)~\cite{TODO}, by allowing individuals to establish and use payment channels for rapid or instantaneous payments that do not require an on-chain transaction. This document describes the cryptographic instantiations of the BOLT protocol according to the published paper by Matthew Green and Ian Miers~\cite{TODO}.
+This document describes the design and implementation of the Blind Off-chain Lightweight Transactions (BOLT) library. The BOLT protocol comprises a number of techniques for enabling privacy-preserving unlinkable payment channels for decentralized crypto-currencies between pairs of individual parties. BOLT is designed to provide a ``Layer 2'' payment protocol for privacy-preserving crypto-currencies such as Zerocash (or Zcash)~\cite{TODO}, by allowing individuals to establish and use payment channels for rapid or instantaneous payments that do not require an on-chain transaction. This document describes the cryptographic instantiations of the BOLT protocol according to the published paper by Matthew Green and Ian Miers~\cite{TODO}.
 
 The intended use of this document is for understanding BOLT and the associated software implementation in the Rust programming language.  
 This document is hereby released to the public domain free of charge.
@@ -323,15 +323,8 @@ The customer executes the following algorithm:
 \item Compute $s \leftarrow F_{k_1}(i)$
 \item Compute $t \rightarrow {\sf OTEnc}(F_{k_2}(i), pk_c)$
 \item Compute $\pi = PK\{ (pk_c, sk_c, k_1, k_2, r, i, \sigma_w): s = F_{k_1}(i) \wedge 0 < i \leq B\\  \wedge t = {\sf OTEnc}(F_{k_2}(i), pk_c) \\ \wedge {\sf Verify}(pk_m, (k_1, k_2, sk_c), \sigma_w) \\ \wedge (pk_c, sk_c) \in {\sf KeyGen}(1^\lambda) \}$
-\begin{enumerate}
-\item Compute $C_1 = g^B \cdot h^{r_1}$
-\item Compute $C_2 = C_1 / g^\epsilon$
-\item Compute $C_3 = g_1^{x_1} \cdot g_2^{x_2} \cdot h^{r_3}$
-\item Compute ${\sf wCom'} = C_2 \cdot C_3$. Keep ${\sf wCom'}$ private.
-\item Prove commitment ${\sf wCom'}$ in zero knowledge (via {\sf NIZK}).
-\item Prove knowledge of valid signature $\sigma_w$ on $(x_1, x_2, B)$ in $C_1 \cdot C_3$.
-\item Prove that $i$ is in the range $0 < i \leq B$.
-\end{enumerate}
+\todo{Expand}
+
 \item Return $(s, t, \pi)$
 \end{itemize}
 
@@ -383,6 +376,7 @@ The customer obtains a new wallet $w_{new} := (sk_0, sk_c, k_1, k_2, r, B, \sigm
 
 \end{enumerate}
 
+% BIDIRECTIONAL SCHEME DESCRIPTION HERE
 \subsection{Bidirectional Scheme}
 
 The bidirectional payment construction enables compact closure and compact wallets in addition to a single run of the {\sf Pay} protocol to transfer arbitrary values (constrained by a maximum payment amount).
@@ -422,17 +416,96 @@ channel tokens, the {\sf Establish} protocol activates a channel between the two
 escrowed funds. If the interaction succeeds, the merchant receives {\sf established} message and the customer
 receives a wallet $w$. Either party may receive an error denoted by $\bot$.
 
-\todo{finish phases}
+\medskip \noindent
+The customer does the following:
+\begin{enumerate}
+\item Parse $csk_c$ to obtain $({\sf cID}, {\sf wCom}, wpk, wsk, r, \BC)$
+\item Generate a proof $\pi_1$ of the following statement: \\
+$\pi_1 = PK\{ (wpk, wsk, r) : {\sf wCom} = {\sf Commit}({\sf cID}, wpk, \BC; r) \wedge (wpk, wsk) \in {\sf KeyGen}(1^\lambda)\}$
+\todo{Expand}
+\item Send proof $\pi_1$ to the merchant.
+\end{enumerate}
+
+\medskip \noindent
+The merchant does the following:
+\begin{enumerate}
+\item Parse ${\sf T}_{C}$ to obtain $\BC, {\sf wCom}$.
+\item Verify proof $\pi_1$ is valid. If not, output $\bot$
+\item Execute interactive protocol to compute {\bf a blind signature} $\sigma_w$ under $sk_m$ on contents of ${\sf wCom}$.
+\item Customer obtains $\sigma_w$.
+\end{enumerate}
+
+\medskip \noindent
+The customer obtains a wallet $w := (\BC, wpk, wsk, r, \sigma_w)$ and the merchant sets its state to {\sf established}.
+
 
 % Pay protocol description
 \item ${\sf Pay}( C\{{\sf PP}, \epsilon, w_{\sf old})\}, \{M({\sf PP}, \epsilon, {\bf S}_{\sf old})\})$. On input parameters, a payment amount $\epsilon$, and a wallet $w_{\sf old}$ from a customer, and the merchant's current state ${\bf S}_{\sf old}$ (initially set to $0$) from the merchant: the customer receives a payment success bit $R_{\sf C}$ and the new wallet $w_{\sf new}$ on success. The merchant receives a payment success bit $R_{\sf M}$ and an updated ${\bf S}_{\sf new}$ on success.
 
-\todo{finish phases}
+\medskip \noindent
+The customer does the following:
+\begin{enumerate}
+\item Parse $w_{old}$ as $({\sf cID}, B, wpk, wsk, r, \sigma_w)$.
+\item Sample $(wpk', wsk') \leftarrow {\sf KeyGen}(PP)$.
+\item Sample random coins $r'$.
+\item Generate ${\sf wCom'} \leftarrow {\sf Commit}({\sf cID}, wpk', B - \epsilon; r')$
+\item Generate proof $\pi_2$ as follows:
+\\ $\pi_2 = PK\{ (wpk', B, r', \sigma_w) : {\sf wCom'} = {\sf Commit}({\sf cID}, wpk', B - \epsilon; r') 
+\\ \wedge {\sf Verify}(pk_m, (wpk, B), \sigma_w) = 1
+\\ \wedge 0 \leq (B - \epsilon) \leq val_{\sf max} \}$
+
+\begin{itemize}
+\item Compute $C_1 = g^B \cdot h^{r_1}$
+\item Compute $C_2 = C_1 / g^\epsilon$
+\item Compute $C_3 = g_1^{x_1} \cdot g_2^{x_2} \cdot h^{r_3}$
+\item Compute ${\sf wCom'} = C_2 \cdot C_3$. Keep ${\sf wCom'}$ private.
+\item Prove commitment ${\sf wCom'}$ in zero knowledge (via {\sf NIZK}).
+\item Prove knowledge of valid signature $\sigma_w$ on $(x_1, x_2, B)$ in $C_1 \cdot C_3$.
+\item Prove that $i$ is in the range $0 < i \leq B$.
+\end{itemize}
+
+
+\item Send $(\epsilon, {\sf wCom'}, wpk, \pi_2)$.
+\end{enumerate}
+
+\medskip \noindent
+The merchant does the following:
+\begin{enumerate}
+\item Verify $\pi_2$ and ensure that $(wpk, \cdot) \notin {\bf S}$ and $\epsilon_{\sf min} \leq \epsilon \leq \epsilon_{\sf max}$
+\item If these conditions do not hold, abort and output $\bot$
+\item Set ${\bf S}_{\sf new} := {\bf S}_{\sf old} \cup \{(wpk, \bot)\}$.
+\item If $\epsilon < 0$, then $R_{M} \leftarrow 1$ otherwise $R_{M} \leftarrow \bot$.
+\item Execute interactive protocol to generate a {\bf partially blind signature} $rt_{w'}$ under $sk_m$ on the message $({\sf refund}||wpk'||B - \epsilon)$.
+\\ NOTE: $wpk'$ and $B - \epsilon$ are the contents of ${\sf wCom'}$.
+\\ \todo{Expand}
+\item The customer obtains $rt_{w'}$ at the end of the protocol.
+\end{enumerate}
+
+\medskip \noindent
+In the second phase, the customer does the following:
+\begin{enumerate}
+\item Check that ${\sf Verify}(pk_m, rt_{w'}, {\sf refund}||wpk'||B - \epsilon) = 1$
+\item If verification failure or message does not arrive, abort and output $rt_{w'}$.
+\item Otherwise, compute $\sigma_{rev} = {\sf Sign}(wsk, {\sf revoke}||{\sf cID}||wpk)$ and output $\sigma_{rev}$.
+\end{enumerate}
+
+\medskip \noindent
+In the second phase, the merchant does the following:
+\begin{enumerate}
+\item Ensure ${\sf Verify}(wpk, {\sf revoke}||wpk, \sigma_{rev}) = 1$. 
+\item If so, set ${\bf S}_{\sf new} := {\bf S}_{\sf old} \cup \{(wpk, \sigma_{rev}\}$ and $R_{M} \leftarrow 1$.
+\item Execute interactive protocol to generate a blind signature $\sigma_{w'}$ on the contents of ${\sf wCom'}$ using $sk_m$. 
+\item If this completes, set $R_{M} \leftarrow 2$.
+\end{enumerate}
+
+\medskip \noindent
+The customer obtains a new wallet $w_{\sf new} := (B - \epsilon, wpk', wsk', r', \sigma_{w'})$ and the merchant keeps ${\bf S}_{\sf new}, R_{M}$.
+
 
 % Refund algorithm description
-\item ${\sf Refund}({\sf PP}, {\sf T}_{M} csk_{C}, w) \rightarrow (m, \sigma)$. 
+\item ${\sf Refund}({\sf PP}, {\sf T}_{M}, csk_{C}, w) \rightarrow (m, \sigma)$. 
 \begin{enumerate}
-\item If the customer has not invoked {\sf Pay} protocol, then $m := ({\sf refundUnsigned}, ({\sf cID}, wpk, B), r)$.
+\item If the customer has not invoked the {\sf Pay} protocol, then $m := ({\sf refundUnsigned}, ({\sf cID}, wpk, B), r)$.
 \item Otherwise, set $m := ({\sf refundToken}, ({\sf cID}, wpk, B), rt_w)$.
 \item Compute $\sigma = {\sf Sign}(sk_c, m)$.
 \item Output ${\sf rc}_{C} = (m, \sigma)$.
@@ -447,17 +520,37 @@ receives a wallet $w$. Either party may receive an error denoted by $\bot$.
 \item If signature $\sigma$ verifies, then parse tuple $({\sf cID}, wpk, B) \leftarrow m$.
 \item Verify that {\sf cID} matches the channel.
 \item If previous record of $(wpk, \sigma_{rev}) \in {\bf S}$, then output ${\sf rc}_{M} = (({\sf revoked}, \sigma_{rev}), \sigma)$.
-\\ NOTE: $\sigma$ is a valid signature over $({\sf revoked}, \sigma_{rev})$
+\\ {\bf NOTE}: $\sigma$ is a valid signature over $({\sf revoked}, \sigma_{rev})$
 \item Otherwise, add new key ${\bf S} = {\bf S} \cup wpk$.
 \end{enumerate}
 
 % Resolve algorithm description
-\item ${\sf Resolve}({\sf PP}, {\sf T}_{C}, {\sf T}_{M}, {\sf rc}_{C}, {\sf rc}_{M})$
+\item ${\sf Resolve}({\sf PP}, {\sf T}_{C}, {\sf T}_{M}, {\sf rc}_{C}, {\sf rc}_{M})$. 
 \begin{enumerate}
-\item Parse $(pk_c, {\sf wCom}) \leftarrow {\sf T}_{C}$.
-\item Parse $({\sf type}, ({\sf cID}, wpk, B), {\sf Token}) \leftarrow m$
-\item \todo{finish me}
+
+\item Verify that both tokens ${\sf rc}_{C}, {\sf rc}_{M}$ are signed by the customer and merchant keys $pk_c$ and $pk_{m}$ respectively. 
+\item Verify that both tokens contain the same channel identifier ${\sf cID}$ and matches the one from ${\sf T}_{C}$ and ${\sf T}_{M}$. 
+\item If either of the tokens fail this test, then replace with $\bot$. Let $B_{\sf total} = \BC + \BM$. 
+\item If ${\sf rc}_{C}$ is $\bot$, output all the funds to the merchant.
+\item Parse $(pk_c, {\sf wCom}) = {\sf T}_{C}$.
+\item $m$ should have the following structure $({\sf type}, ({\sf cID}, wpk, B), {\sf Token})$
+\item Parse $({\sf revoked}, wpk, \sigma_{rev}) = m$
+\item Ensure that ${\sf Verify}(wpk, ({\sf revoked}||{\sf cID}||wpk), \sigma) = 1$.
+\item If verification check fails, then output ${B_{\sf final}^{\sf cust}} = B_{\sf total}$ and ${B_{\sf final}^{\sf merch}} = 0$.
+\item Check the refund validity: 
+\begin{enumerate}
+\item[a.] If ${\sf type} = {\sf refundUnsigned}$, check ${\sf wCom} = {\sf Commit}({\sf cID}, wpk, B; {\sf Token})$ and that merchant's token contains $\sigma_{rev}$.
+\item[b.] If ${\sf type} = {\sf refundToken}$, check ${\sf Token}$ is a valid refund token on $({\sf cID}, wpk, B)$.
+\item[c.] If either {\bf (a)} or {\bf (b)} fails, abort and output ${B_{\sf final}^{\sf cust}} = 0$ and ${B_{\sf final}^{\sf merch}} = B_{\sf total}$.
 \end{enumerate}
+\item Check the refutation's validity by checking that ${\sf Verify}(wpk, {\sf revoke}||wpk, \sigma_{rev}) = 1$.
+\begin{enumerate}
+\item[a.] If valid, abort and output ${B_{\sf final}^{\sf cust}} = 0$ and ${B_{\sf final}^{\sf merch}} = B_{\sf total}$.
+\item[b.] If invalid, pay the claimed balance to the customer (${B_{\sf final}^{\sf cust}} = B$) and the remainder to Merchant (${B_{\sf final}^{\sf merch}} = B_{\sf total} - B$).
+\end{enumerate}
+
+\end{enumerate}
+
 
 \end{enumerate}
 
