@@ -125,3 +125,14 @@ pub fn verify(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> boo
     let rhs2 = pairing(mpk.g, sig.c);
     return (lhs1 == rhs1) && (lhs2 == rhs2);
 }
+
+pub fn gen_blind(sig: &Signature) -> Signature {
+    let rng = &mut rand::thread_rng();
+    let r = Fr::random(rng);
+    let r1 = Fr::random(rng);
+    let a = sig.a * r;
+    let b = sig.b * r;
+    let c = (sig.c * r) * r1;
+    let bsig = Signature { a: a, b: b, c:c };
+    return bsig;
+}

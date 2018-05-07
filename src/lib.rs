@@ -444,6 +444,7 @@ pub fn print(g: &G1) -> String {
 
 ////////////////////////////////// CL Sigs /////////////////////////////////////
 
+// refund message
 #[derive(Clone)]
 pub struct RefundMessage<'a> {
     prefix: &'a str, // string prefix for the prefix
@@ -484,6 +485,32 @@ impl<'a> RefundMessage<'a> {
         return Fr::interpret(&hash_buf);
     }
 }
+
+// spend message
+#[derive(Clone)]
+pub struct SpendMessage<'a> {
+    prefix: &'a str,
+    j: i32,
+    s: G1,
+    u: G1,
+    pi: Proof,
+    ck: SymKey
+}
+
+impl<'a> SpendMessage<'a> {
+    pub fn new(_j: i32, _s: G1, _u: G1, _pi: Proof, _ck: SymKey) -> SpendMessage<'a> {
+        SpendMessage {
+            prefix: "spend", j: _j, s: _s, u: _u, pi: _pi, ck: _ck,
+        }
+    }
+
+    pub fn hash(&self) -> Fr {
+        // hash into a Fr element
+    }
+}
+
+// coin message
+
 
 ////////////////////////////////// CL Sigs /////////////////////////////////////
 
@@ -534,6 +561,42 @@ impl Message {
 }
 
 ////////////////////////////////// COMMITMENT //////////////////////////////////
+
+////////////////////////////////// NIZKP //////////////////////////////////
+
+#[derive(Copy, Clone)]
+pub struct Proof {
+    T: G1,
+    c: Fr,
+    s1: Fr,
+    s2: Fr
+}
+
+pub fn hash(g: &G1, h: &G1, X: &G1, Y: &G1, ) -> Fr {
+    let g_vec: Vec<u8> = encode(&g, Infinite).unwrap();
+
+}
+
+pub fn create_nizk_proof_one(pp: &PublicParams, pk: &PublicKey, sk: &SecretKey) -> Proof {
+    let rng = &mut rand::thread_rng();
+
+    let t1 = Fr::random(rng);
+    let t2 = Fr::random(rng);
+
+    let T = (pk.g * t1) + (pk.h * t2);
+
+    let c = hash(pp.g, pp.h, pk.X, pk.Y, T);
+
+    let s1 = (sk.x * c) + t1;
+    let s2 = (sk.y * c) + t2;
+
+    return Proof { T: T, c: c, s1: s1, s2: s2 };
+}
+
+pub fn verify_nizk_proof_one(proof: &Proof) -> bool {
+   // how do we verify the proof?
+}
+////////////////////////////////// NIZKP //////////////////////////////////
 
 pub mod unidirectional {
     use std::fmt;
@@ -628,16 +691,19 @@ pub mod unidirectional {
     }
 
     // TODO: requires NIZK proof system
-    pub fn establish_customer_send(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
+    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
         println ! ("Run establish_customer algorithm...");
         // set sk_0 to random bytes of length l
         // let sk_0 = random_bytes(pp.l);
         let buf_len: usize = pp.l_bits as usize;
         let mut sk0 = vec![0; buf_len];
         randombytes::randombytes_into(&mut sk0);
+
+        let pi1 = create_nizk_proof_one(csk_c.sk, csk_c.k1, csk_c.k2, );
     }
 
-    pub fn estalibsh_mercahnt_send() {
+    // the merchant calls this method after obtaining
+    pub fn estalibsh_merchant() {
 
     }
 

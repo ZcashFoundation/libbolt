@@ -259,7 +259,7 @@ The unidirectional payment construction only supports payments from a customer t
 \item ${\sf Setup}(1^\lambda) \rightarrow {\sf PP}$. On input $\lambda$, optionally generate CRS parameters for (1) a secure commitment scheme (see Section~\ref{sec:commit}), (2) a non-interactive zero knowledge proof system (see Section~\ref{sec:nizkp}). Output all of these as ${\sf PP}$.
 
 % Key generation description
-${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$. 
+\item ${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$. 
 \begin{itemize}
 \item Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
 \end{itemize}
@@ -275,7 +275,7 @@ ${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$.
 \end{itemize}
 
 % Init algorithm description
-${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
+\item ${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
 
 \begin{itemize} 
 \item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, \BM)$.
@@ -396,11 +396,12 @@ The bidirectional payment construction enables compact closure and compact walle
 \item ${\sf Setup}(1^\lambda) \rightarrow {\sf PP}$. On input $\lambda$, optionally generate CRS parameters for (1) a secure commitment scheme (see Section~\ref{sec:commit}), (2) a non-interactive zero knowledge proof system (see Section~\ref{sec:nizkp}). Output all of these as ${\sf PP}$.
 
 % Key generation description
-${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$. 
+\item ${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$. 
 \begin{itemize}
 \item Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
 \end{itemize}
 
+% Init algorithm for customer
 \medskip \noindent
 \item ${\sf Init_{C}}({\sf PP}, {\sf cID}, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_{C}, csk_{C})$. On input a keypair $(pk_c, sk_c)$, perform the following:
 
@@ -412,8 +413,8 @@ ${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$.
 \item Output ${\sf T}_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, {\sf cID}, wpk, wsk, r, \BC)$.
 \end{itemize}
 
-% Init algorithm description
-${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
+% Init algorithm description for merchant
+\item ${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
 
 \begin{itemize} 
 \item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, \BM)$.
