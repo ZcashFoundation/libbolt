@@ -598,7 +598,112 @@ pub fn verify_nizk_proof_one(proof: &Proof) -> bool {
 }
 ////////////////////////////////// NIZKP //////////////////////////////////
 
-pub mod unidirectional {
+//pub mod unidirectional {
+//    use std::fmt;
+//    use rand;
+//    use bn::{Group, Fr};
+//    use sym;
+//    use commit_scheme;
+//    use clsigs;
+//    use Message;
+//    use sodiumoxide::randombytes;
+//
+//    pub struct PublicParams {
+//        cm_mpk: commit_scheme::PublicKey,
+//        cl_mpk: clsigs::PublicParams,
+//        l_bits: i32
+//        // TODO: add NIZK proof system pub params
+//    }
+//
+//    pub struct ChannelToken {
+//        w_com: commit_scheme::Commitment,
+//        pk: clsigs::PublicKey
+//    }
+//
+//    pub struct CustSecretKey {
+//        sk: clsigs::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
+//        k1: Fr, // seed 1 for PRF
+//        k2: Fr, // seed 2 for PRF
+//        r: Fr, // random coins for commitment scheme
+//        balance: i32, // the balance for the user
+//        ck_vec: Vec<sym::SymKey>
+//    }
+//
+//    pub struct MerchSecretKey {
+//        sk: clsigs::SecretKey,
+//        balance: i32
+//    }
+//
+//    pub struct InitCustomerData {
+//        T: ChannelToken,
+//        csk: CustSecretKey
+//    }
+//
+//    pub struct InitMerchantData {
+//        T: clsigs::PublicKey,
+//        csk: MerchSecretKey
+//    }
+//
+//    pub fn setup() -> PublicParams {
+//        // TODO: provide option for generating CRS parameters
+//        let cm_pk = commit_scheme::setup();
+//        let cl_mpk = clsigs::setup();
+//        let l = 256;
+//        // let nizk = "nizk proof system";
+//        let pp = PublicParams { cm_mpk: cm_pk, cl_mpk: cl_mpk, l_bits: l };
+//        return pp;
+//    }
+//
+//    pub fn keygen(pp: &PublicParams) -> clsigs::KeyPair {
+//        // TODO: figure out what we need from public params to generate keys
+//        println!("Run Keygen...");
+//        let keypair = clsigs::keygen(&pp.cl_mpk);
+//        return keypair;
+//    }
+//
+//    pub fn init_customer(pp: &PublicParams, b0_customer: i32, keypair: &clsigs::KeyPair) -> InitCustomerData {
+//        println!("Run Init customer...");
+//        sym::init();
+//        let rng = &mut rand::thread_rng();
+//        // pick two distinct seeds
+//        let l = 256;
+//        let k1 = Fr::random(rng);
+//        let k2 = Fr::random(rng);
+//        let r = Fr::random(rng);
+//        let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
+//
+//        let mut ck_vec: Vec<sym::SymKey> = Vec::new();
+//        // generate the vector ck of sym keys
+//        for i in 1 .. b0_customer {
+//            let ck = sym::keygen(l);
+//            ck_vec.push(ck);
+//        }
+//        let w_com = commit_scheme::commit(&pp.cm_mpk, msg, Some(r));
+//        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
+//        let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
+//        return InitCustomerData { T: t_c, csk: csk_c };
+//    }
+//
+//    pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPair) -> InitMerchantData {
+//        println!("Run Init merchant...");
+//        let csk_m = MerchSecretKey { sk: keypair.sk, balance: b0_merchant };
+//        return InitMerchantData { T: keypair.pk, csk: csk_m };
+//    }
+//
+//    // TODO: requires NIZK proof system
+//    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
+//        println ! ("Run establish_customer algorithm...");
+//        // set sk_0 to random bytes of length l
+//        // let sk_0 = random_bytes(pp.l);
+//        let buf_len: usize = pp.l_bits as usize;
+//        let mut sk0 = vec![0; buf_len];
+//        randombytes::randombytes_into(&mut sk0);
+//
+//        let pi1 = create_nizk_proof_one(csk_c.sk, csk_c.k1, csk_c.k2, );
+//    }
+//}
+
+pub mod bidirectional {
     use std::fmt;
     use rand;
     use bn::{Group, Fr};
@@ -609,7 +714,7 @@ pub mod unidirectional {
     use sodiumoxide::randombytes;
 
     pub struct PublicParams {
-        cm_mpk: commit_scheme::PublicKey,
+        cm_mpk: commit_scheme::PublicParams,
         cl_mpk: clsigs::PublicParams,
         l_bits: i32
         // TODO: add NIZK proof system pub params
@@ -646,11 +751,11 @@ pub mod unidirectional {
 
     pub fn setup() -> PublicParams {
         // TODO: provide option for generating CRS parameters
-        let cm_pk = commit_scheme::setup();
+        let cm_pp = commit_scheme::setup();
         let cl_mpk = clsigs::setup();
         let l = 256;
         // let nizk = "nizk proof system";
-        let pp = PublicParams { cm_mpk: cm_pk, cl_mpk: cl_mpk, l_bits: l };
+        let pp = PublicParams { cm_mpk: cm_pp, cl_mpk: cl_mpk, l_bits: l };
         return pp;
     }
 
@@ -661,7 +766,7 @@ pub mod unidirectional {
         return keypair;
     }
 
-    pub fn init_customer(pp: &PublicParams, b0_customer: i32, keypair: &clsigs::KeyPair) -> InitCustomerData {
+    pub fn init_customer(pp: &PublicParams, channelId: Fr, b0_customer: i32, keypair: &clsigs::KeyPair) -> InitCustomerData {
         println!("Run Init customer...");
         sym::init();
         let rng = &mut rand::thread_rng();
@@ -678,7 +783,7 @@ pub mod unidirectional {
             let ck = sym::keygen(l);
             ck_vec.push(ck);
         }
-        let w_com = commit_scheme::commit(&pp.cm_mpk, msg, Some(r));
+        let w_com = commit_scheme::commit(&pp.cm_pp, msg, Some(r));
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
         let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
         return InitCustomerData { T: t_c, csk: csk_c };

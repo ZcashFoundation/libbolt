@@ -4,7 +4,7 @@
 \usepackage[bookmarks=true]{hyperref}
 \usepackage{fancyvrb}
 \hypersetup{
-    bookmarks=false,    % show bookmarks bar?
+    bookmarks=false,    % show bookmarks bar
     pdftitle={BOLT},    % title
     pdfauthor={Joseph Ayo Akinyele},                     % author
     pdfsubject={TeX and LaTeX},                        % subject of the document
@@ -564,15 +564,6 @@ The customer obtains a new wallet $w_{\sf new} := (B - \epsilon, wpk', wsk', r',
 
 \end{enumerate}
 
-%\subsection{Pairing Library}
-%\label{sec:pairings}
-%
-%\todo{Add description of BN curve and library being used}
-%% 1. Choice of asymmetric curves -- BN curves, BLS?
-%This module is built on top of the RELIC library~\cite{relic-toolkit} which supplies all of the bilinear operations (including the pairing operation $-$ see Section~\ref{sec:definitions}).  We instantiate the schemes using the state-of-the-art Barreto-Naehrig (BN) curves~\cite{bn2005} with the embedding degree $k = 12$ (or commonly referred to as {\sf BN-254}).\footnote{Note that we can also use {\sf BN-638} which provides a higher-security level (roughly equivalent to AES-256).} This particular asymmetric curve is known to yield a very efficient pairing implementation and a security level equivalent to AES-128. As a result, this boosts the overall performance of ABE scheme implementations over prior efforts. Other benefits of BN curves include the ability to compress the representation of group elements. This directly translates to making ABE ciphertexts more compact which considerably reduces transmission costs. One downside is that because BN curves are {\em Type-III} pairings, it only permits efficient hashing to the group $\G_1$.
-%
-%Alternatively, the pairing module could also be instantiated with similar asymmetric curves that yield less efficient pairing implementations but provide higher security levels. These include the Barreto-Lynn-Scott (BLS) curve~\cite{bls2003} with the embedding degree $k = 24$ and the Kachisa-Schaefer-Scott (KSS) curves~\cite{kss2008} with embedding degree $k = 18$. In general, the choice of pairing curve will depend on a variety of factors including the number of pairing computations required and non-pairing operations needed ({\em e.g.}, exponentiations, multiplication, hashing, etc). As new pairing-friendly curves are discovered, these curves can be integrated if they maximize efficiency while preserving security.
-
 \chapter{BOLT Usage}
 \label{ch:usage}
 
@@ -585,13 +576,13 @@ BOLT is a payment channel protocol. In order to use BOLT, a Customer and Merchan
 \begin{enumerate}
 \item {\bf Channel negotiation.} To initiate an interaction, Customer and Merchant agree on the initial balances of the channel, which we denote by A (customer initial balance) and B (merchant initial balance) respectively. The Merchant provides a public key and signed channel opening transaction to Customer. 
 
-{\bf Note}: this may or may not be a formal BOLT protocol step, and can be done in various ways. One approach is to have both parties sign a transaction for the underlying currency network. The other is to have both parties do separate transactions on the currency network. We need to figure this out BUT it will be currency specific, so it?s the hardest part.
+{\bf Note}: this may or may not be a formal BOLT protocol step, and can be done in various ways. One approach is to have both parties sign a transaction for the underlying currency network. The other is to have both parties do separate transactions on the currency network. We need to figure this out BUT it will be currency specific, so it is the hardest part.
 
-\item {\bf Channel funding.} Customer transmits the channel opening transaction to the currency network, which causes the Customer and Merchant to fund the channel with (A, B) units of currency respectively. This funding is conducted on-chain, and should be conducted using a privacy-preserving currency so as to protect the customer?s identity.
+\item {\bf Channel funding.} Customer transmits the channel opening transaction to the currency network, which causes the Customer and Merchant to fund the channel with ({\bf A}, {\bf B}) units of currency respectively. This funding is conducted {\em on-chain}, and should be conducted using a privacy-preserving currency so as to protect the customer's identity.
 
 \item {\bf Channel activation.} Once the channel has been funded and the transaction confirmed on the network, the parties now interact directly to activate the channel and prepare it for online payments. 
 
-\item {\bf Payment.} This step may occur many times. To initiate a payment, the customer initiates an off-chain payment of D units of currency (of positive or negative value) to the merchant. This payment maintains the total channel balance, but updates the Customer and Merchant?s ownership of the balances. The merchant does not learn which Customer or Channel was involved in the payment. This produces updated state at each party.
+\item {\bf Payment.} This step may occur many times. To initiate a payment, the customer initiates an off-chain payment of D units of currency (of positive or negative value) to the merchant. This payment maintains the total channel balance, but updates the Customer and Merchant's ownership of the balances. The merchant does not learn which Customer or Channel was involved in the payment. This produces updated state at each party.
 
 \item {\bf Channel closure.} At the conclusion of a channel interaction, the customer or merchant may initiate the closure of the channel. If the parties dispute the balance of the channel, each party transmits a ``closure token'' to the currency network. The payment network must include logic to evaluate the tokens to determine the correct balances {\bf (A,  B)} to pay out to the Customer and Merchant respectively. The parties may now withdraw their shares of the resulting channel.
 
@@ -603,10 +594,10 @@ We include a discussion of the precise requirements for the cryptocurrency netwo
 
 \paragraph{Hub channels.} BOLT also supports a ``Hub'' mode in which a Customer and Merchant interact via a payment hub. The use of a payment hub significantly increases the flexibility of BOLT, by enabling a hub and spoke model without the need for direct payment channel relationships between each individual Customer and Merchant. More significantly, the Hub does not learn the identity of the Customer or Merchant, nor does it see the payment amount.
 
-The use of a Hub between a given Customer and Merchant requires the creation of two separate channels, one Customer <-> Hub (``CH'') channel, and one Hub<->Merchant (?HM?) channel. The steps in opening and closing each channel are similar to steps (1), (2), (3) and (5) in the description above. However, the payment step (4) differs as follows:
+The use of a Hub between a given Customer and Merchant requires the creation of two separate channels, one Customer $\longleftrightarrow$ Hub (``CH'') channel, and one Hub $\longleftrightarrow$ Merchant (``HM'') channel. The steps in opening and closing each channel are similar to steps (1), (2), (3) and (5) in the description above. However, the payment step (4) differs as follows:
 
 \begin{itemize}
-\item {\bf (Hub-based) Payment.} The Customer initiates an off-chain payment of D units of currency (of positive or negative value) to the Merchant, via the Hub. This payment atomically updates the CH and HM channels such that the Hub?s balance on the CH channel is increased by D units, and the Merchant?s balance on the HM channel is increased by D units. If either channel update fails, the entire transaction fails and both channels fall back to the previous channel balances.
+\item {\bf (Hub-based) Payment.} The Customer initiates an off-chain payment of D units of currency (of positive or negative value) to the Merchant, via the Hub. This payment atomically updates the CH and HM channels such that the Hub's balance on the CH channel is increased by D units, and the Merchant's balance on the HM channel is increased by D units. If either channel update fails, the entire transaction fails and both channels fall back to the previous channel balances.
 \end{itemize}
 
 The Hub learns only that a transaction took place, but not the amount or the identities of the Customer or Merchant.

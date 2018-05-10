@@ -8,6 +8,16 @@ use debug_elem_in_hex;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
+
+// define some structures here
+#[derive(Copy, Clone)]
+pub struct PublicParams {
+    g1: G1,
+    g2: G1,
+    g3: G1
+}
+
+
 // define some structures here
 #[derive(Copy, Clone)]
 pub struct PublicKey {
@@ -60,7 +70,7 @@ impl fmt::Display for Commitment {
 /*
 Implements the setup algorithm for the Pedersen92 commitment scheme
 */
-pub fn setup() -> PublicKey {
+pub fn ped92_setup() -> PublicKey {
     println!("Run Setup...");
     let rng = &mut rand::thread_rng();
     let g = G1::random(rng);
@@ -76,7 +86,7 @@ commit(pk, msg) -> cm where
 - msg is the message structure for the commitment scheme
 - cm is the output commitment message for the given message
 */
-pub fn commit(pk: &PublicKey, m: Fr, R: Option<Fr>) -> Commitment {
+pub fn ped92_commit(pk: &PublicKey, m: Fr, R: Option<Fr>) -> Commitment {
     let rng = &mut rand::thread_rng();
 
     let r = R.unwrap_or(Fr::random(rng));
@@ -100,13 +110,28 @@ decommit(pk, cm, msg) -> bool where
 - pk is the public key generated from setup()
 - cm is the commitment
 - m is the message to validate
-- outputs T/F for whether the cm is a valid commitmentt to the msg
+- outputs T/F for whether the cm is a valid commitment to the msg
 */
-pub fn decommit(pk: &PublicKey, cm: &Commitment, m: Fr) -> bool {
+pub fn ped92_decommit(pk: &PublicKey, cm: &Commitment, m: Fr) -> bool {
     //let m = msg.hash();
     let p = "decommit -> m";
     debug_elem_in_hex(p, &m);
 
     let dm = (pk.g * m) + (pk.h * cm.d);
     return dm == cm.c;
+}
+
+
+/*
+Implements the setup algorithm for the Pedersen92 commitment scheme
+*/
+pub fn setup() -> PublicParams {
+    println!("Run Setup...");
+    let rng = &mut rand::thread_rng();
+    let g1 = G1::random(rng);
+    let g2 = G1::random(rng);
+    let g3 = G1::random(rng);
+    let pk = PublicParams { g1: g1, g2: g2, g3: g3 };
+    println!("{}", pp);
+    return pp;
 }
