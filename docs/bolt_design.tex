@@ -31,7 +31,7 @@
   {\selectfont{\huge{Version \myversion}}}}
 \vspace{1in}
 \\
-{{\bf Authors}\\J. Ayo Akinyele (ayo@yeletech.org) \\ Matthew D. Green (mgreen@cs.jhu.edu) \\ Ian Miers (imiers@jhu.edu)}
+{{\bf Authors}\\ Matthew D. Green (mgreen@cs.jhu.edu) \\ Ian Miers (imiers@jhu.edu)\\J. Ayo Akinyele (ayo@yeletech.org)}
 \\
 \vspace{2in}
   \textcolor{black}{
@@ -88,7 +88,7 @@ This document is hereby released to the public domain free of charge.
 \thispagestyle{myfancypage}
 \rhead{\small\textit{Introduction}}
 
-BOLT is a system for conducting privacy-preserving off chain payments between pairs of individual parties. We refer to these parties as ``customers'', ``merchants'' and ``hubs'', with definitions provided below. BOLT is designed to provide a ``Layer 2'' payment protocol for privacy-preserving cryptocurrencies such as ZCash, by allowing individuals to establish and use payment channels for rapid/instantaneous payments that do not require an on-chain transaction.
+BOLT is a system for conducting privacy-preserving off chain payments between pairs of individual parties. We refer to these parties as ``customers'', ``merchants'' and ``hubs'', with definitions provided below. BOLT is designed to provide a ``Layer 2'' payment protocol for privacy-preserving cryptocurrencies such as Zcash, by allowing individuals to establish and use payment channels for rapid/instantaneous payments that do not require an on-chain transaction.
 
 \paragraph{Parties and Terminology.} Financial transactions in the BOLT system are conducted between two parties, possibly with the assistance of an intermediate third party. Each party runs the BOLT software. These parties fall into three categories, which we describe below:
 \begin{itemize}
@@ -148,27 +148,21 @@ In practice this guarantee is sufficient to protect customer identities. Channel
 
 \section{Overview}
 
-\todo{Add description on Anonymous Payment Channels use...}
+In this section, we describe the implementation of the BOLT library for an anonymous payment channel (APC). An APC is a construct established between two parties that interact via a payment network. An APC must be used in combination with a payment network capable of {\em conditionally} escrowing funds and {\em binding} these escrow transactions funds to some data. We assume the existence of such a payment network ({\em e.g.}, Zcash) and leave the details of the payment network outside the scope of this document.
 
 \section{Core Cryptographic Building Blocks}
 \label{sec:core}
 
-This section describes the core cryptographic primitives required to implement the BOLT protocol. They include the following:
+In this section, we describe the core cryptographic primitives required to implement the BOLT protocol. They include the following:
 
 \begin{itemize}
-
 \item Commitment Scheme
-\item Signatures with efficient protocols ({\em e.g.} includes interactive protocols for generating blind or partially blind signatures)
+\item Digital Signatures with efficient protocols
 \item Symmetric Key Encryption
 \item Pseudo-random Functions
 \item One-time Encryption
-\item Non-interactive Zero-Knowledge Proofs
-%\item support for multiple types of attribute-based encryption (ABE) Key Encapsulation (KEM) schemes including for Key-Policy ABE, Ciphertext-Policy ABE and Multi-Authority ABE. We provide chosen-ciphertext security for each ABE KEM scheme type as well.
-
-%\item support for public-key encryption with chosen-ciphertext security, digital signatures, and authenticated symmetric-key encryption.
-
-%\item support for several common cryptographic tools including a linear secret sharing scheme (LSSS), key derivation functions (KDF), pseudo-random functions (PRF), and message authentication codes (MAC). We also include support for a random number generator (RNG) that can be modularly swapped with a pseudo-random generator (PRG).
-
+\item Non-interactive Zero-Knowledge Proofs of Knowledge
+\item Interactive protocols for generating blind or partially blind signatures
 \end{itemize}
 
 %%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
@@ -182,15 +176,30 @@ BOLT instantiates a commitment primitive using the Pedersen commitment scheme~\c
 ${\sf CSetup}() \rightarrow PP$:  the algorithm generates public parameters and outputs the $PP$.
 
 \medskip \noindent
-${\sf Commit}(PP, M; r) \rightarrow C$: On input parameters $PP$, a message $M$, and optional random coins $r$, the algorithm outputs a commitment $C$. 
+${\sf Commit}(PP, M; r) \rightarrow C$: On input parameters $PP$, a message $M \in \G$, and optional random coins $r$, the algorithm outputs a commitment $C$. 
 
 \medskip \noindent
 ${\sf Decommit}(PP, C, M) =  \{0, 1\}$: On input parameters $PP$, and a tuple $(C, M, r)$ outputs 1 if $C$ is a valid commitment to the message or 0 otherwise.
 
+\subsubsection{Pedersen Commitments}
+\label{sec:ped92}
+
+We define pedersen commitments over a vector of $n$ messages as follows:
+
+\medskip \noindent
+${\sf CSetup}() \rightarrow PP$:  the algorithm generates public parameters and outputs the $PP = (g_1, g_2, ..., g_{n}, h)$.
+
+\medskip \noindent
+${\sf Commit}(PP, M; r) \rightarrow C$: On input parameters $PP$, a message tuple $M = (m_1, m_2, ... m_n)$, and optional random coins $r$, the algorithm outputs a commitment $C = {g_1}^{m_1} \cdot {g_2}^{m_2} \dots {g_n}^{m_n} \cdot h^r$ and $r$. 
+
+\medskip \noindent
+${\sf Decommit}(PP, C, M) =  \{0, 1\}$: On input parameters $PP$, and a tuple $(C, M, r)$. Check if $C \stackrel{?}{=} {g_1}^{m_1} \cdot {g_2}^{m_2} \dots {g_n}^{m_n} \cdot h^r$. Outputs 1 if $C$ is a valid commitment to the message or 0 otherwise. 
+
+
 \subsection{Symmetric-Key Encryption}
 \label{sec:authenc}
 
-BOLT includes an symmetric-key encryption (SymEnc) primitive for providing confidentiality and integrity. 
+BOLT includes an symmetric-key encryption (SymEnc) primitive (via XSalsa20-Poly1305) for providing confidentiality and integrity.
 
 \medskip \noindent
 ${\sf Encrypt}(K, M, N) \rightarrow C$. The encryption algorithm takes as input a symmetric-key, a message $M \in \{0,1\}^\ell$ and the associated nonce $N \in \{0,1\}^k$. The algorithm outputs the ciphertext $C$. 
@@ -198,22 +207,34 @@ ${\sf Encrypt}(K, M, N) \rightarrow C$. The encryption algorithm takes as input 
 \medskip \noindent
 ${\sf Decrypt}(K, C, N) = M \cup \bot$. The decryption algorithm takes as input a symmetric-key, the ciphertext $C$ and the associated nonce $N$. The algorithm outputs the message $M$ or returns $\bot$.
 
-
 \subsection{Digital Signatures with Efficient Protocols} % CL sigs
 \label{sec:signatures}
 
-BOLT includes signatures due to Camenisch and Lysyanskaya~\cite{CLSigs02} which features: (1) a protocol for a user to obtain a signature on the value(s) in a commitment without the signer learning anything about the message(s), and (2) a non-interactive protocol for proving knowledge of a signature.
+BOLT includes signatures due to Camenisch and Lysyanskaya~\cite{CL04} (CL) which features: (1) a protocol for a user to obtain a signature on the value(s) in a commitment without the signer learning anything about the message(s), and (2) a non-interactive protocol for proving knowledge of a signature.
 
 \medskip \noindent
-${\sf SigKeygen}(\tau) \rightarrow (\PK, \SK)$. The key generation algorithm takes as input a security parameter $\tau$, runs the ${\sf ECSetup}(1^\tau)$ to select the elliptic curve parameters and outputs the public and secret key.
+${\sf SigKeygen}(\PP) \rightarrow (\PK, \SK)$. The key generation algorithm takes as input a security parameter $\tau$, runs the ${\sf ECSetup}(1^\tau)$ to select the elliptic curve parameters and outputs the public and secret key.
 
 \medskip \noindent
-${\sf Sign}(\SK, M) \rightarrow \sigma$. The signing algorithm takes as input a secret key $\SK$ and message $M \in \{0,1\}^*$ and outputs a signature $\sigma$.
+${\sf Sign}(\PP, \SK, m) \rightarrow \sigma$. The signing algorithm takes as input public parameters, a secret key $\SK$ and message $m \in \{0,1\}^*$ and outputs a signature $\sigma$.
 
 \medskip \noindent
-${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. The verification algorithm takes as input a public key $\PK$, the message $M$ and the signature $\sigma$. The algorithm outputs $true$ if the signatures is valid with respect to $M$ and $\PK$. Otherwise, it outputs $false$.
+${\sf Verify}(\PK, m, \sigma) =  \{true, false\}$. The verification algorithm takes as input a public key $\PK$, the message $m$ and the signature $\sigma$. The algorithm outputs $true$ if the signatures is valid with respect to $M$ and $\PK$. Otherwise, it outputs $false$.
 
-% include protocol for obtaining a blind signature -- on the values in a commitment
+\subsubsection{CL Signature~\cite{CL04}}
+\label{sec:clsigs}
+
+Run the {\sf Setup} algorithm to generate public parameters $pp = (q, \G, \G_1, \G_2, g, {\sf g}, e)$.
+
+\medskip \noindent
+${\sf SigKeygen}(\PP) \rightarrow (\PK, \SK)$. The key generation algorithm chooses $x \leftarrow \Z_q$ and $y \leftarrow \Z_q$ and sets $sk = (x, y)$ and $pk = (X, Y)$.
+
+\medskip \noindent
+${\sf Sign}(\PP, \SK, m) \rightarrow \sigma$. On input message $m$, and secret key $sk = (x, y)$ and public parameters $pp = (q, \G, \G_1, \G_2, g, {\sf g}, e)$, choose a random $a \in \G_2$ and output signature $\sigma = (a, a^y, a^{x + mxy})$
+
+\medskip \noindent
+${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. On input $pk = (X, Y)$, message $m$ and signature $\sigma = (a, b, c)$, check that $e(a, Y) = e(g, b)$ and $e(X, a) \cdot e(X, b)^m = e(g, c)$. If both conditions hold, then output $true$. Otherwise, $false$.
+
 % include protocol for proving knowledge of a valid signature
 
 \subsection{Pseudo-random Functions (PRF)}
@@ -245,13 +266,42 @@ BOLT features non-interactive zero-knowledge proofs of knowledge for the purpose
 \end{enumerate}
 %%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
 
+% include protocol for obtaining a blind signature -- on the values in a commitment
+\subsection{Proving Knowledge of a Signature~\cite{CL04}}
+\label{sec:blindsigs}
+
+\noindent
+{\bf How to compute a blind signature.} Given public key $pk = (q, G, {\sf G}, g, {\sf g}, e, X, Y)$. Prover takes as input the message $m \in \Z_q$ and CL signature (see Section~\ref{sec:clsigs}) $\sigma = (a, b, c)$.
+Prover does the following to compute a blinded version of signature $\sigma \leftarrow (a, b, c)$ from CL signature.
+\begin{enumerate}
+\item Chose random $r, r' \in \Z_q$.
+\item Compute $\tilde{\sigma} := (a^{r'}, b^{r'}, c^{r' r}) = (\tilde{a}, \tilde{b}, \tilde{c}^r) = (\tilde{a}, \tilde{b}, \hat{c})$.
+\item Send $(\tilde{a}, \tilde{b}, \hat{c})$ to the verifier.
+\end{enumerate}
+
+\noindent
+{\bf How to prove knowledge of a signature.} Given $\tilde{\sigma} = (\tilde{a}, \tilde{b}, \hat{c})$, both prover and verifier compute the following values locally:
+\begin{enumerate}
+\item Compute ${\sf v}_x = e(X, \tilde{a})$
+\item Compute ${\sf v}_{xy} = e(X, \tilde{b})$
+\item Compute ${\sf v}_s = e(g, \hat{c})$
+\end{enumerate}
+
+\noindent
+The prover and verifier execute the following zero-knowledge proof protocol: 
+\begin{enumerate}
+\item Verify proof $\pi = PK\{(u, p) : ({{\sf v}_s}^p = {{\sf v}_x} {{\sf v}_{xy}}^u)\}$.
+\item Check if $e(\tilde{a}, Y) = e(g, \tilde{b})$ holds.
+\end{enumerate}
+
+
 \section{Constructions}
 \label{sec:constructs}
 
 \subsection{Unidirectional Scheme}
 \label{sec:unidirectional}
 
-The unidirectional payment construction only supports payments from a customer to a merchant and only supports transfer of fixed-value coins. 
+The unidirectional payment construction only supports payments from a customer to a merchant and only supports transfer of fixed-value coins. It consists of a tuple of possibly probabilistic algorithms ({\sf Setup}, {\sf KeyGen}, {\sf Init}_{C}, {\sf Init}_{M}, {\sf Refund}, {\sf Refute}, {\sf Resolve}) and two interactive protocols ({\sf Establish}, {\sf Pay}).
 
 \begin{enumerate}
 
@@ -385,10 +435,12 @@ The customer obtains a new wallet $w_{new} := (sk_0, sk_c, k_1, k_2, r, B, \sigm
 
 \end{enumerate}
 
-% BIDIRECTIONAL SCHEME DESCRIPTION HERE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%% BIDIRECTIONAL SCHEME DESCRIPTION HERE %%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Bidirectional Scheme}
 
-The bidirectional payment construction enables compact closure and compact wallets in addition to a single run of the {\sf Pay} protocol to transfer arbitrary values (constrained by a maximum payment amount).
+The bidirectional payment construction enables compact closure and compact wallets in addition to a single run of the {\sf Pay} protocol to transfer arbitrary values (constrained by a maximum payment amount). It consists of a tuple of possibly probabilistic algorithms ({\sf Setup}, {\sf KeyGen}, {\sf Init}_{C}, {\sf Init}_{M}, {\sf Refund}, {\sf Refute}, {\sf Resolve}) and two interactive protocols ({\sf Establish}, {\sf Pay}).
 
 \begin{enumerate}
 
@@ -403,21 +455,21 @@ The bidirectional payment construction enables compact closure and compact walle
 
 % Init algorithm for customer
 \medskip \noindent
-\item ${\sf Init_{C}}({\sf PP}, {\sf cID}, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_{C}, csk_{C})$. On input a keypair $(pk_c, sk_c)$, perform the following:
+\item ${\sf Init_{C}}({\sf PP}, {\sf cID}, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_{\sf c}, csk_{\sf c})$. On input a keypair $(pk_c, sk_c)$, perform the following:
 
 \begin{itemize} 
-\item Customer generates wallet commitment by sampling random coins $r$
-\item Compute ephemeral keypair $(wpk, wsk) \leftarrow {\sf KeyGen}({\sf PP})$
-\item Compute ${\sf wCom} = {\sf Commit}(sk_c, wpk, \BC; r)$
+\item Customer generates wallet commitment by sampling random coins $r$.
+\item Compute ephemeral keypair $(wpk, wsk) \leftarrow {\sf KeyGen}({\sf PP})$.
+\item Compute ${\sf wCom} = {\sf Commit}({\sf cID}, wpk, \BC; r)$.
 \item For $i = 1$ to $\BC$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
-\item Output ${\sf T}_c = ({\sf wCom}, pk_c)$ and $csk_c = (sk_c, {\sf cID}, wpk, wsk, r, \BC)$.
+\item Output ${\sf T}_{\sf c} = (pk_c, {\sf wCom})$ and retains secret $csk_{\sf c} = (sk_c, {\sf cID}, wpk, wsk, r, \BC)$.
 \end{itemize}
 
 % Init algorithm description for merchant
 \item ${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
 
 \begin{itemize} 
-\item Output ${\sf T}_m = pk_m$ and $csk_m = (sk_m, \BM)$.
+\item Output ${\sf T}_{\sf m} = pk_m$ and $csk_{\sf m} = (sk_m, \BM)$.
 \end{itemize}
 
 % Establish protocol description
@@ -563,6 +615,9 @@ The customer obtains a new wallet $w_{\sf new} := (B - \epsilon, wpk', wsk', r',
 
 
 \end{enumerate}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%% BIDIRECTIONAL SCHEME DESCRIPTION HERE %%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{BOLT Usage}
 \label{ch:usage}
