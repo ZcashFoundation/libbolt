@@ -727,16 +727,17 @@ pub mod bidirectional {
 
     pub struct CustSecretKey {
         sk: clsigs::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
-        k1: Fr, // seed 1 for PRF
-        k2: Fr, // seed 2 for PRF
+        cid: Fr, // channel Id
+        wpk: G1, // signature verification key
+        wsk: Fr, // signature private key
         r: Fr, // random coins for commitment scheme
-        balance: i32, // the balance for the user
+        balance: u32, // the balance for the user
         ck_vec: Vec<sym::SymKey>
     }
 
     pub struct MerchSecretKey {
         sk: clsigs::SecretKey,
-        balance: i32
+        balance: u32
     }
 
     pub struct InitCustomerData {
@@ -766,16 +767,17 @@ pub mod bidirectional {
         return keypair;
     }
 
-    pub fn init_customer(pp: &PublicParams, channelId: Fr, b0_customer: i32, keypair: &clsigs::KeyPair) -> InitCustomerData {
+    pub fn init_customer(pp: &PublicParams, channelId: Fr, b0_customer: u32, keypair: &clsigs::KeyPair) -> InitCustomerData {
         println!("Run Init customer...");
         sym::init();
         let rng = &mut rand::thread_rng();
         // pick two distinct seeds
         let l = 256;
-        let k1 = Fr::random(rng);
-        let k2 = Fr::random(rng);
+        // keygen for wallet
+        let wsk = Fr::random(rng);
+        let wpk = pp.cm_mpk.g2 * wsk;
         let r = Fr::random(rng);
-        let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
+        //let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
 
         let mut ck_vec: Vec<sym::SymKey> = Vec::new();
         // generate the vector ck of sym keys
@@ -783,13 +785,14 @@ pub mod bidirectional {
             let ck = sym::keygen(l);
             ck_vec.push(ck);
         }
-        let w_com = commit_scheme::commit(&pp.cm_pp, msg, Some(r));
+        let w_com = commit_scheme::commit(&pp.cm_pp, channelId, wpk, b0_customer, Some(r));
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
-        let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
+        let csk_c = CustSecretKey { sk: keypair.sk, cid: channelId, wpk: wpk, wsk: wsk,
+                                    r: r, balance: b0_customer, ck_vec: ck_vec };
         return InitCustomerData { T: t_c, csk: csk_c };
     }
 
-    pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPair) -> InitMerchantData {
+    pub fn init_merchant(pp: &PublicParams, b0_merchant: u32, keypair: &clsigs::KeyPair) -> InitMerchantData {
         println!("Run Init merchant...");
         let csk_m = MerchSecretKey { sk: keypair.sk, balance: b0_merchant };
         return InitMerchantData { T: keypair.pk, csk: csk_m };
