@@ -184,7 +184,7 @@ ${\sf Decommit}(PP, C, M) =  \{0, 1\}$: On input parameters $PP$, and a tuple $(
 \subsubsection{Pedersen Commitments}
 \label{sec:ped92}
 
-We define pedersen commitments over a vector of $n$ messages as follows:
+We define Pedersen commitments over a vector of $n$ messages as follows:
 
 \medskip \noindent
 ${\sf CSetup}() \rightarrow PP$:  the algorithm generates public parameters and outputs the $PP = (g_1, g_2, ..., g_{n}, h)$.
@@ -210,32 +210,100 @@ ${\sf Decrypt}(K, C, N) = M \cup \bot$. The decryption algorithm takes as input 
 \subsection{Digital Signatures with Efficient Protocols} % CL sigs
 \label{sec:signatures}
 
-BOLT includes signatures due to Camenisch and Lysyanskaya~\cite{CL04} (CL) which features: (1) a protocol for a user to obtain a signature on the value(s) in a commitment without the signer learning anything about the message(s), and (2) a non-interactive protocol for proving knowledge of a signature.
+BOLT includes signatures due to Camenisch and Lysyanskaya (CL)~\cite{CL04} which features: (1) a protocol for a user to obtain a signature on the value(s) in a commitment without the signer learning anything about the message(s), and (2) a non-interactive protocol for proving knowledge of a signature. We will first provide the definition of a signature scheme then provide the details of the signature and the associated protocols.
 
 \medskip \noindent
 ${\sf SigKeygen}(\PP) \rightarrow (\PK, \SK)$. The key generation algorithm takes as input a security parameter $\tau$, runs the ${\sf ECSetup}(1^\tau)$ to select the elliptic curve parameters and outputs the public and secret key.
 
 \medskip \noindent
-${\sf Sign}(\PP, \SK, m) \rightarrow \sigma$. The signing algorithm takes as input public parameters, a secret key $\SK$ and message $m \in \{0,1\}^*$ and outputs a signature $\sigma$.
+${\sf Sign}(\PP, \SK, M) \rightarrow \sigma$. The signing algorithm takes as input public parameters, a secret key $\SK$ and message $m \in \{0,1\}^*$ and outputs a signature $\sigma$.
 
 \medskip \noindent
-${\sf Verify}(\PK, m, \sigma) =  \{true, false\}$. The verification algorithm takes as input a public key $\PK$, the message $m$ and the signature $\sigma$. The algorithm outputs $true$ if the signatures is valid with respect to $M$ and $\PK$. Otherwise, it outputs $false$.
+${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. The verification algorithm takes as input a public key $\PK$, the message $m$ and the signature $\sigma$. The algorithm outputs $true$ if the signatures is valid with respect to $M$ and $\PK$. Otherwise, it outputs $false$.
 
 \subsubsection{CL Signature~\cite{CL04}}
 \label{sec:clsigs}
 
-Run the {\sf Setup} algorithm to generate public parameters $pp = (q, \G, \G_1, \G_2, g, {\sf g}, e)$.
+Run the {\sf Setup} algorithm to generate public parameters $\PP = (q, \G_1, \G_2, g_1, g_2, e)$.
 
 \medskip \noindent
-${\sf SigKeygen}(\PP) \rightarrow (\PK, \SK)$. The key generation algorithm chooses $x \leftarrow \Z_q$ and $y \leftarrow \Z_q$ and sets $sk = (x, y)$ and $pk = (X, Y)$.
+${\sf SigKeygen}(\PP) \rightarrow (\PK, \SK)$. The key generation algorithm chooses $x \leftarrow \Z_q$, $y \leftarrow \Z_q$ and for $1 \le i \le \ell$, choose $z_i \leftarrow \Z_q$. Let $X = g_1^x$, $Y = g_1^y$, for $1 \le i \le \ell$, set $Z_i = g_1^{z_i}$ and $W_i = Y^{z_i}$.  Set $\SK = (x, y, {z_1, \dots, z_\ell})$ and $\PK = (X, Y, \{Z_i\}, \{W_i\})$.
 
 \medskip \noindent
-${\sf Sign}(\PP, \SK, m) \rightarrow \sigma$. On input message $m$, and secret key $sk = (x, y)$ and public parameters $pp = (q, \G, \G_1, \G_2, g, {\sf g}, e)$, choose a random $a \in \G_2$ and output signature $\sigma = (a, a^y, a^{x + mxy})$
+${\sf Sign}(\PP, \SK, M) \rightarrow \sigma$. On input message $M = (m^{(0)}, m^{(1)}, \dots, m^{(\ell)})$, and secret key $SK = (x, y, z_1, \dots, z_\ell)$ and public parameters $\PP = (q, \G_1, \G_2, g_1, g_2, e)$, and computes the following:
+\begin{enumerate}
+\item choose a random $a \in \G_2$ 
+\item Let $A_i = a^{z_i}$ for $1 \le i \le \ell$
+\item Let $b = a^y$, $B_i = (A_i)^{y}$
+\item Let $c = a^{x + xym^{(0)}} \cdot \prod_{i=1}^{\ell} A_i ^ {xym^{(i)}}$
+\item Output signature $\sigma = (a, \{A_i\}, b, \{B_i\}, c)$
+\end{enumerate}
 
 \medskip \noindent
-${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. On input $pk = (X, Y)$, message $m$ and signature $\sigma = (a, b, c)$, check that $e(a, Y) = e(g, b)$ and $e(X, a) \cdot e(X, b)^m = e(g, c)$. If both conditions hold, then output $true$. Otherwise, $false$.
+${\sf Verify}(\PK, M, \sigma) =  \{true, false\}$. On input $\PK = (X, Y, \{Z_i\}, \{W_i\})$, message $M = (m^{(0)}, m^{(1)}, \dots, m^{(\ell)})$ and signature $\sigma = (a, \{A_i\}, b, \{B_i\}, c)$, check the following:
+\begin{enumerate}
+\item $\{A_i\}$ were formed correctly: $e(Z_i, a) = e(g_1, A_i)$
+\item $b$ and $\{B_i\}$ were formed correctly: $e(Y, a) = e(g_1, b)$ and $e(Y, A_i) = e(g_1, B_i)$
+\item $c$ was formed correctly: $e(X, a) \cdot e(X, b)^{m^{(0)}} \cdot \prod_{i=1}^{\ell} e(X, B_i)^{m^{(i)}} = e(g_1, c)$
+
+% $e(a, Y) = e(g, b)$ and $e(X, a) \cdot e(X, b)^m = e(g, c)$. If both conditions hold, then output $true$. Otherwise, $false$.
+\end{enumerate}
 
 % include protocol for proving knowledge of a valid signature
+\subsubsection{(1) Protocol for obtaining a signature on a committed value}
+\label{sec:sigoncommit}
+
+Suppose $M = g_1 ^ {m^{(0)}} \prod_{i=1}^{\ell} {Z_i}^{m^{(i)}}$ is a commitment to a vector of messages $(m^{(0)}, m^{(1)}, \dots, m^{(\ell)})$ whose signature the user wishes to obtain. Then, the user and the signer execute the following protocol:
+\begin{itemize}
+\item The common input is the $\PP = (q, \G_1, \G_2, g_1, g_2, e)$,  $\PK = (X, Y, \{Z_i\}, \{W_i\})$ and a commitment $M$.
+\item The user's input is the messages $m^{(0)}, m^{(1)}, \dots, m^{(\ell)}$ that open to the commitment such that $M = g_1 ^ {m^{(0)}} \prod_{i=1}^{\ell} {Z_i}^{m^{(i)}}$.
+\item The signer's input is the secret key $\SK = (x, y, {z_1, \dots, z_\ell})$.
+\item The user and signer engage in a zero-knowledge proof of knowledge of the opening to the commitment as follows:
+\begin{enumerate}
+\item $PK \{ (u^{(0)}, \cdots, u^{(\ell)}): M = g_1 ^ {m^{(0)}} \prod_{i=1}^{\ell} {Z_i}^{m^{(i)}}$
+\end{enumerate}
+\item The signer computes $\sigma = (a, \{A_i\}, b, \{B_i\}, c)$ as follows (using $\SK$):
+\begin{enumerate}
+\item Choose $\alpha \leftarrow \Z_q$, 
+\item Set $a = g^\alpha$
+\item For $1 \le i \le \ell$, let $A_i = a^{z_i}$
+\item Set $b = a^y$
+\item For $1 \le i \le \ell$, let $B_i = {A_i}^y$
+\item Set $c = a^x M^{\alpha xy}$
+\end{enumerate}
+\end{itemize}
+
+\subsubsection{(2) Protocol for proving knowledge of a signature}
+\label{sec:blindsigs}
+
+\begin{itemize}
+\item The common input is the public parameters $\PP = (q, \G_1, \G_2, g_1, g_2, e)$ and public key $\PK = (X, Y, \{Z_i\}, \{W_i\})$
+\item The prover's input is the vector of messages $m^{(0)}, m^{(1)}, \dots, m^{(\ell)}$ and signature $\sigma = (a, \{A_i\}, b, \{B_i\}, c)$
+\item The protocol is in three parts:
+\begin{enumerate}
+\item The prover computes a blinded version of the signature $\sigma$ as follows:
+\begin{itemize}
+\item Chose random $r, r' \in \Z_q$
+\item Compute $\hat{\sigma} = (\tilde{a}, \{\tilde{A_i}\}, \tilde{b}, \{ \tilde{B_i} \}, \hat{c})$ as follows: $\tilde{a} = a^r$, $\tilde{b} = b^r$, $\hat{c} = ({c^r})^{r'}$, $\tilde{A} = {A_i}^r$ and $\tilde{B_i}= {B_i}^r$ for $1 \le i \le \ell$
+\item Send $\hat{\sigma}$ to verifier
+\end{itemize}
+
+\item Both the prover and verifier compute ${\sf v}_x$, ${\sf v}_{xy}$, ${\sf v}_{\{xy,i\}}$  where $i = 1, \dots, \ell$ and ${\sf v}_s$ as follows:
+\begin{enumerate}
+\item Compute ${\sf v}_x = e(X, \tilde{a})$
+\item Compute ${\sf v}_{xy} = e(X, \tilde{b})$
+\item Compute ${\sf v}_{\{xy,i\}} = e(X, \tilde{B_i})$
+\item Compute ${\sf v}_s = e(g_1, \hat{c})$
+\end{enumerate}
+
+\item The prover and verifier execute the following protocol:
+\begin{enumerate}
+\item Verify proof $\pi = PK\{(u^0, \dots, u^\ell, p) : ({{\sf v}_s})^p = {{\sf v}_x} {{\sf v}_{xy}}^{u^0}  \prod_{i=1}^\ell ({\sf v}_{(xy,i)})^{u_i}\}$.
+\item Check if $e(Z_i, \tilde{a}) \stackrel{?}{=} e(g_1, \tilde{A_i})$ and $e(Y, \tilde{a}) \stackrel{?}{=} e(g_1, \tilde{b})$ and $e(Y, \tilde{A_i}) \stackrel{?}{=} e(g_1, \tilde{B_i})$.
+\end{enumerate}
+
+\end{enumerate}
+\end{itemize}
 
 \subsection{Pseudo-random Functions (PRF)}
 \label{sec:prf}
@@ -256,43 +324,42 @@ ${\sf OTEnc}(K, M) \rightarrow C$. The algorithm takes as input a one-time key $
  \medskip \noindent
 ${\sf OTDec}(K, C) = M$ or $\bot$. The algorithm takes as input a key $K$ and the ciphertext $C$ and outputs the message tuple as $M$ or $\bot$.
 
-\subsection{Non-interactive Zero Knowledge Proofs}
+\subsection{Non-Interactive Zero Knowledge Proofs (NIZKP)}
 \label{sec:nizkp}
 
-BOLT features non-interactive zero-knowledge proofs of knowledge for the purposes of proving statements  about committed values: 
+BOLT features non-interactive zero-knowledge proofs of knowledge for the purposes of proving statements about committed values: 
 \begin{enumerate}
 \item a proof of knowledge of a committed value
 \item a proof of that a committed value is in a range
 \end{enumerate}
 %%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
 
-% include protocol for obtaining a blind signature -- on the values in a commitment
-\subsection{Proving Knowledge of a Signature~\cite{CL04}}
-\label{sec:blindsigs}
-
-\noindent
-{\bf How to compute a blind signature.} Given public key $pk = (q, G, {\sf G}, g, {\sf g}, e, X, Y)$. Prover takes as input the message $m \in \Z_q$ and CL signature (see Section~\ref{sec:clsigs}) $\sigma = (a, b, c)$.
-Prover does the following to compute a blinded version of signature $\sigma \leftarrow (a, b, c)$ from CL signature.
-\begin{enumerate}
-\item Chose random $r, r' \in \Z_q$.
-\item Compute $\tilde{\sigma} := (a^{r'}, b^{r'}, c^{r' r}) = (\tilde{a}, \tilde{b}, \tilde{c}^r) = (\tilde{a}, \tilde{b}, \hat{c})$.
-\item Send $(\tilde{a}, \tilde{b}, \hat{c})$ to the verifier.
-\end{enumerate}
-
-\noindent
-{\bf How to prove knowledge of a signature.} Given $\tilde{\sigma} = (\tilde{a}, \tilde{b}, \hat{c})$, both prover and verifier compute the following values locally:
-\begin{enumerate}
-\item Compute ${\sf v}_x = e(X, \tilde{a})$
-\item Compute ${\sf v}_{xy} = e(X, \tilde{b})$
-\item Compute ${\sf v}_s = e(g, \hat{c})$
-\end{enumerate}
-
-\noindent
-The prover and verifier execute the following zero-knowledge proof protocol: 
-\begin{enumerate}
-\item Verify proof $\pi = PK\{(u, p) : ({{\sf v}_s}^p = {{\sf v}_x} {{\sf v}_{xy}}^u)\}$.
-\item Check if $e(\tilde{a}, Y) = e(g, \tilde{b})$ holds.
-\end{enumerate}
+%\subsection{Proving Knowledge of a Signature for a Single Message~\cite{CL04}}
+%\label{sec:blindsigs}
+%
+%\noindent
+%{\bf How to compute a blind signature.} Given public key $pk = (q, G, {\sf G}, g, {\sf g}, e, X, Y)$. Prover takes as input the message $m \in \Z_q$ and CL signature (see Section~\ref{sec:clsigs}) $\sigma = (a, b, c)$.
+%Prover does the following to compute a blinded version of signature $\sigma \leftarrow (a, b, c)$ from CL signature.
+%\begin{enumerate}
+%\item Chose random $r, r' \in \Z_q$.
+%\item Compute $\tilde{\sigma} := (a^{r'}, b^{r'}, c^{r' r}) = (\tilde{a}, \tilde{b}, \tilde{c}^r) = (\tilde{a}, \tilde{b}, \hat{c})$.
+%\item Send $(\tilde{a}, \tilde{b}, \hat{c})$ to the verifier.
+%\end{enumerate}
+%
+%\noindent
+%{\bf How to prove knowledge of a signature.} Given $\tilde{\sigma} = (\tilde{a}, \tilde{b}, \hat{c})$, both prover and verifier compute the following values locally:
+%\begin{enumerate}
+%\item Compute ${\sf v}_x = e(X, \tilde{a})$
+%\item Compute ${\sf v}_{xy} = e(X, \tilde{b})$
+%\item Compute ${\sf v}_s = e(g, \hat{c})$
+%\end{enumerate}
+%
+%\noindent
+%The prover and verifier execute the following zero-knowledge proof protocol: 
+%\begin{enumerate}
+%\item Verify proof $\pi = PK\{(u, p) : ({{\sf v}_s}^p = {{\sf v}_x} {{\sf v}_{xy}}^u)\}$.
+%\item Check if $e(\tilde{a}, Y) = e(g, \tilde{b})$ holds.
+%\end{enumerate}
 
 
 \section{Constructions}
@@ -429,7 +496,7 @@ The customer obtains a new wallet $w_{new} := (sk_0, sk_c, k_1, k_2, r, B, \sigm
 \item Parse the customer and merchant closure messages and verify all signatures
 \item If there are any invalid signatures, grant the balance of the channel to the opposing party.
 \item If ${\sf rc}_{C} = (N, sk_{N}, \sigma)$ and ${\sf rc}_{M} = {\sf accept}$, then set ${B_{\sf final}^{\sf cust}} = ({B_{0}^{\sf cust}} - N) + 1$.
-\item Evaluate the merchant closure message to determine whether the customer misbehaved. \todo{how do we evaluate this exactly?}
+\item Evaluate the merchant closure message to determine whether the customer misbehaved. %\todo{expand on this, if possible}
 \item If so, assign the merchant the full balance of the channel.
 \end{enumerate}
 
