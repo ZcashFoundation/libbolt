@@ -161,8 +161,8 @@ In this section, we describe the core cryptographic primitives required to imple
 \item Symmetric Key Encryption
 \item Pseudo-random Functions
 \item One-time Encryption
-\item Non-interactive Zero-Knowledge Proofs of Knowledge
-\item Interactive protocols for generating blind or partially blind signatures
+\item Non-Interactive Zero-Knowledge Proofs of Knowledge
+%\item Interactive protocols for generating blind or partially blind signatures
 \end{itemize}
 
 %%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
@@ -330,7 +330,7 @@ ${\sf OTDec}(K, C) = M$ or $\bot$. The algorithm takes as input a key $K$ and th
 BOLT features non-interactive zero-knowledge proofs of knowledge for the purposes of proving statements about committed values: 
 \begin{enumerate}
 \item a proof of knowledge of a committed value
-\item a proof of that a committed value is in a range
+\item a proof that a committed value is in a range
 \end{enumerate}
 %%%%%%%%%%%% Crypto Tools %%%%%%%%%%%%
 
@@ -368,7 +368,7 @@ BOLT features non-interactive zero-knowledge proofs of knowledge for the purpose
 \subsection{Unidirectional Scheme}
 \label{sec:unidirectional}
 
-The unidirectional payment construction only supports payments from a customer to a merchant and only supports transfer of fixed-value coins. It consists of a tuple of possibly probabilistic algorithms ({\sf Setup}, {\sf KeyGen}, {\sf Init}_{C}, {\sf Init}_{M}, {\sf Refund}, {\sf Refute}, {\sf Resolve}) and two interactive protocols ({\sf Establish}, {\sf Pay}).
+The unidirectional payment construction only supports payments from a customer to a merchant and only supports transfer of fixed-value coins. It consists of a tuple of possibly probabilistic algorithms ({\sf Setup}, {\sf KeyGen}, ${\sf Init}_{\sf C}, {\sf Init}_{\sf M}$, {\sf Refund}, {\sf Refute}, {\sf Resolve}) and two interactive protocols ({\sf Establish}, {\sf Pay}).
 
 \begin{enumerate}
 
@@ -507,7 +507,7 @@ The customer obtains a new wallet $w_{new} := (sk_0, sk_c, k_1, k_2, r, B, \sigm
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Bidirectional Scheme}
 
-The bidirectional payment construction enables compact closure and compact wallets in addition to a single run of the {\sf Pay} protocol to transfer arbitrary values (constrained by a maximum payment amount). It consists of a tuple of possibly probabilistic algorithms ({\sf Setup}, {\sf KeyGen}, {\sf Init}_{C}, {\sf Init}_{M}, {\sf Refund}, {\sf Refute}, {\sf Resolve}) and two interactive protocols ({\sf Establish}, {\sf Pay}).
+The bidirectional payment construction enables compact closure and compact wallets in addition to a single run of the {\sf Pay} protocol to transfer arbitrary values (constrained by a maximum payment amount). It consists of a tuple of possibly probabilistic algorithms ({\sf Setup}, {\sf KeyGen}, ${\sf Init}_{\sf C}, {\sf Init}_{\sf M}$, {\sf Refund}, {\sf Refute}, {\sf Resolve}) and two interactive protocols ({\sf Establish}, {\sf Pay}).
 
 \begin{enumerate}
 
