@@ -449,7 +449,7 @@ The customer executes the following algorithm:
 \item Compute $s \leftarrow F_{k_1}(i)$
 \item Compute $t \rightarrow {\sf OTEnc}(F_{k_2}(i), pk_c)$
 \item Compute $\pi = PK\{ (pk_c, sk_c, k_1, k_2, r, i, \sigma_w): s = F_{k_1}(i) \wedge 0 < i \leq B\\  \wedge t = {\sf OTEnc}(F_{k_2}(i), pk_c) \\ \wedge {\sf Verify}(pk_m, (k_1, k_2, sk_c), \sigma_w) \\ \wedge (pk_c, sk_c) \in {\sf KeyGen}(1^\lambda) \}$
-\todo{Expand}
+%\todo{Expand}
 
 \item Return $(s, t, \pi)$
 \end{itemize}
@@ -551,7 +551,7 @@ The customer does the following:
 \item Parse $csk_c$ to obtain $({\sf cID}, {\sf wCom}, wpk, wsk, r, \BC)$
 \item Generate a proof $\pi_1$ of the following statement: \\
 $\pi_1 = PK\{ (wpk, wsk, r) : {\sf wCom} = {\sf Commit}({\sf cID}, wpk, \BC; r) \wedge (wpk, wsk) \in {\sf KeyGen}(1^\lambda)\}$
-\todo{Expand}
+%\todo{Expand}
 \item Send proof $\pi_1$ to the merchant.
 \end{enumerate}
 
@@ -606,7 +606,7 @@ The merchant does the following:
 \item If $\epsilon < 0$, then $R_{M} \leftarrow 1$ otherwise $R_{M} \leftarrow \bot$.
 \item Execute interactive protocol to generate a {\bf partially blind signature} $rt_{w'}$ under $sk_m$ on the message $({\sf refund}||wpk'||B - \epsilon)$.
 \\ NOTE: $wpk'$ and $B - \epsilon$ are the contents of ${\sf wCom'}$.
-\\ \todo{Expand}
+\\ % \todo{Expand}
 \item The customer obtains $rt_{w'}$ at the end of the protocol.
 \end{enumerate}
 
