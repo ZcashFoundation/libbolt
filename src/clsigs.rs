@@ -4,7 +4,7 @@ use std::fmt;
 use std::str;
 //use std::default;
 use rand;
-use bn::{Group, Fr, G1, G2, pairing};
+use bn::{Group, Fr, G1, G2, Gt, pairing};
 //use debug_elem_in_hex;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
@@ -55,10 +55,12 @@ impl SecretKey {
     }
 }
 
+#[derive(Clone)]
 pub struct KeyPair {
     pub sk: SecretKey,
     pub pk: PublicKey
 }
+
 
 pub struct Signature {
     a: G2,
@@ -140,7 +142,7 @@ pub fn verify_A(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> b
 //}
 
 // scheme D - for a vector of messages
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct PublicKeyD {
     X: G1,
     Y: G1,
@@ -148,14 +150,20 @@ pub struct PublicKeyD {
     W: Vec<G1>
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct SecretKeyD {
     x: Fr,
     y: Fr,
     z: Vec<Fr>
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
+pub struct KeyPairD {
+    pub sk: SecretKeyD,
+    pub pk: PublicKeyD
+}
+
+#[derive(Clone)]
 pub struct SignatureD {
     a: G2,
     A: Vec<G2>,
@@ -172,7 +180,7 @@ pub fn setupD() -> PublicParams {
     return mpk;
 }
 
-pub fn keygenD(mpk : &PublicParams, l: i32) -> KeyPair {
+pub fn keygenD(mpk : &PublicParams, l: i32) -> KeyPairD {
     let rng = &mut rand::thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
@@ -182,7 +190,7 @@ pub fn keygenD(mpk : &PublicParams, l: i32) -> KeyPair {
     let mut Z: Vec<G1> = Vec::new();
     let mut W: Vec<G1> = Vec::new();
     // generate the vector ck of sym keys
-    for i in 1 .. l {
+    for i in 0 .. l {
         let _z = Fr::random(rng);
         let _Z = mpk.g * _z;
         let _W = Y * _z;
@@ -196,8 +204,8 @@ pub fn keygenD(mpk : &PublicParams, l: i32) -> KeyPair {
     return KeyPairD { sk: sk, pk: pk }
 }
 
-pub fn signD(sk: &SecretKeyD, m: Vec<Fr>) -> Signature {
-    assert_eq!(m.len(), sk.z.len());
+pub fn signD(sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
+    assert_eq!(m.len(), sk.z.len()+1);
     let l = m.len();
 
     let rng = &mut rand::thread_rng();
@@ -207,45 +215,54 @@ pub fn signD(sk: &SecretKeyD, m: Vec<Fr>) -> Signature {
     let mut B: Vec<G2> = Vec::new();
     let mut c = (a * (sk.x + (m[0] * sk.x * sk.y)));
 
-    for i in 1 .. l {
-        let _A = a * z[i];
+    for i in 0 .. l-1 {
+        let _A = a * sk.z[i];
         let _B = _A * sk.y;
         A.push(_A);
         B.push(_B);
-        c = c + (_A * (m[i] * sk.x * sk.y));
+        c = c + (_A * (m[i+1] * sk.x * sk.y));
     }
 
     let sig = SignatureD { a: a, A: A, b: b, B: B, c: c };
+    // Ok(sig);
     return sig;
 }
 
-pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: Vec<Fr>, sig: &SignatureD) -> bool {
-    assert_eq!(m.len(), sig.A.len());
-    assert_eq!(m.len(), sig.B.len());
+pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
+    assert_eq!(m.len(), sig.A.len()+1);
+    assert_eq!(m.len(), sig.B.len()+1);
 
     let l = m.len();
-    let lhs1 = pairing(pk.Z, sig.a);
-    let rhs1 = pairing(mpk.g, sig.b);
-
-    let lhs2a = pairing(pk.Y, a);
+    // lhs2a and rhs2a checks that sig.b was formed correctly
+    let lhs2a = pairing(pk.Y, sig.a);
     let rhs2a = pairing(mpk.g, sig.b);
 
+    let mut result1 = true;
     let mut result2b = true;
-    for i in 1 .. l {
+    // lhs3 and rhs3 checks that sig.c was formed correctly
+    let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]);
+    let rhs3 = pairing(mpk.g, sig.c);
+
+    for i in 0 .. l-1 {
+        // checks that {sig.A}_i was formed correctly
+        let lhs1 = pairing(pk.Z[i], sig.a);
+        let rhs1 = pairing(mpk.g, sig.A[i]);
+        if (lhs1 != rhs1) {
+            result1 = false;
+        }
         let lhs2b = pairing(pk.Y, sig.A[i]);
         let rhs2b = pairing(mpk.g, sig.B[i]);
         if lhs2b != rhs2b {
             result2b = false;
         }
+        lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i+1]);
     }
 
-    let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]);
-    for i in 1 .. l {
-        lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i]);
-    }
-    let rhs3 = pairing(mpk.g, sig.c);
-
-    return (lhs1 == rhs1) && (lhs2a == rhs2a) && (result2b == true) && (lhs3 == rhs3);
+//    let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]);
+//    for i in 1 .. l {
+//        lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i]);
+//    }
+    return (result1 == true) && (lhs2a == rhs2a) && (result2b == true) && (lhs3 == rhs3);
 }
 
 // NIZK protocol for proving knowledge of a signature
@@ -261,7 +278,10 @@ pub fn prover_gen_blind(sig: &SignatureD) -> SignatureD {
     let c = (sig.c * r) * rpr;
     let mut A: Vec<G2> = Vec::new();
     let mut B: Vec<G2> = Vec::new();
-    for i in 1 .. l {
+    assert!(sig.A.len() == sig.B.len());
+    let l = sig.A.len();
+
+    for i in 0 .. l {
         A.push(sig.A[i] * r);
         B.push(sig.B[i] * r);
     }
@@ -271,11 +291,14 @@ pub fn prover_gen_blind(sig: &SignatureD) -> SignatureD {
 }
 
 pub fn verify_proof_for_blind_sigs(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) {
+    assert!(sig.A.len() == sig.B.len());
+    let l = sig.A.len();
+
     let vx = pairing(pk.X, sig.a);
     let vxy = pairing(pk.X, sig.b);
     // generate vector
-    let mut vxyi: Vec<GT> = Vec::new();
-    for i in 1 .. l {
+    let mut vxyi: Vec<Gt> = Vec::new();
+    for i in 0 .. l {
         vxyi.push(pairing(pk.X, sig.B[i]));
     }
     let vs = pairing(mpk.g, sig.c);

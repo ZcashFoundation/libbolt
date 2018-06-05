@@ -12,10 +12,10 @@ use sodiumoxide::crypto::hash::sha512;
 // define some structures here
 #[derive(Copy, Clone)]
 pub struct PublicParams {
-    g1: G1,
-    g2: G1,
-    g3: G1,
-    h: G1
+    pub g1: G1,
+    pub g2: G1,
+    pub g3: G1,
+    pub h: G1
 }
 
 
@@ -135,11 +135,11 @@ pub fn setup() -> PublicParams {
     let g4 = G1::random(rng);
     let h = G1::random(rng);
     let pp = PublicParams { g1: g1, g2: g2, g3: g3, h: h };
-    println!("{}", pp);
+    //println!("{}", pp);
     return pp;
 }
 
-pub fn commit(pp: &PublicParams, channelId: Fr, wpk: G1, balance: u32, R: Option<Fr>) -> Commitment {
+pub fn commit(pp: &PublicParams, channelId: Fr, wpk: Fr, balance: Fr, R: Option<Fr>) -> Commitment {
     let rng = &mut rand::thread_rng();
 
     let r = R.unwrap_or(Fr::random(rng));
@@ -147,7 +147,7 @@ pub fn commit(pp: &PublicParams, channelId: Fr, wpk: G1, balance: u32, R: Option
     let p = "commit -> cid";
     debug_elem_in_hex(p, &channelId);
     // c = g^m * h^r
-    let c = (pp.g1 * channelId) + (pp.g2 + wpk) + (pp.g3 * balance) + (pp.h * r);
+    let c = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * r);
     // return (c, r) <- d=r
     let commitment = Commitment { c: c, d: r };
 
@@ -156,9 +156,9 @@ pub fn commit(pp: &PublicParams, channelId: Fr, wpk: G1, balance: u32, R: Option
     return commitment;
 }
 
-pub fn decommit(pp: &PublicParams, cm: &Commitment, channelId: Fr, wpk: G1, balance: u32) -> bool {
+pub fn decommit(pp: &PublicParams, cm: &Commitment, channelId: Fr, wpk: Fr, balance: Fr) -> bool {
     let p = "decommit -> cid";
     debug_elem_in_hex(p, &channelId);
-    let dm = (pp.g1 * channelId) + (pp.g2 + wpk) + (pp.g3 * balance) + (pp.h * cm.d);
+    let dm = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * cm.d);
     return dm == cm.c;
 }

@@ -1,8 +1,11 @@
-.PHONY: all test doc clean
+.PHONY: all bench test doc clean
 
 all:
 	cargo build
 	cargo run
+
+bench:
+	cargo bench
 
 test:
 	# runs the unit test suite

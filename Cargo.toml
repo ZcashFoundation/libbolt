@@ -12,10 +12,11 @@ license = "MIT License"
 [dependencies]
 bn = "0.4.3"
 rand = "~0.3.14"
-bincode = "0.5.9"
+bincode = "0.6.1"
 sodiumoxide = "0.0.16"
 serde = "1.0"
 serde_derive = "1.0"
+time = "*"
 
 [dev-dependencies.bincode]
 version = "~0.6.0"

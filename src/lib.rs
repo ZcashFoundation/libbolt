@@ -6,7 +6,7 @@ extern crate sodiumoxide;
 use std::fmt;
 use std::str;
 use std::default;
-use bn::{Group, Fr, G1, G2, pairing};
+use bn::{Group, Fr, G1, G2, Gt, pairing};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 use sodiumoxide::randombytes;
@@ -494,11 +494,11 @@ pub struct SpendMessage<'a> {
     s: G1,
     u: G1,
     pi: Proof,
-    ck: SymKey
+    ck: sym::SymKey
 }
 
 impl<'a> SpendMessage<'a> {
-    pub fn new(_j: i32, _s: G1, _u: G1, _pi: Proof, _ck: SymKey) -> SpendMessage<'a> {
+    pub fn new(_j: i32, _s: G1, _u: G1, _pi: Proof, _ck: sym::SymKey) -> SpendMessage<'a> {
         SpendMessage {
             prefix: "spend", j: _j, s: _s, u: _u, pi: _pi, ck: _ck,
         }
@@ -506,6 +506,8 @@ impl<'a> SpendMessage<'a> {
 
     pub fn hash(&self) -> Fr {
         // hash into a Fr element
+        let rng = &mut rand::thread_rng();
+        return Fr::random(rng);
     }
 }
 
@@ -572,29 +574,52 @@ pub struct Proof {
     s2: Fr
 }
 
-pub fn hash(g: &G1, h: &G1, X: &G1, Y: &G1, ) -> Fr {
+pub fn hash(g: &G1, h: &G1, X: &G1, Y: &G1, T: &Gt) -> Fr {
     let g_vec: Vec<u8> = encode(&g, Infinite).unwrap();
 
+    // TODO: fix this
+    return Fr::from_str("1234567890").unwrap();
 }
 
-pub fn create_nizk_proof_one(pp: &PublicParams, pk: &PublicKey, sk: &SecretKey) -> Proof {
-    let rng = &mut rand::thread_rng();
+pub fn hashG1ToFr(x: &G1) -> Fr {
+    // TODO: change to serde (instead of rustc_serialize)
+    let x_vec: Vec<u8> = encode(&x, Infinite).unwrap();
+    let sha2_digest = sha512::hash(x_vec.as_slice());
 
-    let t1 = Fr::random(rng);
-    let t2 = Fr::random(rng);
-
-    let T = (pk.g * t1) + (pk.h * t2);
-
-    let c = hash(pp.g, pp.h, pk.X, pk.Y, T);
-
-    let s1 = (sk.x * c) + t1;
-    let s2 = (sk.y * c) + t2;
-
-    return Proof { T: T, c: c, s1: s1, s2: s2 };
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    return Fr::interpret(&hash_buf);
 }
+
+//pub fn hashStrToFr(x: &str) -> Fr {
+//    // TODO: change to serde (instead of rustc_serialize)
+//    let sha2_digest = sha512::hash(x.as_slice());
+//
+//    let mut hash_buf: [u8; 64] = [0; 64];
+//    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+//    return Fr::interpret(&hash_buf);
+//}
+
+
+//pub fn create_nizk_proof_one(pp: &PublicParams, pk: &clsigs::PublicKeyD, sk: &clsigs::SecretKeyD) -> Proof {
+//    let rng = &mut rand::thread_rng();
+//
+//    let t1 = Fr::random(rng);
+//    let t2 = Fr::random(rng);
+//
+//    let T = (pk.g * t1) + (pk.h * t2);
+//
+//    let c = hash(pp.g, pp.h, pk.X, pk.Y, T);
+//
+//    let s1 = (sk.x * c) + t1;
+//    let s2 = (sk.y * c) + t2;
+//
+//    return Proof { T: T, c: c, s1: s1, s2: s2 };
+//}
 
 pub fn verify_nizk_proof_one(proof: &Proof) -> bool {
    // how do we verify the proof?
+    return true;
 }
 ////////////////////////////////// NIZKP //////////////////////////////////
 
@@ -706,11 +731,12 @@ pub fn verify_nizk_proof_one(proof: &Proof) -> bool {
 pub mod bidirectional {
     use std::fmt;
     use rand;
-    use bn::{Group, Fr};
+    use bn::{Group, Fr, G1};
     use sym;
     use commit_scheme;
     use clsigs;
     use Message;
+    use hashG1ToFr;
     use sodiumoxide::randombytes;
 
     pub struct PublicParams {
@@ -722,22 +748,22 @@ pub mod bidirectional {
 
     pub struct ChannelToken {
         w_com: commit_scheme::Commitment,
-        pk: clsigs::PublicKey
+        pk: clsigs::PublicKeyD
     }
 
     pub struct CustSecretKey {
-        sk: clsigs::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
+        sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         cid: Fr, // channel Id
         wpk: G1, // signature verification key
         wsk: Fr, // signature private key
         r: Fr, // random coins for commitment scheme
-        balance: u32, // the balance for the user
+        balance: i32, // the balance for the user
         ck_vec: Vec<sym::SymKey>
     }
 
     pub struct MerchSecretKey {
-        sk: clsigs::SecretKey,
-        balance: u32
+        sk: clsigs::SecretKeyD,
+        balance: i32
     }
 
     pub struct InitCustomerData {
@@ -746,28 +772,28 @@ pub mod bidirectional {
     }
 
     pub struct InitMerchantData {
-        T: clsigs::PublicKey,
+        T: clsigs::PublicKeyD,
         csk: MerchSecretKey
     }
 
     pub fn setup() -> PublicParams {
         // TODO: provide option for generating CRS parameters
         let cm_pp = commit_scheme::setup();
-        let cl_mpk = clsigs::setup();
+        let cl_mpk = clsigs::setupD();
         let l = 256;
         // let nizk = "nizk proof system";
         let pp = PublicParams { cm_mpk: cm_pp, cl_mpk: cl_mpk, l_bits: l };
         return pp;
     }
 
-    pub fn keygen(pp: &PublicParams) -> clsigs::KeyPair {
+    pub fn keygen(pp: &PublicParams) -> clsigs::KeyPairD {
         // TODO: figure out what we need from public params to generate keys
         println!("Run Keygen...");
-        let keypair = clsigs::keygen(&pp.cl_mpk);
+        let keypair = clsigs::keygenD(&pp.cl_mpk, 3);
         return keypair;
     }
 
-    pub fn init_customer(pp: &PublicParams, channelId: Fr, b0_customer: u32, keypair: &clsigs::KeyPair) -> InitCustomerData {
+    pub fn init_customer(pp: &PublicParams, channelId: Fr, b0_customer: i32, keypair: &clsigs::KeyPairD) -> InitCustomerData {
         println!("Run Init customer...");
         sym::init();
         let rng = &mut rand::thread_rng();
@@ -776,6 +802,8 @@ pub mod bidirectional {
         // keygen for wallet
         let wsk = Fr::random(rng);
         let wpk = pp.cm_mpk.g2 * wsk;
+        let h_wpk = hashG1ToFr(&wpk);
+        let b0 = Fr::from_str(b0_customer.to_string().as_str()).unwrap();
         let r = Fr::random(rng);
         //let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
 
@@ -785,21 +813,23 @@ pub mod bidirectional {
             let ck = sym::keygen(l);
             ck_vec.push(ck);
         }
-        let w_com = commit_scheme::commit(&pp.cm_pp, channelId, wpk, b0_customer, Some(r));
-        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
-        let csk_c = CustSecretKey { sk: keypair.sk, cid: channelId, wpk: wpk, wsk: wsk,
+
+        // TODO: hash (wpk) and convert b0_customer into Fr
+        let w_com = commit_scheme::commit(&pp.cm_mpk, channelId, h_wpk, b0, Some(r));
+        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone() };
+        let csk_c = CustSecretKey { sk: keypair.sk.clone(), cid: channelId, wpk: wpk, wsk: wsk,
                                     r: r, balance: b0_customer, ck_vec: ck_vec };
         return InitCustomerData { T: t_c, csk: csk_c };
     }
 
-    pub fn init_merchant(pp: &PublicParams, b0_merchant: u32, keypair: &clsigs::KeyPair) -> InitMerchantData {
+    pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPairD) -> InitMerchantData {
         println!("Run Init merchant...");
-        let csk_m = MerchSecretKey { sk: keypair.sk, balance: b0_merchant };
-        return InitMerchantData { T: keypair.pk, csk: csk_m };
+        let csk_m = MerchSecretKey { sk: keypair.sk.clone(), balance: b0_merchant };
+        return InitMerchantData { T: keypair.pk.clone(), csk: csk_m };
     }
 
     // TODO: requires NIZK proof system
-    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
+    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKeyD, csk_c: &CustSecretKey) {
         println ! ("Run establish_customer algorithm...");
         // set sk_0 to random bytes of length l
         // let sk_0 = random_bytes(pp.l);
@@ -807,7 +837,7 @@ pub mod bidirectional {
         let mut sk0 = vec![0; buf_len];
         randombytes::randombytes_into(&mut sk0);
 
-        let pi1 = create_nizk_proof_one(csk_c.sk, csk_c.k1, csk_c.k2, );
+        //let pi1 = create_nizk_proof_one(csk_c.sk, csk_c.k1, csk_c.k2, );
     }
 
     // the merchant calls this method after obtaining
@@ -816,8 +846,12 @@ pub mod bidirectional {
     }
 
     // TODO: requires NIZK proof system calls
-    pub fn pay() {
-        println!("Run pay algorithm...");
+    pub fn pay_by_customer() {
+        println!("Run pay algorithm by Customer - phase 1.");
+    }
+
+    pub fn pay_by_merchant() {
+        println!("Run pay algorithm by Merchant - phase 1");
     }
 
 //    pub fn refund(pp: &PublicParams, imd : &InitMerchantData, w: Wallet) {

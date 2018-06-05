@@ -5,6 +5,7 @@ extern crate bincode;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
+extern crate time;
 
 use std::fmt;
 use bn::{Group, Fr, G1, G2, pairing};
@@ -16,6 +17,7 @@ use libbolt::sym;
 use libbolt::ote;
 use libbolt::clsigs;
 use libbolt::commit_scheme;
+use time::PreciseTime;
 
 #[doc(hidden)]
 #[macro_export]
@@ -337,6 +339,40 @@ fn main() {
 
     assert!(m.m1 == orig_m.m1 && m.m2 == orig_m.m2);
     println!("OTE scheme works as expected!");
+
+    // Test the CL sigs
+    // CL sig tests
+    let mpk = clsigs::setupD();
+    let l = 3;
+    let keypair = clsigs::keygenD(&mpk, l);
+    //println!("{}", keypair.pk);
+
+//    let msg1 = libbolt::RefundMessage::new(alice_sk, 10).hash(); // TODO: add ck (l-bit key)
+//    let msg2 = libbolt::RefundMessage::new(alice_sk, 11).hash(); // TODO: add ck (l-bit key)
+    let mut m1 : Vec<Fr> = Vec::new();
+    let mut m2 : Vec<Fr> = Vec::new();
+    let mut m3 : Vec<Fr> = Vec::new();
+
+    for i in 0 .. l+1 {
+        m1.push(Fr::random(rng));
+        m2.push(Fr::random(rng));
+        m3.push(Fr::random(rng));
+    }
+
+    let signature = clsigs::signD(&keypair.sk, &m1);
+    //println!("{}", signature);
+    let start1 = PreciseTime::now();
+    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
+    let end1 = PreciseTime::now();
+    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m2, &signature) == false);
+    let end2 = PreciseTime::now();
+//    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
+//    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m3, &signature) == false);
+
+    println!("CL signatures verified!");
+    println!("{} seconds for verifying valid signatures.", start1.to(end1));
+    println!("{} seconds for verifying invalid signatures.", end1.to(end2));
+
 
 //    let rng = &mut rand::thread_rng();
 //    let G = G1::random(rng); // &dalek_constants::RISTRETTO_BASEPOINT_POINT;
