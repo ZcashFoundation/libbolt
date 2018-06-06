@@ -2,6 +2,7 @@ extern crate bn;
 extern crate rand;
 extern crate bincode;
 extern crate sodiumoxide;
+//extern crate test;
 
 use std::fmt;
 use std::str;
@@ -29,6 +30,24 @@ pub mod commit_scheme;
 
 pub fn debug_elem_in_hex(prefix: &str, r: &Fr) {
     let encoded: Vec<u8> = encode(&r, Infinite).unwrap();
+    print!("{} (hex) = 0x", prefix);
+    for e in encoded.iter() {
+        print!("{:x}", e);
+    }
+    print!("\n");
+}
+
+pub fn debug_g1_in_hex(prefix: &str, g: &G1) {
+    let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
+    print!("{} (hex) = 0x", prefix);
+    for e in encoded.iter() {
+        print!("{:x}", e);
+    }
+    print!("\n");
+}
+
+pub fn debug_g2_in_hex(prefix: &str, g: &G2) {
+    let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
     print!("{} (hex) = 0x", prefix);
     for e in encoded.iter() {
         print!("{:x}", e);

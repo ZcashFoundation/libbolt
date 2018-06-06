@@ -408,6 +408,26 @@ fn main() {
 //    assert!(parsed_proof.verify(publics).is_ok());
 
     println!("******************************************");
+    let b = keypair.pk.Z2.len();
+    let mut bases: Vec<G2> = Vec::new();
+    bases.push(mpk.g2);
+    for i in 0 .. b {
+        bases.push(keypair.pk.Z2[i]);
+    }
+
+    // generate sample commitment
+    let mut C = mpk.g2 * m1[0];
+    for i in 0 .. b {
+        C = C + (keypair.pk.Z2[i] * m1[i+1]);
+    }
+    let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+
+    let blind_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
+
+    println!("Generated blind signature!");
+    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &blind_sig) == true);
+
+    println!("Verified blind signature!");
 
 //    sym::init();
 //    // SymKeyEnc tests

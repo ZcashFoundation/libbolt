@@ -1,17 +1,20 @@
+#![feature(test)]
 // clsigs.rs
-
 use std::fmt;
 use std::str;
 //use std::default;
 use rand;
 use bn::{Group, Fr, G1, G2, Gt, pairing};
-//use debug_elem_in_hex;
+use debug_elem_in_hex;
+use debug_g1_in_hex;
+use debug_g2_in_hex;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
 
 pub struct PublicParams {
-    g: G1
+    pub g1: G1,
+    pub g2: G2
 }
 
 #[derive(Copy, Clone)]
@@ -96,8 +99,9 @@ impl fmt::Display for Signature {
 
 pub fn setup_A() -> PublicParams {
     let rng = &mut rand::thread_rng();
-    let g = G1::random(rng);
-    let mpk = PublicParams { g: g };
+    let g1 = G1::random(rng);
+    let g2 = G2::random(rng);
+    let mpk = PublicParams { g1: g1, g2: g2 };
     return mpk;
 }
 
@@ -106,8 +110,8 @@ pub fn keygen_A(mpk : &PublicParams) -> KeyPair {
     let x = Fr::random(rng);
     let y = Fr::random(rng);
     let sk = SecretKey { x: x, y: y };
-    let pk = PublicKey { X: mpk.g * x,
-                         Y: mpk.g * y
+    let pk = PublicKey { X: mpk.g1 * x,
+                         Y: mpk.g1 * y
                         };
     return KeyPair { sk: sk, pk: pk }
 }
@@ -124,9 +128,9 @@ pub fn sign_A(sk: &SecretKey, m: Fr) -> Signature {
 
 pub fn verify_A(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> bool {
     let lhs1 = pairing(pk.Y, sig.a);
-    let rhs1 = pairing(mpk.g, sig.b);
+    let rhs1 = pairing(mpk.g1, sig.b);
     let lhs2 = pairing(pk.X, sig.a) * (pairing(pk.X, sig.b).pow(m));
-    let rhs2 = pairing(mpk.g, sig.c);
+    let rhs2 = pairing(mpk.g1, sig.c);
     return (lhs1 == rhs1) && (lhs2 == rhs2);
 }
 
@@ -144,10 +148,11 @@ pub fn verify_A(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> b
 // scheme D - for a vector of messages
 #[derive(Clone)]
 pub struct PublicKeyD {
-    X: G1,
-    Y: G1,
-    Z: Vec<G1>,
-    W: Vec<G1>
+    pub X: G1,
+    pub Y: G1,
+    pub Z: Vec<G1>,
+    pub Z2: Vec<G2>,
+    pub W: Vec<G1>
 }
 
 #[derive(Clone)]
@@ -175,8 +180,9 @@ pub struct SignatureD {
 
 pub fn setupD() -> PublicParams {
     let rng = &mut rand::thread_rng();
-    let g = G1::random(rng);
-    let mpk = PublicParams { g: g };
+    let g1 = G1::random(rng);
+    let g2 = G2::random(rng);
+    let mpk = PublicParams { g1: g1, g2: g2 };
     return mpk;
 }
 
@@ -184,23 +190,26 @@ pub fn keygenD(mpk : &PublicParams, l: i32) -> KeyPairD {
     let rng = &mut rand::thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
-    let X = mpk.g * x;
-    let Y = mpk.g * y;
+    let X = mpk.g1 * x;
+    let Y = mpk.g1 * y;
     let mut z: Vec<Fr> = Vec::new();
     let mut Z: Vec<G1> = Vec::new();
+    let mut Z2: Vec<G2> = Vec::new();
     let mut W: Vec<G1> = Vec::new();
     // generate the vector ck of sym keys
     for i in 0 .. l {
         let _z = Fr::random(rng);
-        let _Z = mpk.g * _z;
+        let _Z = mpk.g1 * _z;
+        let _Z2 = mpk.g2 * _z;
         let _W = Y * _z;
         z.push(_z);
         Z.push(_Z);
+        Z2.push(_Z2);
         W.push(_W);
     }
 
     let sk = SecretKeyD { x: x, y: y, z: z };
-    let pk = PublicKeyD { X: X, Y: Y, Z: Z, W: W };
+    let pk = PublicKeyD { X: X, Y: Y, Z: Z, Z2: Z2, W: W };
     return KeyPairD { sk: sk, pk: pk }
 }
 
@@ -235,23 +244,23 @@ pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &Signature
     let l = m.len();
     // lhs2a and rhs2a checks that sig.b was formed correctly
     let lhs2a = pairing(pk.Y, sig.a);
-    let rhs2a = pairing(mpk.g, sig.b);
+    let rhs2a = pairing(mpk.g1, sig.b);
 
     let mut result1 = true;
     let mut result2b = true;
     // lhs3 and rhs3 checks that sig.c was formed correctly
     let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]);
-    let rhs3 = pairing(mpk.g, sig.c);
+    let rhs3 = pairing(mpk.g1, sig.c);
 
     for i in 0 .. l-1 {
         // checks that {sig.A}_i was formed correctly
         let lhs1 = pairing(pk.Z[i], sig.a);
-        let rhs1 = pairing(mpk.g, sig.A[i]);
+        let rhs1 = pairing(mpk.g1, sig.A[i]);
         if (lhs1 != rhs1) {
             result1 = false;
         }
         let lhs2b = pairing(pk.Y, sig.A[i]);
-        let rhs2b = pairing(mpk.g, sig.B[i]);
+        let rhs2b = pairing(mpk.g1, sig.B[i]);
         if lhs2b != rhs2b {
             result2b = false;
         }
@@ -265,10 +274,131 @@ pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &Signature
     return (result1 == true) && (lhs2a == rhs2a) && (result2b == true) && (lhs3 == rhs3);
 }
 
+pub fn add_two(a: i32) -> i32 {
+    a + 2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test::Bencher;
+
+    #[test]
+    fn it_works() {
+        assert_eq!(4, add_two(2));
+    }
+
+    #[bench]
+    fn bench_add_two(b: &mut Bencher) {
+        b.iter(|| add_two(2));
+    }
+}
+
 // NIZK protocol for proving knowledge of a signature
+pub fn hashG2ToFr(x: &G2) -> Fr {
+    // TODO: change to serde (instead of rustc_serialize)
+    let x_vec: Vec<u8> = encode(&x, Infinite).unwrap();
+    let sha2_digest = sha512::hash(x_vec.as_slice());
+
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    return Fr::interpret(&hash_buf);
+}
+
+pub struct ProofCV {
+    T: G2,
+    C: G2,
+    s: Vec<Fr>,
+    pub_bases: Vec<G2>
+}
+
+// NIZK for PoK of the opening of a commitment M = g^m0 * Z1^m1 * ... * Zl^ml
+pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
+    let rng = &mut rand::thread_rng();
+    let l = x.len();
+    let mut t: Vec<Fr> = Vec::new();
+    for i in 0 .. l {
+        t.push(Fr::random(rng));
+    }
+
+    // compute the T
+    let mut T = pub_bases[0] * t[0];
+    for i in 1 .. l {
+        T = T + (pub_bases[i] * t[i]);
+    }
+
+    // hash T to get the challenge
+    let c = hashG2ToFr(&T);
+    //let msg = "challenge -> c";
+    //debug_elem_in_hex(msg, &c);
+
+    // compute s values
+    let mut s: Vec<Fr> = Vec::new();
+    for i in 0 .. l {
+        //println!("(gen proof) i => {}", i);
+        let _s = (x[i] * c) + t[i];
+        s.push(_s);
+    }
+
+    return ProofCV { T: T, C: C, s: s, pub_bases: pub_bases.clone() };
+}
+
+pub fn bs_gen_signature(mpk: &PublicParams, sk: &SecretKeyD, proof: &ProofCV) -> SignatureD {
+   if part1_verify_proof(&proof) {
+        return part2_compute_signature(&mpk, &sk, proof.C);
+   } else {
+       panic!("Invalid proof: could not verify the NIZK proof");
+   }
+}
+
+// internal function
+fn part1_verify_proof(proof: &ProofCV) -> bool {
+    // if proof is valid, then call part
+    let c = hashG2ToFr(&proof.T);
+    //let mut msg = "(in verify proof) challenge -> c";
+    //debug_elem_in_hex(msg, &c);
+
+    let l = proof.s.len();
+    assert!(l > 1);
+
+    let mut lhs = proof.pub_bases[0] * proof.s[0];
+    for i in 1 .. l {
+        //println!("(in verify proof) i => {}", i);
+        lhs = lhs + (proof.pub_bases[i] * proof.s[i]);
+    }
+    //msg = "(in verify proof) lhs => ";
+    //debug_g2_in_hex(msg, &lhs);
+
+    let rhs = (proof.C * c) + proof.T;
+    //msg = "(in verify proof) rhs => ";
+    //debug_g2_in_hex(msg, &rhs);
+    return lhs == rhs;
+}
+
+// internal function
+fn part2_compute_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2) -> SignatureD {
+    let rng = &mut rand::thread_rng();
+    let alpha = Fr::random(rng);
+    let a = mpk.g2 * alpha;
+    let mut A: Vec<G2> = Vec::new();
+    let mut B: Vec<G2> = Vec::new();
+    let l = sk.z.len();
+
+    for i in 0 .. l {
+        let _A = a * sk.z[i];
+        let _B = _A * sk.y;
+        A.push(_A);
+        B.push(_B);
+    }
+
+    let b = a * sk.y;
+    let c = (a * sk.x) + (M * (alpha * sk.x * sk.y));
+    let sig = SignatureD { a: a, A: A, b: b, B: B, c: c };
+    return sig;
+}
 
 // Prover first randomizes the signature
-pub fn prover_gen_blind(sig: &SignatureD) -> SignatureD {
+pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
     let rng = &mut rand::thread_rng();
     let r = Fr::random(rng);
     let rpr = Fr::random(rng);
@@ -290,7 +420,9 @@ pub fn prover_gen_blind(sig: &SignatureD) -> SignatureD {
     return bsig;
 }
 
-pub fn verify_proof_for_blind_sigs(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) {
+// TODO: generate proof for the
+
+pub fn verify_proof_for_blinded_sigs(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) -> bool {
     assert!(sig.A.len() == sig.B.len());
     let l = sig.A.len();
 
@@ -298,10 +430,11 @@ pub fn verify_proof_for_blind_sigs(mpk: &PublicParams, pk: &PublicKeyD, sig: &Si
     let vxy = pairing(pk.X, sig.b);
     // generate vector
     let mut vxyi: Vec<Gt> = Vec::new();
-    for i in 0 .. l {
+    for i in 0 .. l-1 {
         vxyi.push(pairing(pk.X, sig.B[i]));
     }
-    let vs = pairing(mpk.g, sig.c);
+    let vs = pairing(mpk.g1, sig.c);
 
-    //
+    // TODO: compare the verification equations
+    return true;
 }
