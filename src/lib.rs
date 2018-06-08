@@ -2,6 +2,7 @@ extern crate bn;
 extern crate rand;
 extern crate bincode;
 extern crate sodiumoxide;
+extern crate rustc_serialize;
 //extern crate test;
 
 use std::fmt;
@@ -54,6 +55,16 @@ pub fn debug_g2_in_hex(prefix: &str, g: &G2) {
     }
     print!("\n");
 }
+
+pub fn debug_gt_in_hex(prefix: &str, g: &Gt) {
+    let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
+    print!("{} (hex) = 0x", prefix);
+    for e in encoded.iter() {
+        print!("{:x}", e);
+    }
+    print!("\n");
+}
+
 
 struct HexSlice<'a>(&'a [u8]);
 

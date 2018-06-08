@@ -8,9 +8,11 @@ use bn::{Group, Fr, G1, G2, Gt, pairing};
 use debug_elem_in_hex;
 use debug_g1_in_hex;
 use debug_g2_in_hex;
+use debug_gt_in_hex;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
+
 
 pub struct PublicParams {
     pub g1: G1,
@@ -305,6 +307,17 @@ pub fn hashG2ToFr(x: &G2) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
+pub fn hashGtToFr(x: &Gt) -> Fr {
+    // TODO: change to serde (instead of rustc_serialize)
+    let x_vec: Vec<u8> = encode(&x, Infinite).unwrap();
+    let sha2_digest = sha512::hash(x_vec.as_slice());
+
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    return Fr::interpret(&hash_buf);
+}
+
+
 pub struct ProofCV {
     T: G2,
     C: G2,
@@ -421,8 +434,21 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
 }
 
 // TODO: generate proof for the
+pub struct CommonParams {
+    pub vx: Gt,
+    vxy: Gt,
+    vxyi: Vec<Gt>,
+    vs: Gt
+}
 
-pub fn verify_proof_for_blinded_sigs(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) -> bool {
+pub struct ProofVS {
+    T: Gt,
+    C: Gt,
+    s: Vec<Fr>,
+    pub_bases: Vec<Gt>
+}
+
+pub fn gen_common_params(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) -> CommonParams {
     assert!(sig.A.len() == sig.B.len());
     let l = sig.A.len();
 
@@ -435,6 +461,116 @@ pub fn verify_proof_for_blinded_sigs(mpk: &PublicParams, pk: &PublicKeyD, sig: &
     }
     let vs = pairing(mpk.g1, sig.c);
 
-    // TODO: compare the verification equations
-    return true;
+    return CommonParams { vx: vx, vxy: vxy, vxyi: vxyi, vs: vs };
+}
+
+pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, C: Gt) -> ProofVS {
+    let rng = &mut rand::thread_rng();
+    let l = x.len();
+    let mut t: Vec<Fr> = Vec::new();
+    for i in 0 .. l {
+        t.push(Fr::random(rng));
+    }
+
+    let mut pub_bases: Vec<Gt> = Vec::new();
+    pub_bases.push(cp.vxy);
+    for i in 0 .. cp.vxyi.len() {
+        pub_bases.push(cp.vxyi[i]);
+    }
+    pub_bases.push(cp.vs);
+
+    // compute the T
+    let mut T = pub_bases[0].pow(t[0]);
+    for i in 1 .. l {
+        T = T * (pub_bases[i].pow(t[i]));
+    }
+
+    // hash T to get the challenge
+    let c = hashGtToFr(&T);
+    let msg = "(gen nizk proof) challenge -> c";
+    debug_elem_in_hex(msg, &c);
+
+    // compute s values
+    let mut s: Vec<Fr> = Vec::new();
+    for i in 0 .. l-1 {
+        println!("(gen nizk proof) i => {}", i);
+        let _s = (x[i].inverse().unwrap() * c) + t[i];
+        s.push(_s);
+    }
+    println!("(gen nizk proof) i => {}", l-1);
+    s.push((x[l-1] * c) + t[l-1]);
+
+    return ProofVS { T: T, C: C, s: s, pub_bases: pub_bases };
+}
+
+fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
+    // if proof is valid, then call part
+    let c = hashGtToFr(&proof.T);
+    let mut msg = "(in verify proof) challenge -> c";
+    debug_elem_in_hex(msg, &c);
+
+    let l = proof.s.len();
+    assert!(l > 1);
+
+    println!("(in verify proof) i => 0");
+    let mut lhs = proof.pub_bases[0].pow(proof.s[0]);
+    for i in 1 .. l {
+        println!("(in verify proof) i => {}", i);
+        lhs = lhs * (proof.pub_bases[i].pow(proof.s[i]));
+    }
+    // debug
+    msg = "(in verify proof) lhs => ";
+    debug_gt_in_hex(msg, &lhs);
+
+    let rhs = proof.C.pow(c) * proof.T;
+    // debug
+    msg = "(in verify proof) rhs => ";
+    debug_gt_in_hex(msg, &rhs);
+    return lhs == rhs;
+}
+
+
+pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS, sig: &SignatureD) -> bool {
+
+    let result = part1_verify_proof_vs(&proof);
+    let mut result1 = true;
+    let mut result3 = true;
+
+    // verify second condition
+    let lhs2 = pairing(pk.Y, sig.a);
+    let rhs2 = pairing(mpk.g1, sig.b);
+    let result2 = (lhs2 == rhs2);
+
+    assert_eq!(sig.A.len(), sig.B.len());
+    let l = sig.A.len();
+
+    for i in 0 .. l {
+        let lhs1 = pairing(pk.Z[i], sig.a);
+        let rhs1 = pairing(mpk.g1, sig.A[i]);
+        if lhs1 != rhs1 {
+            result1 = false;
+        }
+
+        let lhs3 = pairing(pk.Y, sig.A[i]);
+        let rhs3 = pairing(mpk.g1, sig.B[i]);
+
+        if lhs3 != rhs3 {
+            result3 = false;
+        }
+    }
+
+    if !result {
+        println!("ERROR: Failed to verify proof");
+    }
+    if !result1 {
+        println!("ERROR: Failed to verify pairing eq 1");
+    }
+    if !result2 {
+        println!("ERROR: Failed to verify pairing eq 2");
+    }
+    if !result3 {
+        println!("ERROR: Failed to verify pairing eq 3");
+    }
+
+    return result1 && result2 && result3;
 }

@@ -10,13 +10,14 @@ repository = "https://github.com/yeletech/libbolt"
 license = "MIT License"
 
 [dependencies]
-bn = "0.4.3"
+bn = { git = "https://github.com/jakinyele/bn", branch= "master" }
 rand = "~0.3.14"
 bincode = "0.6.1"
 sodiumoxide = "0.0.16"
 serde = "1.0"
 serde_derive = "1.0"
 time = "*"
+rustc-serialize = "0.3"
 
 [dev-dependencies.bincode]
 version = "~0.6.0"

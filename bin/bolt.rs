@@ -422,10 +422,18 @@ fn main() {
     }
     let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
 
-    let blind_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
+    let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
 
-    println!("Generated blind signature!");
-    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &blind_sig) == true);
+    println!("Generated signature interactively!");
+    // int_sig = interactively generated signature
+    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &int_sig) == true);
+
+    println!("Verified interactively produced signature!");
+
+    let blind_sigs = clsigs::prover_generate_blinded_sig(&int_sig);
+    let common_params = clsigs::gen_common_params(&mpk, &keypair.pk, &int_sig);
+    let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params, common_params.vx);
+    assert!(clsigs::vs_verify_blind_sig(&mpk, &keypair.pk, &proof_vs, &blind_sigs));
 
     println!("Verified blind signature!");
 
