@@ -3,7 +3,7 @@ extern crate rand;
 extern crate bincode;
 extern crate sodiumoxide;
 extern crate rustc_serialize;
-//extern crate test;
+extern crate secp256k1;
 
 use std::fmt;
 use std::str;
@@ -621,6 +621,15 @@ pub fn hashG1ToFr(x: &G1) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
+pub fn hashPubKeyToFr(wpk: &secp256k1::PublicKey) -> Fr {
+    let x_slice = wpk.serialize_uncompressed();
+    let sha2_digest = sha512::hash(&x_slice);
+
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    return Fr::interpret(&hash_buf);
+}
+
 //pub fn hashStrToFr(x: &str) -> Fr {
 //    // TODO: change to serde (instead of rustc_serialize)
 //    let sha2_digest = sha512::hash(x.as_slice());
@@ -761,16 +770,17 @@ pub fn verify_nizk_proof_one(proof: &Proof) -> bool {
 pub mod bidirectional {
     use std::fmt;
     use rand;
-    use bn::{Group, Fr, G1};
+    use bn::{Group, Fr, G1, G2};
     use sym;
     use commit_scheme;
     use clsigs;
     use Message;
-    use hashG1ToFr;
+    use hashPubKeyToFr;
     use sodiumoxide::randombytes;
+    use secp256k1; // ::{Secp256k1, PublicKey, SecretKey};
 
     pub struct PublicParams {
-        cm_mpk: commit_scheme::PublicParams,
+        cm_csp: commit_scheme::CSParams,
         cl_mpk: clsigs::PublicParams,
         l_bits: i32
         // TODO: add NIZK proof system pub params
@@ -784,8 +794,8 @@ pub mod bidirectional {
     pub struct CustSecretKey {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         cid: Fr, // channel Id
-        wpk: G1, // signature verification key
-        wsk: Fr, // signature private key
+        wpk: secp256k1::PublicKey, // signature verification key
+        wsk: secp256k1::SecretKey, // signature signing key
         r: Fr, // random coins for commitment scheme
         balance: i32, // the balance for the user
         ck_vec: Vec<sym::SymKey>
@@ -808,11 +818,11 @@ pub mod bidirectional {
 
     pub fn setup() -> PublicParams {
         // TODO: provide option for generating CRS parameters
-        let cm_pp = commit_scheme::setup();
+        let cm_pp = commit_scheme::setup(3, None);
         let cl_mpk = clsigs::setupD();
         let l = 256;
         // let nizk = "nizk proof system";
-        let pp = PublicParams { cm_mpk: cm_pp, cl_mpk: cl_mpk, l_bits: l };
+        let pp = PublicParams { cm_csp: cm_pp, cl_mpk: cl_mpk, l_bits: l };
         return pp;
     }
 
@@ -830,10 +840,16 @@ pub mod bidirectional {
         // pick two distinct seeds
         let l = 256;
         // keygen for wallet
-        let wsk = Fr::random(rng);
-        let wpk = pp.cm_mpk.g2 * wsk;
-        let h_wpk = hashG1ToFr(&wpk);
+//        let wpk = pp.g2 * wsk;
+//        let h_wpk = hashG1ToFr(&wpk);
+        // generate verification key and signing key (for wallet)
+        let mut schnorr = secp256k1::Secp256k1::new();
+        schnorr.randomize(rng);
+        let (wsk, wpk) = schnorr.generate_keypair(rng).unwrap();
+        let h_wpk = hashPubKeyToFr(&wpk);
+        // convert balance into Fr
         let b0 = Fr::from_str(b0_customer.to_string().as_str()).unwrap();
+        // randomness for commitment
         let r = Fr::random(rng);
         //let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
 
@@ -844,8 +860,13 @@ pub mod bidirectional {
             ck_vec.push(ck);
         }
 
+        let mut x: Vec<Fr> = Vec::new();
+        x.push(channelId);
+        x.push(h_wpk);
+        x.push(b0);
+
         // TODO: hash (wpk) and convert b0_customer into Fr
-        let w_com = commit_scheme::commit(&pp.cm_mpk, channelId, h_wpk, b0, Some(r));
+        let w_com = commit_scheme::commit(&pp.cm_csp,  &x, Some(r));
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone() };
         let csk_c = CustSecretKey { sk: keypair.sk.clone(), cid: channelId, wpk: wpk, wsk: wsk,
                                     r: r, balance: b0_customer, ck_vec: ck_vec };
@@ -859,7 +880,7 @@ pub mod bidirectional {
     }
 
     // TODO: requires NIZK proof system
-    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKeyD, csk_c: &CustSecretKey) {
+    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKeyD, c_data: &InitCustomerData) -> clsigs::ProofCV {
         println ! ("Run establish_customer algorithm...");
         // set sk_0 to random bytes of length l
         // let sk_0 = random_bytes(pp.l);
@@ -867,11 +888,26 @@ pub mod bidirectional {
         let mut sk0 = vec![0; buf_len];
         randombytes::randombytes_into(&mut sk0);
 
-        //let pi1 = create_nizk_proof_one(csk_c.sk, csk_c.k1, csk_c.k2, );
+        // obtain customer init data
+        let t_c = &c_data.T;
+        let csk_c = &c_data.csk;
+
+        let h_wpk = hashPubKeyToFr(&csk_c.wpk);
+        let b0 = Fr::from_str(csk_c.balance.to_string().as_str()).unwrap();
+        // collect secrets
+        let mut x: Vec<Fr> = Vec::new();
+        x.push(csk_c.cid);
+        x.push(h_wpk);
+        x.push(b0);
+
+        // collect bases
+        let mut pub_bases: Vec<G2> = Vec::new();
+        let proof_1 = clsigs::bs_gen_nizk_proof(&x, &pub_bases, t_c.w_com.c);
+        return proof_1;
     }
 
     // the merchant calls this method after obtaining
-    pub fn estalibsh_merchant() {
+    pub fn estalibsh_merchant(proof: &clsigs::ProofCV) {
 
     }
 

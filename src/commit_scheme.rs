@@ -2,7 +2,7 @@
 
 use std::fmt;
 use rand;
-use bn::{Group, Fr, G1};
+use bn::{Group, Fr, G1, G2};
 use clsigs;
 use debug_elem_in_hex;
 use bincode::SizeLimit::Infinite;
@@ -10,26 +10,24 @@ use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
 
 // define some structures here
-#[derive(Copy, Clone)]
-pub struct PublicParams {
-    pub g1: G1,
-    pub g2: G1,
-    pub g3: G1,
-    pub h: G1
-}
-
 
 // define some structures here
 #[derive(Copy, Clone)]
 pub struct PublicKey {
-    g: G1,
-    h: G1
+    g: G2,
+    h: G2
 }
 
 #[derive(Copy, Clone)]
 pub struct Commitment {
-    c: G1,
-    d: Fr
+    pub c: G2,
+    pub r: Fr
+}
+
+#[derive(Clone)]
+pub struct CSParams {
+    pub_bases: Vec<G2>,
+    h: G2
 }
 
 impl fmt::Display for PublicKey {
@@ -59,7 +57,7 @@ impl fmt::Display for Commitment {
             c_s = format!("{}{:x}", c_s, x);
         }
 
-        let d_vec: Vec<u8> = encode(&self.d, Infinite).unwrap();
+        let d_vec: Vec<u8> = encode(&self.r, Infinite).unwrap();
         let mut d_s = String::new();
         for x in d_vec.iter() {
             d_s = format!("{}{:x}", d_s, x);
@@ -74,8 +72,8 @@ Implements the setup algorithm for the Pedersen92 commitment scheme
 pub fn ped92_setup() -> PublicKey {
     println!("Run Setup...");
     let rng = &mut rand::thread_rng();
-    let g = G1::random(rng);
-    let h = G1::random(rng);
+    let g = G2::random(rng);
+    let h = G2::random(rng);
     let pk = PublicKey { g: g, h: h };
     println!("{}", pk);
     return pk;
@@ -99,7 +97,7 @@ pub fn ped92_commit(pk: &PublicKey, m: Fr, R: Option<Fr>) -> Commitment {
     // c = g^m * h^r
     let c = (pk.g * m) + (pk.h * r);
     // return (c, r) <- d=r
-    let commitment = Commitment { c: c, d: r };
+    let commitment = Commitment { c: c, r: r };
 
     // debugging
     println!("{}", commitment);
@@ -118,47 +116,93 @@ pub fn ped92_decommit(pk: &PublicKey, cm: &Commitment, m: Fr) -> bool {
     let p = "decommit -> m";
     debug_elem_in_hex(p, &m);
 
-    let dm = (pk.g * m) + (pk.h * cm.d);
+    let dm = (pk.g * m) + (pk.h * cm.r);
     return dm == cm.c;
 }
 
 
 /*
-Implements the setup algorithm for the Pedersen92 commitment scheme
+Implements the setup algorithm for the Pedersen92 commitment scheme over
+a vector of messages.
 */
-pub fn setup() -> PublicParams {
-    println!("Run Setup...");
+
+pub fn setup(len: usize, pub_bases: Option<Vec<G2>>) -> CSParams {
     let rng = &mut rand::thread_rng();
-    let g1 = G1::random(rng);
-    let g2 = G1::random(rng);
-    let g3 = G1::random(rng);
-    let g4 = G1::random(rng);
-    let h = G1::random(rng);
-    let pp = PublicParams { g1: g1, g2: g2, g3: g3, h: h };
-    //println!("{}", pp);
-    return pp;
+    let h = G2::random(rng);
+    if pub_bases.is_none() {
+        let mut p: Vec<G2> = Vec::new();
+        for i in 0 .. len {
+            p.push(G2::random(rng));
+        }
+        return CSParams { pub_bases: p, h: h };
+    }
+
+    let p = pub_bases.unwrap();
+    assert_eq!(p.len(), len);
+    return CSParams { pub_bases: p, h: h };
 }
 
-pub fn commit(pp: &PublicParams, channelId: Fr, wpk: Fr, balance: Fr, R: Option<Fr>) -> Commitment {
+pub fn commit(csp: &CSParams, x: &Vec<Fr>, R: Option<Fr>) -> Commitment {
     let rng = &mut rand::thread_rng();
 
     let r = R.unwrap_or(Fr::random(rng));
-
-    let p = "commit -> cid";
-    debug_elem_in_hex(p, &channelId);
-    // c = g^m * h^r
-    let c = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * r);
-    // return (c, r) <- d=r
-    let commitment = Commitment { c: c, d: r };
+    // c = g1^m1 * ... * gn^mn * h^r
+    let mut c = (csp.h * r);
+    for i in 0 .. x.len() {
+        c = c + (csp.pub_bases[i] * x[i]);
+    }
+    // return (c, r) <- r
+    let commitment = Commitment { c: c, r: r };
 
     // debugging
     println!("{}", commitment);
     return commitment;
 }
 
-pub fn decommit(pp: &PublicParams, cm: &Commitment, channelId: Fr, wpk: Fr, balance: Fr) -> bool {
-    let p = "decommit -> cid";
-    debug_elem_in_hex(p, &channelId);
-    let dm = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * cm.d);
-    return dm == cm.c;
+pub fn decommit(csp: &CSParams, cm: &Commitment, x: &Vec<Fr>) -> bool {
+    let mut dc = (csp.h * cm.r);
+    let l = x.len();
+    assert!(csp.pub_bases.len() == l);
+    for i in 0 .. l {
+        dc = dc + (csp.pub_bases[i] * x[i]);
+    }
+    return dc == cm.c;
 }
+
+
+//pub fn setup() -> PublicParams {
+//    println!("Run Setup...");
+//    let rng = &mut rand::thread_rng();
+//    let g1 = G1::random(rng);
+//    let g2 = G1::random(rng);
+//    let g3 = G1::random(rng);
+//    let g4 = G1::random(rng);
+//    let h = G1::random(rng);
+//    let pp = PublicParams { g1: g1, g2: g2, g3: g3, h: h };
+//    //println!("{}", pp);
+//    return pp;
+//}
+//
+//pub fn commit(pp: &PublicParams, channelId: Fr, wpk: Fr, balance: Fr, R: Option<Fr>) -> Commitment {
+//    let rng = &mut rand::thread_rng();
+//
+//    let r = R.unwrap_or(Fr::random(rng));
+//
+//    let p = "commit -> cid";
+//    debug_elem_in_hex(p, &channelId);
+//    // c = g^m * h^r
+//    let c = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * r);
+//    // return (c, r) <- d=r
+//    let commitment = Commitment { c: c, d: r };
+//
+//    // debugging
+//    println!("{}", commitment);
+//    return commitment;
+//}
+//
+//pub fn decommit(pp: &PublicParams, cm: &Commitment, channelId: Fr, wpk: Fr, balance: Fr) -> bool {
+//    let p = "decommit -> cid";
+//    debug_elem_in_hex(p, &channelId);
+//    let dm = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * cm.d);
+//    return dm == cm.c;
+//}
