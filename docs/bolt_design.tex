@@ -528,7 +528,7 @@ The bidirectional payment construction enables compact closure and compact walle
 \item Customer generates wallet commitment by sampling random coins $r$.
 \item Compute ephemeral keypair $(wpk, wsk) \leftarrow {\sf KeyGen}({\sf PP})$.
 \item Compute ${\sf wCom} = {\sf Commit}({\sf cID}, wpk, \BC; r)$.
-\item For $i = 1$ to $\BC$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
+%\item For $i = 1$ to $\BC$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
 \item Output ${\sf T}_{\sf c} = (pk_c, {\sf wCom})$ and retains secret $csk_{\sf c} = (sk_c, {\sf cID}, wpk, wsk, r, \BC)$.
 \end{itemize}
 

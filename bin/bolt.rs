@@ -18,6 +18,7 @@ use libbolt::ote;
 use libbolt::clsigs;
 use libbolt::commit_scheme;
 use time::PreciseTime;
+use libbolt::bidirectional;
 
 #[doc(hidden)]
 #[macro_export]
@@ -374,121 +375,102 @@ fn main() {
     println!("{} seconds for verifying invalid signatures.", end1.to(end2));
 
 
-//    let rng = &mut rand::thread_rng();
-//    let G = G1::random(rng); // &dalek_constants::RISTRETTO_BASEPOINT_POINT;
-//    let H = G1::random(rng); // RistrettoPoint::hash_from_bytes::<Sha256>(G.compress().as_bytes());
+//        println!("******************************************");
+//        let b = keypair.pk.Z2.len();
+//        let mut bases: Vec<G2> = Vec::new();
+//        bases.push(mpk.g2);
+//        for i in 0 .. b {
+//            bases.push(keypair.pk.Z2[i]);
+//        }
 //
-//    // simple ZKP
-//    generate_nipk!{dleq, (x), (A, G) : A = (G * x) }
+//        // generate sample commitment
+//        //let mut m: Vec<Fr> = Vec::new();
+//        let mut C = mpk.g2 * m1[0];
+//        for i in 0 .. b {
+//            println!("index: {}", i);
+//            C = C + (keypair.pk.Z2[i] * m1[i+1]);
+//        }
+//        let msg = "Sample Commit output:";
+//        libbolt::debug_g2_in_hex(msg, &C);
 //
-//    let x = Fr::from_str("89327492234").unwrap();
-//    let A =  G * x;
-//    let B = H * x;
+//        let cm_csp = commit_scheme::setup(b, keypair.pk.Z2, mpk.g2);
+//        let r = m1[0];
+//        let w_com = commit_scheme::commit(&cm_csp, &m1, r);
 //
-//    let publics = dleq::Publics{A: &A, G: G};
-//    let secrets = dleq::Secrets{x: &x};
+//        assert!(commit_scheme::decommit(&cm_csp, &w_com, &m1));
+//
+//        //let msg = "Commmit Scheme output:";
+//        //libbolt::debug_g2_in_hex(msg, &w_com.c);
+//
+//        //assert_eq!(C, w_com.c);
+//        println!("Commitment scheme consistent!!");
+//        let proof = clsigs::bs_gen_nizk_proof(&m1, &cm_csp.pub_bases, w_com.c);
+//        // old -> let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+//
+//        let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
+//
+//        println!("Generated signature interactively!");
 
 
-//    generate_nipk!{dleq, (x), (A, B, G, H) : A = (G * x), B = (H * x) }
+//        let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
 //
-//    let x = Fr::from_str("89327492234").unwrap();
-//    let A =  G * x;
-//    let B = H * x;
+//        let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
 //
-//    let publics = dleq::Publics{A: &A, B: &B, G: G, H: &H};
-//    let secrets = dleq::Secrets{x: &x};
+//        println!("Generated signature interactively!");
+//        // int_sig = interactively generated signature
+//        assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &int_sig) == true);
 //
-//    let proof = dleq::Proof::create(&mut rng, publics, secrets);
-//    // serialize to bincode representation
-//    let proof_bytes = bincode::serialize(&proof, bincode::Infinite).unwrap();
-//    // parse bytes back to memory
-//    let parsed_proof: dleq::Proof
-//        = bincode::deserialize(&proof_bytes).unwrap();
+//        println!("Verified interactively produced signature!");
 //
-//    assert!(parsed_proof.verify(publics).is_ok());
+//        let blind_sigs = clsigs::prover_generate_blinded_sig(&int_sig);
+//        let common_params = clsigs::gen_common_params(&mpk, &keypair.pk, &int_sig);
+//        let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params, common_params.vx);
+//        assert!(clsigs::vs_verify_blind_sig(&mpk, &keypair.pk, &proof_vs, &blind_sigs));
+//
+//        println!("Verified blind signature!");
+
 
     println!("******************************************");
-    let b = keypair.pk.Z2.len();
-    let mut bases: Vec<G2> = Vec::new();
-    bases.push(mpk.g2);
-    for i in 0 .. b {
-        bases.push(keypair.pk.Z2[i]);
-    }
 
-    // generate sample commitment
-    let mut C = mpk.g2 * m1[0];
-    for i in 0 .. b {
-        C = C + (keypair.pk.Z2[i] * m1[i+1]);
-    }
-    let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+    println!("[1] libbolt - setup bidirecitonal scheme params");
+    let pp = bidirectional::setup();
 
-    let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
+    // generate long-lived keypair for merchant -- used to identify
+    // it to all customers
+    println!("[2] libbolt - generate long-lived key pair for merchant");
+    let merch_keypair = bidirectional::keygen(&pp);
 
-    println!("Generated signature interactively!");
-    // int_sig = interactively generated signature
-    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &int_sig) == true);
+    // customer gnerates an ephemeral keypair for use on a single channel
+    println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
+    let cust_keypair = bidirectional::keygen(&pp);
 
-    println!("Verified interactively produced signature!");
+    // bidirectional::init_merchant_state();
 
-    let blind_sigs = clsigs::prover_generate_blinded_sig(&int_sig);
-    let common_params = clsigs::gen_common_params(&mpk, &keypair.pk, &int_sig);
-    let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params, common_params.vx);
-    assert!(clsigs::vs_verify_blind_sig(&mpk, &keypair.pk, &proof_vs, &blind_sigs));
+    println!("[4] libbolt - generate the channel identifier");
+    let b0_cust = 10;
+    let b0_merch = 15;
+    let cid = bidirectional::generate_channel_id();
+    let mut msg = "Open Channel ID: ";
+    libbolt::debug_elem_in_hex(msg, &cid);
 
-    println!("Verified blind signature!");
+    // each party executes the init algorithm on the agreed initial challence balance
+    // in order to derive the channel tokens
+    println!("[5a] libbolt - initialize on the customer side with balance {}", b0_cust);
+    let mut init_cust_data = bidirectional::init_customer(&pp, cid, b0_cust, &cust_keypair);
 
-//    sym::init();
-//    // SymKeyEnc tests
-//    let l = 128; // TODO: figure out how to apply this to secretbox
-//    let key1 = sym::keygen(l);
-//    //let key2 = sym::keygen(l);
-//
-//    // println!("key: {:?}", key);
-//
-//    let pt1 = String::from("hello world");
-//    let ciphertext = sym::encrypt(&key1, &pt1);
-//    println!("{}", ciphertext);
-//
-//    let pt2 = sym::decrypt(&key1, &ciphertext);
-//    println!("Recovered plaintext: {}", pt2);
-//    assert!(pt1 == pt2);
-//
-////    let pt3 = sym::decrypt(&key2, &ciphertext);
-////    assert!(pt1 != pt3);
-//    println!("SymKeyEnc is complete!");
-//    println!("******************************************");
-//
-//    // CL sig tests
-//    let mpk = clsigs::setup();
-//    let keypair = clsigs::keygen(&mpk);
-//    println!("{}", keypair.pk);
-//
-//    let msg1 = libbolt::RefundMessage::new(alice_sk, 10).hash(); // TODO: add ck (l-bit key)
-//    let msg2 = libbolt::RefundMessage::new(alice_sk, 11).hash(); // TODO: add ck (l-bit key)
-//    let signature = clsigs::sign(&keypair.sk, msg1);
-//    println!("{}", signature);
-//    assert!(clsigs::verify(&mpk, &keypair.pk, msg1, &signature) == true);
-//    assert!(clsigs::verify(&mpk, &keypair.pk, msg2, &signature) == false);
-//
-//    println!("CL signature verified!");
-//
-//    println!("******************************************");
-//    // commitment scheme tests
-//    let pk = commit_scheme::setup();
-//    // let sk = libbolt::SecretKeySigs { x: Fr::random(rng), y: Fr::random(rng) };
-//    // let msg = String::from("Hello, World!");
-//    let msg1 = libbolt::Message::new(keypair.sk, alice_sk, bob_sk, 10).hash();
-//    let msg2 = libbolt::Message::new(keypair.sk, alice_sk, bob_sk, 11).hash();
-//    let msg3 = libbolt::Message::new(keypair.sk, bob_sk, alice_sk, 10).hash();
-//
-//    let cm = commit_scheme::commit(&pk, msg1, None);
-//
-//    assert!(commit_scheme::decommit(&pk, &cm, msg1) == true);
-//    assert!(commit_scheme::decommit(&pk, &cm, msg2) == false);
-//    assert!(commit_scheme::decommit(&pk, &cm, msg3) == false);
-//    println!("Commitment scheme works!");
-//
-//    println!("******************************************");
+    println!("[5b] libbolt - initialize on the merchant side with balance {}", b0_merch);
+    let mut init_merch_data = bidirectional::init_merchant(&pp, b0_merch, &merch_keypair);
 
-    // TODO: write tests
+    println!("[6a] libbolt - entering the establish protocol for the channel");
+    let proof1 = bidirectional::establish_customer_phase1(&pp, &init_cust_data);
+
+    println!("[6b] libbolt - obtain the wallet signature from the merchant");
+    let wallet_sig = bidirectional::establish_merchant_phase2(&pp, &init_merch_data, &proof1);
+
+    println!("[6c] libbolt - complete channel establishment");
+    let is_established = bidirectional::establish_customer_phase3(wallet_sig, &mut init_cust_data.csk);
+
+    assert!(is_established);
+
+    println!("Channel has been established! Woohoo!");
 }

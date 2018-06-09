@@ -188,7 +188,7 @@ pub fn setupD() -> PublicParams {
     return mpk;
 }
 
-pub fn keygenD(mpk : &PublicParams, l: i32) -> KeyPairD {
+pub fn keygenD(mpk : &PublicParams, l: usize) -> KeyPairD {
     let rng = &mut rand::thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
@@ -342,8 +342,8 @@ pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
 
     // hash T to get the challenge
     let c = hashG2ToFr(&T);
-    //let msg = "challenge -> c";
-    //debug_elem_in_hex(msg, &c);
+    let msg = "challenge -> c";
+    debug_elem_in_hex(msg, &c);
 
     // compute s values
     let mut s: Vec<Fr> = Vec::new();
@@ -368,8 +368,8 @@ pub fn bs_gen_signature(mpk: &PublicParams, sk: &SecretKeyD, proof: &ProofCV) ->
 fn part1_verify_proof(proof: &ProofCV) -> bool {
     // if proof is valid, then call part
     let c = hashG2ToFr(&proof.T);
-    //let mut msg = "(in verify proof) challenge -> c";
-    //debug_elem_in_hex(msg, &c);
+    let mut msg = "(in verify proof) challenge -> c";
+    debug_elem_in_hex(msg, &c);
 
     let l = proof.s.len();
     assert!(l > 1);
@@ -379,12 +379,12 @@ fn part1_verify_proof(proof: &ProofCV) -> bool {
         //println!("(in verify proof) i => {}", i);
         lhs = lhs + (proof.pub_bases[i] * proof.s[i]);
     }
-    //msg = "(in verify proof) lhs => ";
-    //debug_g2_in_hex(msg, &lhs);
+    msg = "(in verify proof) lhs => ";
+    debug_g2_in_hex(msg, &lhs);
 
     let rhs = (proof.C * c) + proof.T;
-    //msg = "(in verify proof) rhs => ";
-    //debug_g2_in_hex(msg, &rhs);
+    msg = "(in verify proof) rhs => ";
+    debug_g2_in_hex(msg, &rhs);
     return lhs == rhs;
 }
 

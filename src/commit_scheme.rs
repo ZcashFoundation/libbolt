@@ -26,8 +26,7 @@ pub struct Commitment {
 
 #[derive(Clone)]
 pub struct CSParams {
-    pub_bases: Vec<G2>,
-    h: G2
+    pub pub_bases: Vec<G2>
 }
 
 impl fmt::Display for PublicKey {
@@ -126,29 +125,35 @@ Implements the setup algorithm for the Pedersen92 commitment scheme over
 a vector of messages.
 */
 
-pub fn setup(len: usize, pub_bases: Option<Vec<G2>>) -> CSParams {
+pub fn setup(len: usize, pub_bases: Vec<G2>, h: G2) -> CSParams {
     let rng = &mut rand::thread_rng();
-    let h = G2::random(rng);
-    if pub_bases.is_none() {
-        let mut p: Vec<G2> = Vec::new();
-        for i in 0 .. len {
-            p.push(G2::random(rng));
-        }
-        return CSParams { pub_bases: p, h: h };
-    }
+    //let base_h = h.unwrap_or(G2::random(rng));
+    let mut p: Vec<G2> = Vec::new();
+    p.push(h);
 
-    let p = pub_bases.unwrap();
-    assert_eq!(p.len(), len);
-    return CSParams { pub_bases: p, h: h };
+//    if pub_bases.is_none() {
+//        for i in 1 .. len-1 {
+//            p.push(G2::random(rng));
+//        }
+//        return CSParams { pub_bases: p };
+//    }
+
+    let _p = pub_bases;
+    for i in 0 .. _p.len() {
+        p.push(_p[i]);
+    }
+    return CSParams { pub_bases: p };
 }
 
-pub fn commit(csp: &CSParams, x: &Vec<Fr>, R: Option<Fr>) -> Commitment {
+pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> Commitment {
     let rng = &mut rand::thread_rng();
 
-    let r = R.unwrap_or(Fr::random(rng));
+    //let r = R.unwrap_or(Fr::random(rng));
     // c = g1^m1 * ... * gn^mn * h^r
-    let mut c = (csp.h * r);
-    for i in 0 .. x.len() {
+    //println!("(commit) index: 0");
+    let mut c = (csp.pub_bases[0] * r);
+    for i in 1 .. x.len() {
+        //println!("(commit) index: {}", i);
         c = c + (csp.pub_bases[i] * x[i]);
     }
     // return (c, r) <- r
@@ -160,10 +165,12 @@ pub fn commit(csp: &CSParams, x: &Vec<Fr>, R: Option<Fr>) -> Commitment {
 }
 
 pub fn decommit(csp: &CSParams, cm: &Commitment, x: &Vec<Fr>) -> bool {
-    let mut dc = (csp.h * cm.r);
+    //let mut dc = (csp.h * cm.r);
     let l = x.len();
-    assert!(csp.pub_bases.len() == l);
-    for i in 0 .. l {
+    //assert!(csp.pub_bases.len() == l);
+    // pub_base[0] => h, x[0] => r
+    let mut dc = csp.pub_bases[0] * cm.r;
+    for i in 1 .. l {
         dc = dc + (csp.pub_bases[i] * x[i]);
     }
     return dc == cm.c;

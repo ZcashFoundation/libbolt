@@ -780,9 +780,9 @@ pub mod bidirectional {
     use secp256k1; // ::{Secp256k1, PublicKey, SecretKey};
 
     pub struct PublicParams {
-        cm_csp: commit_scheme::CSParams,
+        // cm_csp: commit_scheme::CSParams,
         cl_mpk: clsigs::PublicParams,
-        l_bits: i32
+        l: usize // messages for committment
         // TODO: add NIZK proof system pub params
     }
 
@@ -791,14 +791,15 @@ pub mod bidirectional {
         pk: clsigs::PublicKeyD
     }
 
-    pub struct CustSecretKey {
+    pub struct CustomerWallet {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         cid: Fr, // channel Id
         wpk: secp256k1::PublicKey, // signature verification key
         wsk: secp256k1::SecretKey, // signature signing key
         r: Fr, // random coins for commitment scheme
         balance: i32, // the balance for the user
-        ck_vec: Vec<sym::SymKey>
+        signature: Option<clsigs::SignatureD>
+        // ck_vec: Vec<sym::SymKey>
     }
 
     pub struct MerchSecretKey {
@@ -807,30 +808,36 @@ pub mod bidirectional {
     }
 
     pub struct InitCustomerData {
-        T: ChannelToken,
-        csk: CustSecretKey
+        pub T: ChannelToken,
+        pub csk: CustomerWallet,
+        pub bases: Vec<G2>
     }
 
     pub struct InitMerchantData {
-        T: clsigs::PublicKeyD,
-        csk: MerchSecretKey
+        pub T: clsigs::PublicKeyD,
+        pub csk: MerchSecretKey
     }
 
     pub fn setup() -> PublicParams {
         // TODO: provide option for generating CRS parameters
-        let cm_pp = commit_scheme::setup(3, None);
+        //let cm_pp = commit_scheme::setup(3, None);
         let cl_mpk = clsigs::setupD();
-        let l = 256;
+        let l = 3;
         // let nizk = "nizk proof system";
-        let pp = PublicParams { cm_csp: cm_pp, cl_mpk: cl_mpk, l_bits: l };
+        let pp = PublicParams { cl_mpk: cl_mpk, l: l }; // cm_csp: cm_pp,
         return pp;
     }
 
     pub fn keygen(pp: &PublicParams) -> clsigs::KeyPairD {
         // TODO: figure out what we need from public params to generate keys
         println!("Run Keygen...");
-        let keypair = clsigs::keygenD(&pp.cl_mpk, 3);
+        let keypair = clsigs::keygenD(&pp.cl_mpk, pp.l);
         return keypair;
+    }
+
+    pub fn generate_channel_id() -> Fr {
+        let rng = &mut rand::thread_rng();
+        return Fr::random(rng);
     }
 
     pub fn init_customer(pp: &PublicParams, channelId: Fr, b0_customer: i32, keypair: &clsigs::KeyPairD) -> InitCustomerData {
@@ -853,24 +860,23 @@ pub mod bidirectional {
         let r = Fr::random(rng);
         //let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
 
-        let mut ck_vec: Vec<sym::SymKey> = Vec::new();
-        // generate the vector ck of sym keys
-        for i in 1 .. b0_customer {
-            let ck = sym::keygen(l);
-            ck_vec.push(ck);
-        }
+        let b = keypair.pk.Z2.len();
+        let bases = keypair.pk.Z2.clone();
+        let cm_csp = commit_scheme::setup(pp.l, bases, pp.cl_mpk.g2);
 
         let mut x: Vec<Fr> = Vec::new();
+        x.push(r); // set randomness for commitment
         x.push(channelId);
         x.push(h_wpk);
         x.push(b0);
 
         // TODO: hash (wpk) and convert b0_customer into Fr
-        let w_com = commit_scheme::commit(&pp.cm_csp,  &x, Some(r));
+        let w_com = commit_scheme::commit(&cm_csp,  &x, r);
+
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone() };
-        let csk_c = CustSecretKey { sk: keypair.sk.clone(), cid: channelId, wpk: wpk, wsk: wsk,
-                                    r: r, balance: b0_customer, ck_vec: ck_vec };
-        return InitCustomerData { T: t_c, csk: csk_c };
+        let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: channelId, wpk: wpk, wsk: wsk,
+                                    r: r, balance: b0_customer, signature: None };
+        return InitCustomerData { T: t_c, csk: csk_c, bases: cm_csp.pub_bases };
     }
 
     pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPairD) -> InitMerchantData {
@@ -879,45 +885,49 @@ pub mod bidirectional {
         return InitMerchantData { T: keypair.pk.clone(), csk: csk_m };
     }
 
-    // TODO: requires NIZK proof system
-    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKeyD, c_data: &InitCustomerData) -> clsigs::ProofCV {
+    pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData) -> clsigs::ProofCV {
         println ! ("Run establish_customer algorithm...");
-        // set sk_0 to random bytes of length l
-        // let sk_0 = random_bytes(pp.l);
-        let buf_len: usize = pp.l_bits as usize;
-        let mut sk0 = vec![0; buf_len];
-        randombytes::randombytes_into(&mut sk0);
-
         // obtain customer init data
         let t_c = &c_data.T;
         let csk_c = &c_data.csk;
+        let pub_bases = &c_data.bases;
 
         let h_wpk = hashPubKeyToFr(&csk_c.wpk);
         let b0 = Fr::from_str(csk_c.balance.to_string().as_str()).unwrap();
         // collect secrets
         let mut x: Vec<Fr> = Vec::new();
+        x.push(t_c.w_com.r); // set randomness used to generate commitment
         x.push(csk_c.cid);
         x.push(h_wpk);
         x.push(b0);
 
-        // collect bases
-        let mut pub_bases: Vec<G2> = Vec::new();
         let proof_1 = clsigs::bs_gen_nizk_proof(&x, &pub_bases, t_c.w_com.c);
         return proof_1;
     }
 
     // the merchant calls this method after obtaining
-    pub fn estalibsh_merchant(proof: &clsigs::ProofCV) {
+    pub fn establish_merchant_phase2(pp: &PublicParams, m_data: &InitMerchantData, proof: &clsigs::ProofCV) -> clsigs::SignatureD {
+        // verifies proof and produces
+        let wallet_sig = clsigs::bs_gen_signature(&pp.cl_mpk, &m_data.csk.sk, &proof);
+        return wallet_sig;
+    }
 
+    pub fn establish_customer_phase3(sig: clsigs::SignatureD, wallet: &mut CustomerWallet) -> bool {
+        if wallet.signature.is_none() {
+            wallet.signature = Some(sig);
+            return true;
+        }
+        return false;
     }
 
     // TODO: requires NIZK proof system calls
-    pub fn pay_by_customer() {
+    pub fn payment_by_customer_phase1(pp: &PublicParams, old_w: &CustomerWallet) {
         println!("Run pay algorithm by Customer - phase 1.");
+
     }
 
-    pub fn pay_by_merchant() {
-        println!("Run pay algorithm by Merchant - phase 1");
+    pub fn payment_by_merchant_phase2() {
+        println!("Run pay algorithm by Merchant - phase 2");
     }
 
 //    pub fn refund(pp: &PublicParams, imd : &InitMerchantData, w: Wallet) {
