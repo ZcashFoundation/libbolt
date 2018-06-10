@@ -97,9 +97,9 @@ impl fmt::Display for Signature {
     }
 }
 
-// scheme A - for single messages
+// scheme A - for a single message
 
-pub fn setup_A() -> PublicParams {
+pub fn setupA() -> PublicParams {
     let rng = &mut rand::thread_rng();
     let g1 = G1::random(rng);
     let g2 = G2::random(rng);
@@ -107,7 +107,7 @@ pub fn setup_A() -> PublicParams {
     return mpk;
 }
 
-pub fn keygen_A(mpk : &PublicParams) -> KeyPair {
+pub fn keygenA(mpk : &PublicParams) -> KeyPair {
     let rng = &mut rand::thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
@@ -118,7 +118,7 @@ pub fn keygen_A(mpk : &PublicParams) -> KeyPair {
     return KeyPair { sk: sk, pk: pk }
 }
 
-pub fn sign_A(sk: &SecretKey, m: Fr) -> Signature {
+pub fn signA(sk: &SecretKey, m: Fr) -> Signature {
     let rng = &mut rand::thread_rng();
     let a = G2::random(rng);
 
@@ -128,7 +128,7 @@ pub fn sign_A(sk: &SecretKey, m: Fr) -> Signature {
     return sig;
 }
 
-pub fn verify_A(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> bool {
+pub fn verifyA(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> bool {
     let lhs1 = pairing(pk.Y, sig.a);
     let rhs1 = pairing(mpk.g1, sig.b);
     let lhs2 = pairing(pk.X, sig.a) * (pairing(pk.X, sig.b).pow(m));

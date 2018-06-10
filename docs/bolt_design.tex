@@ -645,7 +645,7 @@ The customer obtains a new wallet $w_{\sf new} := (B - \epsilon, wpk', wsk', r',
 \begin{enumerate}
 \item If a merchant sees a channel closure message, it first parses ${\sf T}_{C}$ to obtain $pk_c$.
 \item Parse tuple $(m, \sigma) \leftarrow {\sf rc}_{C}$ 
-\item ${\sf Verify}(pk_c, \sigma) = 1$ or $\bot$ 
+\item ${\sf Verify}(pk_c, m, \sigma) = 1$ or $\bot$ 
 \item If signature $\sigma$ verifies, then parse tuple $({\sf cID}, wpk, B) \leftarrow m$.
 \item Verify that {\sf cID} matches the channel.
 \item If previous record of $(wpk, \sigma_{rev}) \in {\bf S}$, then output ${\sf rc}_{M} = (({\sf revoked}, \sigma_{rev}), \sigma)$.
