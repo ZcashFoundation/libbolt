@@ -9,6 +9,7 @@ use debug_elem_in_hex;
 use debug_g1_in_hex;
 use debug_g2_in_hex;
 use debug_gt_in_hex;
+use concat_to_vector;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
@@ -179,6 +180,34 @@ pub struct SignatureD {
     c: G2
 }
 
+impl SignatureD {
+    pub fn new(_a: G2, _A: Vec<G2>, _b: G2, _B: Vec<G2>, _c: G2) -> SignatureD {
+        SignatureD {
+            a: _a, A: _A, b: _b, B: _B, c: _c
+        }
+    }
+
+    pub fn hash(&self, prefix: &str) -> Fr {
+        let mut output_buf: Vec<u8> = Vec::new();
+        output_buf.extend_from_slice(prefix.as_bytes());
+        concat_to_vector(&mut output_buf, &self.a);
+        concat_to_vector(&mut output_buf, &self.b);
+        concat_to_vector(&mut output_buf, &self.c);
+        assert_eq!(self.A.len(), self.B.len());
+        for i in 0 .. self.A.len() {
+            concat_to_vector(&mut output_buf, &self.A[i]);
+            concat_to_vector(&mut output_buf, &self.B[i]);
+        }
+
+        // println!("DEBUG: signature len => {}", output_buf.len());
+        // let's hash the final output_buf
+        let sha2_digest = sha512::hash(output_buf.as_slice());
+
+        let mut hash_buf: [u8; 64] = [0; 64];
+        hash_buf.copy_from_slice(&sha2_digest[0..64]);
+        return Fr::interpret(&hash_buf);
+    }
+}
 
 pub fn setupD() -> PublicParams {
     let rng = &mut rand::thread_rng();
@@ -411,7 +440,7 @@ fn part2_compute_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2) -> Signat
 }
 
 // Prover first randomizes the signature
-pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
+pub fn prover_generate_blinded_sig(sig: &SignatureD) -> (Fr, SignatureD) {
     let rng = &mut rand::thread_rng();
     let r = Fr::random(rng);
     let rpr = Fr::random(rng);
@@ -430,7 +459,7 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
     }
 
     let bsig = SignatureD { a: a, A: A, b: b, B: B, c: c };
-    return bsig;
+    return (r, bsig);
 }
 
 // TODO: generate proof for the
@@ -456,7 +485,7 @@ pub fn gen_common_params(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) 
     let vxy = pairing(pk.X, sig.b);
     // generate vector
     let mut vxyi: Vec<Gt> = Vec::new();
-    for i in 0 .. l-1 {
+    for i in 0 .. l {
         vxyi.push(pairing(pk.X, sig.B[i]));
     }
     let vs = pairing(mpk.g1, sig.c);
@@ -473,11 +502,12 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, C: Gt) -> ProofVS {
     }
 
     let mut pub_bases: Vec<Gt> = Vec::new();
-    pub_bases.push(cp.vxy);
+    pub_bases.push(cp.vs); // p
+    pub_bases.push(cp.vxy); // u_0
     for i in 0 .. cp.vxyi.len() {
-        pub_bases.push(cp.vxyi[i]);
+        pub_bases.push(cp.vxyi[i]); // u_1 ... u_l
     }
-    pub_bases.push(cp.vs);
+    println!("(vs_gen_nizk_proof) Number of bases: {}", pub_bases.len());
 
     // compute the T
     let mut T = pub_bases[0].pow(t[0]);
@@ -492,13 +522,15 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, C: Gt) -> ProofVS {
 
     // compute s values
     let mut s: Vec<Fr> = Vec::new();
-    for i in 0 .. l-1 {
+    let _s = (x[0] * c) + t[0];
+    s.push(_s);
+    for i in 1 .. l {
         println!("(gen nizk proof) i => {}", i);
-        let _s = (x[i].inverse().unwrap() * c) + t[i];
+        let _s = (-x[i] * c) + t[i];
         s.push(_s);
     }
-    println!("(gen nizk proof) i => {}", l-1);
-    s.push((x[l-1] * c) + t[l-1]);
+//    println!("(gen nizk proof) i => {}", l-1);
+//    s.push((x[l-1] * c) + t[l-1]);
 
     return ProofVS { T: T, C: C, s: s, pub_bases: pub_bases };
 }

@@ -131,12 +131,12 @@ pub fn setup(len: usize, pub_bases: Vec<G2>, h: G2) -> CSParams {
     let mut p: Vec<G2> = Vec::new();
     p.push(h);
 
-//    if pub_bases.is_none() {
-//        for i in 1 .. len-1 {
-//            p.push(G2::random(rng));
-//        }
-//        return CSParams { pub_bases: p };
-//    }
+    //if pub_bases.is_none() {
+    //    for i in 1 .. len-1 {
+    //        p.push(G2::random(rng));
+    //    }
+    //    return CSParams { pub_bases: p };
+    //}
 
     let _p = pub_bases;
     for i in 0 .. _p.len() {
@@ -169,6 +169,7 @@ pub fn decommit(csp: &CSParams, cm: &Commitment, x: &Vec<Fr>) -> bool {
     let l = x.len();
     //assert!(csp.pub_bases.len() == l);
     // pub_base[0] => h, x[0] => r
+    // TODO: check that cm.r == x[0]
     let mut dc = csp.pub_bases[0] * cm.r;
     for i in 1 .. l {
         dc = dc + (csp.pub_bases[i] * x[i]);

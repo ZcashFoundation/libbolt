@@ -375,6 +375,13 @@ fn main() {
     println!("{} seconds for verifying valid signatures.", start1.to(end1));
     println!("{} seconds for verifying invalid signatures.", end1.to(end2));
 
+    let s1 = signature.hash("prefix type1");
+    let s2 = signature.hash("prefix type2");
+    let p1 = "Hash of signature 1: ";
+    libbolt::debug_elem_in_hex(p1, &s1);
+    let p2 = "Hash of signature 2: ";
+    libbolt::debug_elem_in_hex(p2, &s2);
+
     let mut schnorr = secp256k1::Secp256k1::new();
     schnorr.randomize(rng);
     let (wsk, wpk) = schnorr.generate_keypair(rng).unwrap();
@@ -382,23 +389,24 @@ fn main() {
     let balance = 100;
     let r = Fr::random(rng);
     let cid = Fr::random(rng);
-    let rm1 = libbolt::RefundMessage::new("refundUnsigned", cid, wpk, balance, Some(&r), None).hash();
-
-    println!("RefundMessage => ");
+    let refund_message1 = libbolt::RefundMessage::new("refundUnsigned", cid, wpk, balance, Some(&r), None);
+    let rm1 = refund_message1.hash();
+    println!("RefundMessage => {}", refund_message1.msgtype);
     for i in 0 .. rm1.len() {
         let p = format!("rm1[{}] = ", i);
         libbolt::debug_elem_in_hex(&p, &rm1[i]);
     }
 
-    let rm2 = libbolt::RefundMessage::new("refundToken", cid, wpk, balance+15, None, Some(&signature)).hash();
-    println!("RefundMessage (token) => ");
+    let refund_message2 = libbolt::RefundMessage::new("refundToken", cid, wpk, balance+15, None, Some(&signature));
+    let rm2 = refund_message2.hash();
+    println!("RefundMessage (token) => {}", refund_message2.msgtype);
     for i in 0 .. rm2.len() {
         let p = format!("rm2[{}] = ", i);
         libbolt::debug_elem_in_hex(&p, &rm2[i]);
     }
 
-    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
-    println!("All good in the hood!");
+
+    //assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
 
 
 //        println!("******************************************");
@@ -436,8 +444,8 @@ fn main() {
 //        let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
 //
 //        println!("Generated signature interactively!");
-
-
+//
+//
 //        let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
 //
 //        let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
@@ -448,8 +456,11 @@ fn main() {
 //
 //        println!("Verified interactively produced signature!");
 //
-//        let blind_sigs = clsigs::prover_generate_blinded_sig(&int_sig);
+//        let (r, blind_sigs) = clsigs::prover_generate_blinded_sig(&int_sig);
 //        let common_params = clsigs::gen_common_params(&mpk, &keypair.pk, &int_sig);
+//        let mut new_m = Vec::new();
+//        new_m.push(r);
+//
 //        let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params, common_params.vx);
 //        assert!(clsigs::vs_verify_blind_sig(&mpk, &keypair.pk, &proof_vs, &blind_sigs));
 //
@@ -458,45 +469,54 @@ fn main() {
 
     println!("******************************************");
 
-//    println!("[1] libbolt - setup bidirecitonal scheme params");
-//    let pp = bidirectional::setup();
-//
-//    // generate long-lived keypair for merchant -- used to identify
-//    // it to all customers
-//    println!("[2] libbolt - generate long-lived key pair for merchant");
-//    let merch_keypair = bidirectional::keygen(&pp);
-//
-//    // customer gnerates an ephemeral keypair for use on a single channel
-//    println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
-//    let cust_keypair = bidirectional::keygen(&pp);
-//
-//    // bidirectional::init_merchant_state();
-//
-//    println!("[4] libbolt - generate the channel identifier");
-//    let b0_cust = 10;
-//    let b0_merch = 15;
-//    let cid = bidirectional::generate_channel_id();
-//    let mut msg = "Open Channel ID: ";
-//    libbolt::debug_elem_in_hex(msg, &cid);
-//
-//    // each party executes the init algorithm on the agreed initial challence balance
-//    // in order to derive the channel tokens
-//    println!("[5a] libbolt - initialize on the customer side with balance {}", b0_cust);
-//    let mut init_cust_data = bidirectional::init_customer(&pp, cid, b0_cust, &cust_keypair);
-//
-//    println!("[5b] libbolt - initialize on the merchant side with balance {}", b0_merch);
-//    let mut init_merch_data = bidirectional::init_merchant(&pp, b0_merch, &merch_keypair);
-//
-//    println!("[6a] libbolt - entering the establish protocol for the channel");
-//    let proof1 = bidirectional::establish_customer_phase1(&pp, &init_cust_data);
-//
-//    println!("[6b] libbolt - obtain the wallet signature from the merchant");
-//    let wallet_sig = bidirectional::establish_merchant_phase2(&pp, &init_merch_data, &proof1);
-//
-//    println!("[6c] libbolt - complete channel establishment");
-//    let is_established = bidirectional::establish_customer_phase3(wallet_sig, &mut init_cust_data.csk);
-//
-//    assert!(is_established);
-//
-//    println!("Channel has been established! Woohoo!");
+    println!("[1] libbolt - setup bidirecitonal scheme params");
+    let pp = bidirectional::setup();
+
+    // generate long-lived keypair for merchant -- used to identify
+    // it to all customers
+    println!("[2] libbolt - generate long-lived key pair for merchant");
+    let merch_keypair = bidirectional::keygen(&pp);
+
+    // customer gnerates an ephemeral keypair for use on a single channel
+    println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
+    let cust_keypair = bidirectional::keygen(&pp);
+
+    println!("[4] libbolt - generate the initial channel state");
+    let b0_cust = 10;
+    let b0_merch = 15;
+    let mut channel = bidirectional::init_channel("A -> B");
+    let msg = "Open Channel ID: ";
+    libbolt::debug_elem_in_hex(msg, &channel.cid);
+
+    // each party executes the init algorithm on the agreed initial challence balance
+    // in order to derive the channel tokens
+    println!("[5a] libbolt - initialize on the customer side with balance {}", b0_cust);
+    let mut init_cust_data = bidirectional::init_customer(&pp, &channel, b0_cust, &cust_keypair);
+
+    println!("[5b] libbolt - initialize on the merchant side with balance {}", b0_merch);
+    let mut init_merch_data = bidirectional::init_merchant(&pp, b0_merch, &merch_keypair);
+
+    println!("[6a] libbolt - entering the establish protocol for the channel");
+    let proof1 = bidirectional::establish_customer_phase1(&pp, &init_cust_data);
+
+    println!("[6b] libbolt - obtain the wallet signature from the merchant");
+    let wallet_sig = bidirectional::establish_merchant_phase2(&pp, &mut channel, &init_merch_data, &proof1);
+
+    println!("[6c] libbolt - complete channel establishment");
+    bidirectional::establish_customer_phase3(wallet_sig, &mut init_cust_data.csk);
+
+    assert!(channel.channel_established);
+
+    println!("Channel has been established!");
+    println!("******************************************");
+
+
+    println!("******************************************");
+    println!("Testing the pay protocol..");
+    // let's test the pay protocol
+    let channel_token = &init_cust_data.T;
+    let wallet = &init_cust_data.csk;
+    let pay_proof = bidirectional::payment_by_customer_phase1(&pp, &channel_token, &wallet, 5);
+
+    bidirectional::payment_by_merchant_phase2(&pp, &pay_proof, &init_merch_data, )
 }
