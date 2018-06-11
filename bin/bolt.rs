@@ -346,7 +346,9 @@ fn main() {
     // CL sig tests
     let mpk = clsigs::setupD();
     let l = 3;
-    let keypair = clsigs::keygenD(&mpk, l);
+    let c_keypair = clsigs::keygenD(&mpk, l);
+    let m_keypair = clsigs::keygenD(&mpk, l);
+
     //println!("{}", keypair.pk);
 
 //    let msg1 = libbolt::RefundMessage::new(alice_sk, 10).hash(); // TODO: add ck (l-bit key)
@@ -361,14 +363,14 @@ fn main() {
         m3.push(Fr::random(rng));
     }
 
-    let signature = clsigs::signD(&keypair.sk, &m1);
+    let signature = clsigs::signD(&mpk, &m_keypair.sk, &m1);
     //println!("{}", signature);
     let start1 = PreciseTime::now();
-    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
+    assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &signature) == true);
     let end1 = PreciseTime::now();
-    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m2, &signature) == false);
+    assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m2, &signature) == false);
     let end2 = PreciseTime::now();
-//    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
+    assert!(clsigs::verifyD(&mpk, &c_keypair.pk, &m1, &signature) == false);
 //    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m3, &signature) == false);
 
     println!("CL signatures verified!");
@@ -409,114 +411,114 @@ fn main() {
     //assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
 
 
-//        println!("******************************************");
-//        let b = keypair.pk.Z2.len();
-//        let mut bases: Vec<G2> = Vec::new();
-//        bases.push(mpk.g2);
-//        for i in 0 .. b {
-//            bases.push(keypair.pk.Z2[i]);
-//        }
+        println!("******************************************");
+        let b = m_keypair.pk.Z2.len();
+        let mut bases: Vec<G2> = Vec::new();
+        bases.push(mpk.g2);
+        for i in 0 .. b {
+            bases.push(m_keypair.pk.Z2[i]);
+        }
+
+        // generate sample commitment
+        //let mut m: Vec<Fr> = Vec::new();
+        let mut C = mpk.g2 * m1[0];
+        for i in 0 .. b {
+            println!("index: {}", i);
+            C = C + (m_keypair.pk.Z2[i] * m1[i+1]);
+        }
+        let msg = "Sample Commit output:";
+        libbolt::debug_g2_in_hex(msg, &C);
+
+        let cm_csp = commit_scheme::setup(b, m_keypair.pk.Z2.clone(), mpk.g2.clone());
+        let r = m1[0];
+        let w_com = commit_scheme::commit(&cm_csp, &m1, r);
+
+        assert!(commit_scheme::decommit(&cm_csp, &w_com, &m1));
+
+        //let msg = "Commmit Scheme output:";
+        //libbolt::debug_g2_in_hex(msg, &w_com.c);
+
+        //assert_eq!(C, w_com.c);
+        println!("Commitment scheme consistent!!");
+        let proof = clsigs::bs_gen_nizk_proof(&m1, &cm_csp.pub_bases, w_com.c);
+        // old -> let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+
+        let int_sig = clsigs::bs_gen_signature(&mpk, &m_keypair.sk, &proof);
+
+        println!("Generated signature interactively!");
+
+
+        let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+
+        let int_sig = clsigs::bs_gen_signature(&mpk, &m_keypair.sk, &proof);
+
+        println!("Generated signature interactively!");
+        // int_sig = interactively generated signature
+        assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &int_sig) == true);
+
+        println!("Verified interactively produced signature!");
+
+        let (r_bf, blind_sigs) = clsigs::prover_generate_blinded_sig(&int_sig);
+        let common_params = clsigs::gen_common_params(&mpk, &m_keypair.pk, &blind_sigs);
+        //assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &blind_sigs) == true);
+        //println!("Verified blind signature directly!");
+
+        let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params, common_params.vs.pow(r_bf));
+        assert!(clsigs::vs_verify_blind_sig(&mpk, &m_keypair.pk, &proof_vs, &blind_sigs));
+
+        println!("Verified blind signature (via NIZK)!");
+
+
+//    println!("******************************************");
 //
-//        // generate sample commitment
-//        //let mut m: Vec<Fr> = Vec::new();
-//        let mut C = mpk.g2 * m1[0];
-//        for i in 0 .. b {
-//            println!("index: {}", i);
-//            C = C + (keypair.pk.Z2[i] * m1[i+1]);
-//        }
-//        let msg = "Sample Commit output:";
-//        libbolt::debug_g2_in_hex(msg, &C);
+//    println!("[1] libbolt - setup bidirecitonal scheme params");
+//    let pp = bidirectional::setup();
 //
-//        let cm_csp = commit_scheme::setup(b, keypair.pk.Z2, mpk.g2);
-//        let r = m1[0];
-//        let w_com = commit_scheme::commit(&cm_csp, &m1, r);
+//    // generate long-lived keypair for merchant -- used to identify
+//    // it to all customers
+//    println!("[2] libbolt - generate long-lived key pair for merchant");
+//    let merch_keypair = bidirectional::keygen(&pp);
 //
-//        assert!(commit_scheme::decommit(&cm_csp, &w_com, &m1));
+//    // customer gnerates an ephemeral keypair for use on a single channel
+//    println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
+//    let cust_keypair = bidirectional::keygen(&pp);
 //
-//        //let msg = "Commmit Scheme output:";
-//        //libbolt::debug_g2_in_hex(msg, &w_com.c);
+//    println!("[4] libbolt - generate the initial channel state");
+//    let b0_cust = 10;
+//    let b0_merch = 15;
+//    let mut channel = bidirectional::init_channel("A -> B");
+//    let msg = "Open Channel ID: ";
+//    libbolt::debug_elem_in_hex(msg, &channel.cid);
 //
-//        //assert_eq!(C, w_com.c);
-//        println!("Commitment scheme consistent!!");
-//        let proof = clsigs::bs_gen_nizk_proof(&m1, &cm_csp.pub_bases, w_com.c);
-//        // old -> let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+//    // each party executes the init algorithm on the agreed initial challence balance
+//    // in order to derive the channel tokens
+//    println!("[5a] libbolt - initialize on the merchant side with balance {}", b0_merch);
+//    let mut init_merch_data = bidirectional::init_merchant(&pp, b0_merch, &merch_keypair);
 //
-//        let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
+//    println!("[5b] libbolt - initialize on the customer side with balance {}", b0_cust);
+//    let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keypair.pk);
+//    let mut init_cust_data = bidirectional::init_customer(&pp, &channel, b0_cust, &cm_csp, &cust_keypair);
 //
-//        println!("Generated signature interactively!");
+//    println!("[6a] libbolt - entering the establish protocol for the channel");
+//    let proof1 = bidirectional::establish_customer_phase1(&pp, &init_cust_data, &init_merch_data);
 //
+//    println!("[6b] libbolt - obtain the wallet signature from the merchant");
+//    let wallet_sig = bidirectional::establish_merchant_phase2(&pp, &mut channel, &init_merch_data, &proof1);
 //
-//        let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+//    println!("[6c] libbolt - complete channel establishment");
+//    bidirectional::establish_customer_phase3(&pp, wallet_sig, &merch_keypair.pk, &mut init_cust_data.csk);
 //
-//        let int_sig = clsigs::bs_gen_signature(&mpk, &keypair.sk, &proof);
+//    assert!(channel.channel_established);
 //
-//        println!("Generated signature interactively!");
-//        // int_sig = interactively generated signature
-//        assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &int_sig) == true);
+//    println!("Channel has been established!");
+//    println!("******************************************");
 //
-//        println!("Verified interactively produced signature!");
+//    println!("******************************************");
+//    println!("Testing the pay protocol..");
+//    // let's test the pay protocol
+//    let channel_token = &init_cust_data.T;
+//    let wallet = &init_cust_data.csk;
+//    let pay_proof = bidirectional::payment_by_customer_phase1(&pp, &channel_token, &wallet, 5);
 //
-//        let (r, blind_sigs) = clsigs::prover_generate_blinded_sig(&int_sig);
-//        let common_params = clsigs::gen_common_params(&mpk, &keypair.pk, &int_sig);
-//        let mut new_m = Vec::new();
-//        new_m.push(r);
-//
-//        let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params, common_params.vx);
-//        assert!(clsigs::vs_verify_blind_sig(&mpk, &keypair.pk, &proof_vs, &blind_sigs));
-//
-//        println!("Verified blind signature!");
-
-
-    println!("******************************************");
-
-    println!("[1] libbolt - setup bidirecitonal scheme params");
-    let pp = bidirectional::setup();
-
-    // generate long-lived keypair for merchant -- used to identify
-    // it to all customers
-    println!("[2] libbolt - generate long-lived key pair for merchant");
-    let merch_keypair = bidirectional::keygen(&pp);
-
-    // customer gnerates an ephemeral keypair for use on a single channel
-    println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
-    let cust_keypair = bidirectional::keygen(&pp);
-
-    println!("[4] libbolt - generate the initial channel state");
-    let b0_cust = 10;
-    let b0_merch = 15;
-    let mut channel = bidirectional::init_channel("A -> B");
-    let msg = "Open Channel ID: ";
-    libbolt::debug_elem_in_hex(msg, &channel.cid);
-
-    // each party executes the init algorithm on the agreed initial challence balance
-    // in order to derive the channel tokens
-    println!("[5a] libbolt - initialize on the customer side with balance {}", b0_cust);
-    let mut init_cust_data = bidirectional::init_customer(&pp, &channel, b0_cust, &cust_keypair);
-
-    println!("[5b] libbolt - initialize on the merchant side with balance {}", b0_merch);
-    let mut init_merch_data = bidirectional::init_merchant(&pp, b0_merch, &merch_keypair);
-
-    println!("[6a] libbolt - entering the establish protocol for the channel");
-    let proof1 = bidirectional::establish_customer_phase1(&pp, &init_cust_data);
-
-    println!("[6b] libbolt - obtain the wallet signature from the merchant");
-    let wallet_sig = bidirectional::establish_merchant_phase2(&pp, &mut channel, &init_merch_data, &proof1);
-
-    println!("[6c] libbolt - complete channel establishment");
-    bidirectional::establish_customer_phase3(wallet_sig, &mut init_cust_data.csk);
-
-    assert!(channel.channel_established);
-
-    println!("Channel has been established!");
-    println!("******************************************");
-
-
-    println!("******************************************");
-    println!("Testing the pay protocol..");
-    // let's test the pay protocol
-    let channel_token = &init_cust_data.T;
-    let wallet = &init_cust_data.csk;
-    let pay_proof = bidirectional::payment_by_customer_phase1(&pp, &channel_token, &wallet, 5);
-
-    bidirectional::payment_by_merchant_phase2(&pp, &pay_proof, &init_merch_data, )
+//    bidirectional::payment_by_merchant_phase2(&pp, &pay_proof, &init_merch_data, )
 }

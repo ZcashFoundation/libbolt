@@ -244,12 +244,12 @@ pub fn keygenD(mpk : &PublicParams, l: usize) -> KeyPairD {
     return KeyPairD { sk: sk, pk: pk }
 }
 
-pub fn signD(sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
+pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
     assert_eq!(m.len(), sk.z.len()+1);
     let l = m.len();
 
     let rng = &mut rand::thread_rng();
-    let a = G2::random(rng);
+    let a = G2::random(rng); // mpk.g2 * Fr::random(rng);
     let mut A: Vec<G2> = Vec::new();
     let b = a * sk.y;
     let mut B: Vec<G2> = Vec::new();
@@ -464,15 +464,15 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> (Fr, SignatureD) {
 
 // TODO: generate proof for the
 pub struct CommonParams {
-    pub vx: Gt,
+    vx: Gt,
     vxy: Gt,
     vxyi: Vec<Gt>,
-    vs: Gt
+    pub vs: Gt
 }
 
 pub struct ProofVS {
     T: Gt,
-    C: Gt,
+    A: Gt,
     s: Vec<Fr>,
     pub_bases: Vec<Gt>
 }
@@ -493,7 +493,7 @@ pub fn gen_common_params(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) 
     return CommonParams { vx: vx, vxy: vxy, vxyi: vxyi, vs: vs };
 }
 
-pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, C: Gt) -> ProofVS {
+pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
     let rng = &mut rand::thread_rng();
     let l = x.len();
     let mut t: Vec<Fr> = Vec::new();
@@ -502,11 +502,12 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, C: Gt) -> ProofVS {
     }
 
     let mut pub_bases: Vec<Gt> = Vec::new();
-    pub_bases.push(cp.vs); // p
+    pub_bases.push(cp.vx); // 1
     pub_bases.push(cp.vxy); // u_0
     for i in 0 .. cp.vxyi.len() {
         pub_bases.push(cp.vxyi[i]); // u_1 ... u_l
     }
+    println!("(vs_gen_nizk_proof) Number of secrets: {}", l);
     println!("(vs_gen_nizk_proof) Number of bases: {}", pub_bases.len());
 
     // compute the T
@@ -522,17 +523,17 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, C: Gt) -> ProofVS {
 
     // compute s values
     let mut s: Vec<Fr> = Vec::new();
-    let _s = (x[0] * c) + t[0];
+    let _s = c + t[0];
     s.push(_s);
     for i in 1 .. l {
         println!("(gen nizk proof) i => {}", i);
-        let _s = (-x[i] * c) + t[i];
+        let _s = (x[i-1] * c) + t[i];
         s.push(_s);
     }
 //    println!("(gen nizk proof) i => {}", l-1);
 //    s.push((x[l-1] * c) + t[l-1]);
 
-    return ProofVS { T: T, C: C, s: s, pub_bases: pub_bases };
+    return ProofVS { T: T, A: A, s: s, pub_bases: pub_bases };
 }
 
 fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
@@ -554,7 +555,7 @@ fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
     msg = "(in verify proof) lhs => ";
     debug_gt_in_hex(msg, &lhs);
 
-    let rhs = proof.C.pow(c) * proof.T;
+    let rhs = proof.A.pow(c) * proof.T;
     // debug
     msg = "(in verify proof) rhs => ";
     debug_gt_in_hex(msg, &rhs);
