@@ -847,7 +847,7 @@ impl<'a> RevokedMessage<'a> {
 pub mod bidirectional {
     use std::fmt;
     use rand;
-    use bn::{Group, Fr, G1, G2};
+    use bn::{Group, Fr, G1, G2, Gt};
     use sym;
     use commit_scheme;
     use clsigs;
@@ -858,12 +858,25 @@ pub mod bidirectional {
     use RefundMessage;
     use RevokedMessage;
     use debug_elem_in_hex;
+    use debug_gt_in_hex;
+
+    fn print_secret_vector(x: &Vec<Fr>) {
+        for i in 0 .. x.len() {
+            let msg = format!("x[{}] => ", i);
+            debug_elem_in_hex(&msg, &x[i]);
+        }
+    }
+
+    fn print_public_bases_vector(g: &Vec<Gt>) {
+        for i in 0 .. g.len() {
+            let msg = format!("g[{}] => ", i);
+            debug_gt_in_hex(&msg, &g[i]);
+        }
+    }
 
     pub struct PublicParams {
-        // cm_csp: commit_scheme::CSParams,
         cl_mpk: clsigs::PublicParams,
         l: usize // messages for committment
-        // TODO: add NIZK proof system pub params
     }
 
     pub struct ChannelToken {
@@ -998,7 +1011,7 @@ pub mod bidirectional {
 
     //// begin of establish channel protocol
     pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData, m_data: &InitMerchantData) -> clsigs::ProofCV {
-        println ! ("Run establish_customer algorithm...");
+        println!("Run establish_customer algorithm...");
         // obtain customer init data
         let t_c = &c_data.T;
         let csk_c = &c_data.csk;
@@ -1012,14 +1025,10 @@ pub mod bidirectional {
         x.push(csk_c.cid);
         x.push(h_wpk);
         x.push(b0);
+        println!("establish_customer_phase1 - secrets for original wallet");
+        print_secret_vector(&x);
 
         // generate proof of knowledge for committed values
-        println!("establish_customer_phase1 - Print secrets");
-        for i in 0 .. x.len() {
-            let msg = format!("x[{}] => ", i);
-            debug_elem_in_hex(&msg, &x[i]);
-        }
-
         let proof_1 = clsigs::bs_gen_nizk_proof(&x, &pub_bases, t_c.w_com.c);
         return proof_1;
     }
@@ -1042,10 +1051,8 @@ pub mod bidirectional {
             x.push(Fr::from_str(w.balance.to_string().as_str()).unwrap());
 
             println!("establish_customer_phase3 - Print secrets");
-            for i in 0 .. x.len() {
-                let msg = format!("x[{}] => ", i);
-                debug_elem_in_hex(&msg, &x[i]);
-            }
+            print_secret_vector(&x);
+
             assert!(clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &sig));
             w.signature = Some(sig);
             return true;
@@ -1056,7 +1063,7 @@ pub mod bidirectional {
     ///// end of establish channel protocol
 
     ///// begin of pay protocol
-    pub fn payment_by_customer_phase1(pp: &PublicParams, T: &ChannelToken,
+    pub fn payment_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
                                       old_w: &CustomerWallet, balance_increment: i32) -> PaymentProof {
         println!("Run pay algorithm by Customer - phase 1.");
         // get balance, keypair, commitment randomness and wallet sig
@@ -1067,7 +1074,7 @@ pub mod bidirectional {
         let old_wsk = &old_w.wsk;
         let old_r = &old_w.r;
         let old_wallet_sig = &old_w.signature;
-        let pk = &T.pk;
+        //let pk = &T.pk;
 
         // generate new keypair
         let mut schnorr = secp256k1::Secp256k1::new();
@@ -1078,9 +1085,12 @@ pub mod bidirectional {
         // new sample randomness r'
         let r = Fr::random(rng);
 
-        let g2 = pp.cl_mpk.g2.clone();
-        let bases = pk.Z2.clone();
-        let cm_csp = commit_scheme::setup(pp.l, bases, g2);
+//        let g2 = pp.cl_mpk.g2.clone();
+//        let bases = pk.Z2.clone();
+//        let cm_csp = commit_scheme::setup(pp.l, bases, g2);
+        // retrieve the commitment scheme parameters based on merchant's PK
+        let cm_csp = generate_commit_setup(&pp, &pk_m);
+
         let cid = old_w.cid.clone();
         // retrieve old balance
         let old_balance = Fr::from_str(B.to_string().as_str()).unwrap();
@@ -1096,42 +1106,59 @@ pub mod bidirectional {
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
 
         // generate proof of knowledge for committed values
-        let mut pub_bases = pk.Z2.clone();
-        pub_bases.insert(0, g2);
-        let proof_cv = clsigs::bs_gen_nizk_proof(&x, &pub_bases, w_com.c);
+//        let mut pub_bases = pk.Z2.clone();
+//        pub_bases.insert(0, g2);
+        let proof_cv = clsigs::bs_gen_nizk_proof(&x, &cm_csp.pub_bases, w_com.c);
 
-        // generate proof of knowledge of valid signature on
+        // generate proof of knowledge of valid signature on previous wallet signature
         let wallet_sig = old_wallet_sig.clone().unwrap();
-        let (r_bf, blind_sigs) = clsigs::prover_generate_blinded_sig(&wallet_sig);
-        let common_params = clsigs::gen_common_params(&pp.cl_mpk, &pk, &blind_sigs);
+
         let old_h_wpk = hashPubKeyToFr(&old_wpk);
 
         // added the blinding factor to list of secrets
         let mut old_x: Vec<Fr> = Vec::new();
-        x.push(*old_r); // set randomness for commitment
-        x.push(cid);
-        x.push(old_h_wpk);
-        x.push(old_balance);
+        old_x.push(old_r.clone()); // set randomness for commitment
+        old_x.push(cid);
+        old_x.push(old_h_wpk);
+        old_x.push(old_balance);
 
-        let A = common_params.vs.pow(r_bf);
-        let proof_vs = clsigs::vs_gen_nizk_proof(&old_x, &common_params, A);
+        let blind_sigs = clsigs::prover_generate_blinded_sig(&wallet_sig);
+        let common_params = clsigs::gen_common_params(&pp.cl_mpk, &pk_m, &wallet_sig);
+
+        //println!("payment_by_customer_phase1 - secrets for old wallet");
+        //print_secret_vector(&old_x);
+
+        let proof_vs = clsigs::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
         //clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk, &proof_vs, &blind_sigs);
         return PaymentProof { proof2a: proof_cv, // proof of knowledge for committed values
                               proof2b: proof_vs, // proof of knowledge of signature on old wallet
-                              balance: balance_increment, wpk: old_wpk.clone(), wallet_sig: blind_sigs };
+                              balance: balance_increment, // epsilon - increment/decrement
+                              wpk: old_wpk.clone(), // showing public key for old wallet
+                              wallet_sig: blind_sigs // blinded signature for old wallet
+                            };
     }
 
     pub fn payment_by_merchant_phase2(pp: &PublicParams, proof: &PaymentProof, m_data: &InitMerchantData) {
         println!("Run pay algorithm by Merchant - phase 2");
         let blind_sigs = &proof.wallet_sig;
+        let proof_cv = &proof.proof2a;
         let proof_vs = &proof.proof2b;
-        let pk = &m_data.T;
-        let proof_valid = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk, &proof_vs, &blind_sigs);
-        if proof_valid {
+        let pk_m = &m_data.T;
+        let proof_vs_valid = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
+        if proof_vs_valid {
             println!("Yay! Proof of knowledge of signature is valid!");
         } else {
             println!("FAILURE! Something is still wrong!");
         }
+
+        // verify the proof of knowledgefor committed values in new wallet
+        let new_wallet_proof_cm_values = clsigs::bs_verify_nizk_proof(&proof_cv);
+        if new_wallet_proof_cm_values {
+            println!("Yay! Proof of knowledge of commitment on new wallet is valid");
+        }
+
+        // generate signature for new wallet with updated balance
+
     }
     ///// end of pay protocol
 

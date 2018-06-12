@@ -249,7 +249,7 @@ pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
     let l = m.len();
 
     let rng = &mut rand::thread_rng();
-    let a = G2::random(rng); // mpk.g2 * Fr::random(rng);
+    let a = mpk.g2 * Fr::random(rng); // G2::random(rng);
     let mut A: Vec<G2> = Vec::new();
     let b = a * sk.y;
     let mut B: Vec<G2> = Vec::new();
@@ -386,15 +386,14 @@ pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
 }
 
 pub fn bs_gen_signature(mpk: &PublicParams, sk: &SecretKeyD, proof: &ProofCV) -> SignatureD {
-   if part1_verify_proof(&proof) {
+   if bs_verify_nizk_proof(&proof) {
         return part2_compute_signature(&mpk, &sk, proof.C);
    } else {
        panic!("Invalid proof: could not verify the NIZK proof");
    }
 }
 
-// internal function
-fn part1_verify_proof(proof: &ProofCV) -> bool {
+pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
     // if proof is valid, then call part
     let c = hashG2ToFr(&proof.T);
     let mut msg = "(in verify proof) challenge -> c";
@@ -440,7 +439,7 @@ fn part2_compute_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2) -> Signat
 }
 
 // Prover first randomizes the signature
-pub fn prover_generate_blinded_sig(sig: &SignatureD) -> (Fr, SignatureD) {
+pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
     let rng = &mut rand::thread_rng();
     let r = Fr::random(rng);
     let rpr = Fr::random(rng);
@@ -459,7 +458,7 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> (Fr, SignatureD) {
     }
 
     let bsig = SignatureD { a: a, A: A, b: b, B: B, c: c };
-    return (r, bsig);
+    return bsig;
 }
 
 // TODO: generate proof for the
@@ -478,8 +477,7 @@ pub struct ProofVS {
 }
 
 pub fn gen_common_params(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) -> CommonParams {
-    assert!(sig.A.len() == sig.B.len());
-    let l = sig.A.len();
+    let l = sig.B.len();
 
     let vx = pairing(pk.X, sig.a);
     let vxy = pairing(pk.X, sig.b);
@@ -490,12 +488,16 @@ pub fn gen_common_params(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) 
     }
     let vs = pairing(mpk.g1, sig.c);
 
+//    let lhs = vx * vxy.pow(m[0]) * vxyi[0].pow(m[1]) * vxyi[1].pow(m[2]) * vxyi[2].pow(m[3]);
+//    assert!(lhs == vs);
+//    println!("Validated the statement (without blinding)");
+
     return CommonParams { vx: vx, vxy: vxy, vxyi: vxyi, vs: vs };
 }
 
 pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
     let rng = &mut rand::thread_rng();
-    let l = x.len();
+    let l = x.len() + 1;
     let mut t: Vec<Fr> = Vec::new();
     for i in 0 .. l {
         t.push(Fr::random(rng));
@@ -511,9 +513,9 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
     println!("(vs_gen_nizk_proof) Number of bases: {}", pub_bases.len());
 
     // compute the T
-    let mut T = pub_bases[0].pow(t[0]);
+    let mut T = pub_bases[0].pow(t[0]);  // vx ^ t0
     for i in 1 .. l {
-        T = T * (pub_bases[i].pow(t[i]));
+        T = T * (pub_bases[i].pow(t[i])); // vxy{i} ^ t{i}
     }
 
     // hash T to get the challenge
@@ -523,7 +525,7 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
 
     // compute s values
     let mut s: Vec<Fr> = Vec::new();
-    let _s = c + t[0];
+    let _s = c + t[0]; // for vx s0 = (1*c + t[0])
     s.push(_s);
     for i in 1 .. l {
         println!("(gen nizk proof) i => {}", i);
