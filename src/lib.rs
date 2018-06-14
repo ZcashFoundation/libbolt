@@ -8,6 +8,7 @@ extern crate secp256k1;
 use std::fmt;
 use std::str;
 use std::default;
+use std::result;
 use bn::{Group, Fr, G1, G2, Gt, pairing};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
@@ -600,12 +601,12 @@ pub struct Proof {
     s2: Fr
 }
 
-pub fn hash(g: &G1, h: &G1, X: &G1, Y: &G1, T: &Gt) -> Fr {
-    let g_vec: Vec<u8> = encode(&g, Infinite).unwrap();
-
-    // TODO: fix this
-    return Fr::from_str("1234567890").unwrap();
-}
+//pub fn hash(g: &G1, h: &G1, X: &G1, Y: &G1, T: &Gt) -> Fr {
+//    let g_vec: Vec<u8> = encode(&g, Infinite).unwrap();
+//
+//    // TODO: fix this
+//    return Fr::from_str("1234567890").unwrap();
+//}
 
 pub fn hashG1ToFr(x: &G1) -> Fr {
     // TODO: change to serde (instead of rustc_serialize)
@@ -620,6 +621,18 @@ pub fn hashG1ToFr(x: &G1) -> Fr {
 pub fn hashPubKeyToFr(wpk: &secp256k1::PublicKey) -> Fr {
     let x_slice = wpk.serialize_uncompressed();
     let sha2_digest = sha512::hash(&x_slice);
+
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    return Fr::interpret(&hash_buf);
+}
+
+pub fn hashBufferToFr<'a>(prefix: &'a str, buf: &[u8; 64]) -> Fr {
+    let mut input_buf = Vec::new();
+    input_buf.extend_from_slice(prefix.as_bytes());
+    input_buf.extend_from_slice(buf);
+
+    let sha2_digest = sha512::hash(&input_buf.as_slice());
 
     let mut hash_buf: [u8; 64] = [0; 64];
     hash_buf.copy_from_slice(&sha2_digest[0..64]);
@@ -643,6 +656,12 @@ fn convertToFr(input_buf: &Vec<u8>) -> Fr {
     let mut hash_buf: [u8; 64] = [0; 64];
     hash_buf.copy_from_slice(&sha2_digest[0..64]);
     return Fr::interpret(&hash_buf);
+}
+
+fn convertStrToFr<'a>(input: &'a str) -> Fr {
+    let mut input_buf = Vec::new();
+    input_buf.extend_from_slice(input.as_bytes());
+    return convertToFr(&input_buf);
 }
 
 // refund message
@@ -698,11 +717,11 @@ impl<'a> RefundMessage<'a> {
 pub struct RevokedMessage<'a> {
     pub msgtype: &'a str,
     pub wpk: secp256k1::PublicKey,
-    pub sig: clsigs::SignatureD
+    pub sig: Option<Vec<u8>> // represents revocation token serialized compact bytes
 }
 
 impl<'a> RevokedMessage<'a> {
-    pub fn new(_msgtype: &'a str, _wpk: secp256k1::PublicKey, _sig: clsigs::SignatureD) -> RevokedMessage<'a> {
+    pub fn new(_msgtype: &'a str, _wpk: secp256k1::PublicKey, _sig: Option<Vec<u8>>) -> RevokedMessage<'a> {
         RevokedMessage {
             msgtype: _msgtype, wpk: _wpk, sig: _sig
         }
@@ -716,26 +735,26 @@ impl<'a> RevokedMessage<'a> {
 
         v.push(hashPubKeyToFr(&self.wpk));
 
-        v.push(self.sig.hash(self.msgtype));
+        if (!self.sig.is_none()) {
+            // TODO: make sure we can call hashBufferToFr with sig
+            // v.push(hashBufferToFr(self.msgtype, self.sig.unwrap()));
+        }
         return v;
     }
-}
 
-//pub fn create_nizk_proof_one(pp: &PublicParams, pk: &clsigs::PublicKeyD, sk: &clsigs::SecretKeyD) -> Proof {
-//    let rng = &mut rand::thread_rng();
-//
-//    let t1 = Fr::random(rng);
-//    let t2 = Fr::random(rng);
-//
-//    let T = (pk.g * t1) + (pk.h * t2);
-//
-//    let c = hash(pp.g, pp.h, pk.X, pk.Y, T);
-//
-//    let s1 = (sk.x * c) + t1;
-//    let s2 = (sk.y * c) + t2;
-//
-//    return Proof { T: T, c: c, s1: s1, s2: s2 };
-//}
+    // return a message digest (32-bytes)
+    pub fn hash_to_slice(&self) -> [u8; 32] {
+        let mut input_buf = Vec::new();
+        input_buf.extend_from_slice(self.msgtype.as_bytes());
+        input_buf.extend_from_slice(&self.wpk.serialize_uncompressed());
+        let sha2_digest = sha512::hash(input_buf.as_slice());
+        // println!("hash: {:?}", sha2_digest);
+        // let h = format!("{:x}", HexSlice::new(&sha2_digest));
+        let mut hash_buf: [u8; 32] = [0; 32];
+        hash_buf.copy_from_slice(&sha2_digest[0..32]);
+        return hash_buf;
+    }
+}
 
 ////////////////////////////////// NIZKP //////////////////////////////////
 
@@ -852,13 +871,16 @@ pub mod bidirectional {
     use commit_scheme;
     use clsigs;
     use Message;
-    use hashPubKeyToFr;
     use sodiumoxide::randombytes;
     use secp256k1; // ::{Secp256k1, PublicKey, SecretKey};
     use RefundMessage;
     use RevokedMessage;
+    use hashPubKeyToFr;
+    use hashBufferToFr;
     use debug_elem_in_hex;
     use debug_gt_in_hex;
+    use convertToFr;
+    use convertStrToFr;
 
     fn print_secret_vector(x: &Vec<Fr>) {
         for i in 0 .. x.len() {
@@ -884,25 +906,28 @@ pub mod bidirectional {
         pk: clsigs::PublicKeyD
     }
 
+    // TODO: add display method to print structure (similar to Commitment)
     pub struct CustomerWallet {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         cid: Fr, // channel Id
         wpk: secp256k1::PublicKey, // signature verification key
         wsk: secp256k1::SecretKey, // signature signing key
         r: Fr, // random coins for commitment scheme
-        balance: i32, // the balance for the user
-        signature: Option<clsigs::SignatureD>
+        pub balance: i32, // the balance for the user
+        signature: Option<clsigs::SignatureD>,
+        refund_token: Option<clsigs::SignatureD>
     }
 
+    // TODO: add display method to print structure (similar to Commitment)
     pub struct MerchSecretKey {
         sk: clsigs::SecretKeyD, // merchant signing key
-        balance: i32
+        pub balance: i32
     }
 
     pub struct InitCustomerData {
         pub T: ChannelToken,
         pub csk: CustomerWallet,
-        pub bases: Vec<G2>
+        pub bases: Vec<G2>,
     }
 
     pub struct InitMerchantData {
@@ -935,17 +960,23 @@ pub mod bidirectional {
         proof2a: clsigs::ProofCV, // proof of committed values in new wallet
         proof2b: clsigs::ProofVS, // proof of knowledge of wallet signature
         balance: i32, // balance increment
+        w_com: commit_scheme::Commitment, // commitment for new wallet
         wpk: secp256k1::PublicKey, // verification key for old wallet
         wallet_sig: clsigs::SignatureD // blinded signature for old wallet
         // TODO: add proof2c: range proof that balance - balance_inc is between (0, val_max)
     }
 
+    pub struct RevokeToken<'a> {
+        message: RevokedMessage<'a>,
+        signature: secp256k1::Signature
+    }
+
     pub fn setup() -> PublicParams {
         // TODO: provide option for generating CRS parameters
         let cl_mpk = clsigs::setupD();
-        let l = 3;
+        let l = 4;
         // let nizk = "nizk proof system";
-        let pp = PublicParams { cl_mpk: cl_mpk, l: l }; // cm_csp: cm_pp,
+        let pp = PublicParams { cl_mpk: cl_mpk, l: l };
         return pp;
     }
 
@@ -968,7 +999,8 @@ pub mod bidirectional {
         return cm_csp;
     }
 
-    pub fn init_customer(pp: &PublicParams, channel: &ChannelState, b0_customer: i32, cm_csp: &commit_scheme::CSParams, keypair: &clsigs::KeyPairD) -> InitCustomerData {
+    pub fn init_customer<'a>(pp: &PublicParams, channel: &ChannelState, b0_customer: i32,
+                         cm_csp: &commit_scheme::CSParams, keypair: &clsigs::KeyPairD) -> InitCustomerData {
         println!("Run Init customer...");
         let rng = &mut rand::thread_rng();
         // generate verification key and signing key (for wallet)
@@ -992,7 +1024,8 @@ pub mod bidirectional {
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone() };
         let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
-                                    r: r, balance: b0_customer, signature: None };
+                                    r: r, balance: b0_customer, signature: None,
+                                    refund_token: None };
         return InitCustomerData { T: t_c, csk: csk_c, bases: cm_csp.pub_bases.clone() };
     }
 
@@ -1037,12 +1070,12 @@ pub mod bidirectional {
     pub fn establish_merchant_phase2(pp: &PublicParams, state: &mut ChannelState, m_data: &InitMerchantData,
                                      proof: &clsigs::ProofCV) -> clsigs::SignatureD {
         // verifies proof and produces
-        let wallet_sig = clsigs::bs_gen_signature(&pp.cl_mpk, &m_data.csk.sk, &proof);
+        let wallet_sig = clsigs::bs_check_proof_and_gen_signature(&pp.cl_mpk, &m_data.csk.sk, &proof);
         state.channel_established = true;
         return wallet_sig;
     }
 
-    pub fn establish_customer_phase3(pp: &PublicParams, sig: clsigs::SignatureD, pk_m: &clsigs::PublicKeyD, w: &mut CustomerWallet) -> bool {
+    pub fn establish_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD, w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if w.signature.is_none() {
             let mut x: Vec<Fr> = Vec::new();
             x.push(w.r.clone());
@@ -1050,7 +1083,7 @@ pub mod bidirectional {
             x.push(hashPubKeyToFr(&w.wpk));
             x.push(Fr::from_str(w.balance.to_string().as_str()).unwrap());
 
-            println!("establish_customer_phase3 - Print secrets");
+            println!("establish_customer_final - print secrets");
             print_secret_vector(&x);
 
             assert!(clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &sig));
@@ -1064,7 +1097,7 @@ pub mod bidirectional {
 
     ///// begin of pay protocol
     pub fn payment_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
-                                      old_w: &CustomerWallet, balance_increment: i32) -> PaymentProof {
+                                      old_w: &CustomerWallet, balance_increment: i32) -> (CustomerWallet, PaymentProof) {
         println!("Run pay algorithm by Customer - phase 1.");
         // get balance, keypair, commitment randomness and wallet sig
         let rng = &mut rand::thread_rng();
@@ -1074,7 +1107,6 @@ pub mod bidirectional {
         let old_wsk = &old_w.wsk;
         let old_r = &old_w.r;
         let old_wallet_sig = &old_w.signature;
-        //let pk = &T.pk;
 
         // generate new keypair
         let mut schnorr = secp256k1::Secp256k1::new();
@@ -1083,7 +1115,7 @@ pub mod bidirectional {
         let h_wpk = hashPubKeyToFr(&wpk);
 
         // new sample randomness r'
-        let r = Fr::random(rng);
+        let r_pr = Fr::random(rng);
 
 //        let g2 = pp.cl_mpk.g2.clone();
 //        let bases = pk.Z2.clone();
@@ -1095,20 +1127,21 @@ pub mod bidirectional {
         // retrieve old balance
         let old_balance = Fr::from_str(B.to_string().as_str()).unwrap();
         // convert balance into Fr (B - e)
-        let new_balance = Fr::from_str((B - balance_increment).to_string().as_str()).unwrap();
+        let updated_balance = B - balance_increment;
+        let updated_balance_pr = Fr::from_str(updated_balance.to_string().as_str()).unwrap();
 
-        let mut x: Vec<Fr> = Vec::new();
-        x.push(r); // set randomness for commitment
-        x.push(cid);
-        x.push(h_wpk);
-        x.push(new_balance);
+        let mut new_wallet_sec: Vec<Fr> = Vec::new();
+        new_wallet_sec.push(r_pr); // set randomness for commitment
+        new_wallet_sec.push(cid);
+        new_wallet_sec.push(h_wpk);
+        new_wallet_sec.push(updated_balance_pr);
 
-        let w_com = commit_scheme::commit(&cm_csp,  &x, r);
+        let w_com = commit_scheme::commit(&cm_csp, &new_wallet_sec, r_pr);
 
         // generate proof of knowledge for committed values
 //        let mut pub_bases = pk.Z2.clone();
 //        pub_bases.insert(0, g2);
-        let proof_cv = clsigs::bs_gen_nizk_proof(&x, &cm_csp.pub_bases, w_com.c);
+        let proof_cv = clsigs::bs_gen_nizk_proof(&new_wallet_sec, &cm_csp.pub_bases, w_com.c);
 
         // generate proof of knowledge of valid signature on previous wallet signature
         let wallet_sig = old_wallet_sig.clone().unwrap();
@@ -1130,52 +1163,141 @@ pub mod bidirectional {
 
         let proof_vs = clsigs::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
         //clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk, &proof_vs, &blind_sigs);
-        return PaymentProof { proof2a: proof_cv, // proof of knowledge for committed values
-                              proof2b: proof_vs, // proof of knowledge of signature on old wallet
-                              balance: balance_increment, // epsilon - increment/decrement
-                              wpk: old_wpk.clone(), // showing public key for old wallet
-                              wallet_sig: blind_sigs // blinded signature for old wallet
+        let payment_proof = PaymentProof {
+                                proof2a: proof_cv, // proof of knowledge for committed values
+                                proof2b: proof_vs, // proof of knowledge of signature on old wallet
+                                w_com: w_com,
+                                balance: balance_increment, // epsilon - increment/decrement
+                              //w_com_pr: w_com_pr, // old commitment minus wpk
+                                wpk: old_wpk.clone(), // showing public key for old wallet
+                                wallet_sig: blind_sigs // blinded signature for old wallet
                             };
+        let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
+                            r: r_pr, balance: updated_balance, signature: None,
+                            refund_token: None };
+        return (csk_c, payment_proof);
     }
 
-    pub fn payment_by_merchant_phase2(pp: &PublicParams, proof: &PaymentProof, m_data: &InitMerchantData) {
+    // NOTE regarding balance increments
+    // a positive increment => increment merchant balance, and decrement customer balance
+    // a negative increment => decrement merchant balance, and increment customer balance
+    pub fn payment_by_merchant_phase1(pp: &PublicParams, proof: &PaymentProof, m_data: &InitMerchantData) -> clsigs::SignatureD {
         println!("Run pay algorithm by Merchant - phase 2");
         let blind_sigs = &proof.wallet_sig;
         let proof_cv = &proof.proof2a;
         let proof_vs = &proof.proof2b;
+        // get merchant keypair
         let pk_m = &m_data.T;
-        let proof_vs_valid = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
-        if proof_vs_valid {
+        let sk_m = &m_data.csk.sk;
+
+        // let's first confirm that proof of knowledge of signature on old wallet is valid
+        let proof_vs_old_wallet = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
+        if proof_vs_old_wallet {
             println!("Yay! Proof of knowledge of signature is valid!");
+
         } else {
-            println!("FAILURE! Something is still wrong!");
+            panic!("FAILURE! Verification failure for old wallet signature !");
         }
 
-        // verify the proof of knowledgefor committed values in new wallet
-        let new_wallet_proof_cm_values = clsigs::bs_verify_nizk_proof(&proof_cv);
-        if new_wallet_proof_cm_values {
+        // verify the proof of knowledge for committed values in new wallet
+        //let new_wallet_sig = clsigs::bs_check_proof_and_gen_signature(&pp.cl_mpk, &sk_m, &proof_cv);
+        if clsigs::bs_verify_nizk_proof(&proof_cv) {
+            // generate refund token on new wallet
+            let i = pk_m.Z2.len()-1;
+            let C_refund = proof_cv.C + (pk_m.Z2[i] * convertStrToFr("refund"));
+            // generating partially blind signature on refund || wpk' || B - e
+            let rt_w = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, C_refund, proof_cv.num_secrets + 1); // proof_cv.C
             println!("Yay! Proof of knowledge of commitment on new wallet is valid");
+            return rt_w;
         }
 
         // generate signature for new wallet with updated balance
 
+        // let's update the merchant's wallet balance now
+        panic!("Failed verification!");
     }
+
+    pub fn payment_by_customer_phase2<'a>(pp: &PublicParams, old_w: &CustomerWallet, new_w: &CustomerWallet,
+                                      pk_m: &clsigs::PublicKeyD, rt_w: &clsigs::SignatureD) -> RevokeToken<'a> {
+
+        // (1) verify the rt_w against the new wallet contents
+        let mut x: Vec<Fr> = Vec::new();
+        x.push(new_w.r.clone());
+        x.push(new_w.cid.clone());
+        x.push(hashPubKeyToFr(&new_w.wpk));
+        x.push(Fr::from_str(new_w.balance.to_string().as_str()).unwrap());
+        x.push(convertStrToFr("refund"));
+
+        let is_rt_w_valid = clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &rt_w);
+
+        if (is_rt_w_valid) {
+            println!("Refund token is valid against the new wallet!");
+            let mut schnorr = secp256k1::Secp256k1::new();
+            let rm = RevokedMessage::new("revoked", old_w.wpk, None);
+            let msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
+            // msg = "revoked"|| old_wpk (for old wallet)
+            let rv_w = schnorr.sign(&msg, &old_w.wsk);
+
+            // return the revocation token
+            return RevokeToken { message: rm, signature: rv_w.unwrap() };
+        }
+        panic!("FAIL: Merchant did not provide a valid refund token!");
+    }
+
+    pub fn payment_by_merchant_phase2(pp: &PublicParams, proof: &PaymentProof, m_data: &mut InitMerchantData, rv: &RevokeToken) -> clsigs::SignatureD {
+        let proof_cv = &proof.proof2a;
+        let sk_m = &m_data.csk.sk;
+        let schnorr = secp256k1::Secp256k1::new();
+        let msg = secp256k1::Message::from_slice(&rv.message.hash_to_slice()).unwrap();
+        // verify that the revocation token is valid
+        let is_rv_valid = schnorr.verify(&msg, &rv.signature, &proof.wpk).is_ok();
+        // TODO: check that we are in the proper state
+        if clsigs::bs_verify_nizk_proof(&proof_cv) && is_rv_valid {
+            let new_wallet_sig = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, proof_cv.C, proof_cv.num_secrets);
+            m_data.csk.balance += proof.balance;
+            return new_wallet_sig;
+        }
+
+        panic!("FAIL: Customer did not provide valid revocation token!");
+    }
+
+    pub fn payment_by_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
+                                     c_data: &mut InitCustomerData,
+                                     mut new_w: CustomerWallet, sig: clsigs::SignatureD) -> bool {
+        if new_w.signature.is_none() {
+            let mut x: Vec<Fr> = Vec::new();
+            x.push(new_w.r.clone());
+            x.push(new_w.cid.clone());
+            x.push(hashPubKeyToFr(&new_w.wpk));
+            x.push(Fr::from_str(new_w.balance.to_string().as_str()).unwrap());
+
+            println!("payment_by_customer_final - print secrets");
+            print_secret_vector(&x);
+
+            assert!(clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &sig));
+            new_w.signature = Some(sig);
+            c_data.csk = new_w;
+            return true;
+        }
+        // must be an old wallet
+        return false;
+    }
+
     ///// end of pay protocol
 
     // for customer => on input a wallet w, it outputs a customer channel closure message rc_c
     pub fn customer_refund<'a>(pp: &PublicParams, state: &ChannelState, m_data: &InitMerchantData,
-                  c_data: &InitCustomerData, w: &'a CustomerWallet) -> ChannelClosure_C<'a> {
+                  c_data: &'a InitCustomerData) -> ChannelClosure_C<'a> {
         println!("Run Refund...");
         let m;
+        let w = &c_data.csk; // get wallet
         let balance = w.balance as usize;
         if !state.pay_init {
             // pay protocol not invoked so take the balane
             m = RefundMessage::new("refundUnsigned", state.cid, w.wpk, balance, Some(&w.r), None);
         } else {
-            //let rng = &mut rand::thread_rng();
-            // let rt // TODO: replace with rt_w signature from pay protocol
             // if channel has already been activated, then take unspent funds
-            m = RefundMessage::new("refundToken", state.cid, w.wpk, balance, None, None);
+            m = RefundMessage::new("refundToken", state.cid, w.wpk, balance, None, w.refund_token.as_ref());
         }
 
         // generate signature on the balance/channel id, etc to obtain funds back
@@ -1203,10 +1325,13 @@ pub mod bidirectional {
         let is_valid = clsigs::verifyD(&pp.cl_mpk, &T_c.pk, &rc_c.message.hash(), &rc_c.signature);
         if is_valid {
             let wpk = rc_c.message.wpk;
-            let sig_rev = rc_c.signature; // TODO: change to \sigma_rev
+            let rv_token = rc_c.signature; // TODO: change to \sigma_rev
             let balance = rc_c.message.balance;
-            if exist_in_merchant_state(&state, &wpk, &sig_rev) {
-                let rm = RevokedMessage::new("revoked", wpk, sig_rev);
+            if exist_in_merchant_state(&state, &wpk, &rv_token) {
+                // let mut s = Secp256k1::new();
+                // let sig = rv_token.serialize_compact(&s);
+                // TODO: convert rv_w into a slice
+                let rm = RevokedMessage::new("revoked", wpk, None);
                 // sign the revoked message
                 let signature = clsigs::signD(&pp.cl_mpk, &m_data.csk.sk, &rm.hash());
                 return Some(ChannelClosure_M { message: rm, signature: signature });

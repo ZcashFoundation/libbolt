@@ -238,6 +238,8 @@ pub fn keygenD(mpk : &PublicParams, l: usize) -> KeyPairD {
         Z2.push(_Z2);
         W.push(_W);
     }
+    // plus one to Z2
+
 
     let sk = SecretKeyD { x: x, y: y, z: z };
     let pk = PublicKeyD { X: X, Y: Y, Z: Z, Z2: Z2, W: W };
@@ -249,7 +251,8 @@ pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
     let l = m.len();
 
     let rng = &mut rand::thread_rng();
-    let a = mpk.g2 * Fr::random(rng); // G2::random(rng);
+    //let a = mpk.g2 * Fr::random(rng); // G2::random(rng);
+    let a = G2::random(rng);
     let mut A: Vec<G2> = Vec::new();
     let b = a * sk.y;
     let mut B: Vec<G2> = Vec::new();
@@ -269,9 +272,8 @@ pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
 }
 
 pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
-    assert_eq!(m.len(), sig.A.len()+1);
-    assert_eq!(m.len(), sig.B.len()+1);
-
+    //assert!(sig.A.len()+1 <= m.len());
+    //assert!(sig.B.len()+1 <= m.len());
     let l = m.len();
     // lhs2a and rhs2a checks that sig.b was formed correctly
     let lhs2a = pairing(pk.Y, sig.a);
@@ -349,15 +351,16 @@ pub fn hashGtToFr(x: &Gt) -> Fr {
 
 pub struct ProofCV {
     T: G2,
-    C: G2,
+    pub C: G2,
     s: Vec<Fr>,
+    pub num_secrets: usize,
     pub_bases: Vec<G2>
 }
 
 // NIZK for PoK of the opening of a commitment M = g^m0 * Z1^m1 * ... * Zl^ml
 pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
     let rng = &mut rand::thread_rng();
-    let l = x.len();
+    let l = x.len(); // number of secrets
     let mut t: Vec<Fr> = Vec::new();
     for i in 0 .. l {
         t.push(Fr::random(rng));
@@ -382,12 +385,12 @@ pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
         s.push(_s);
     }
 
-    return ProofCV { T: T, C: C, s: s, pub_bases: pub_bases.clone() };
+    return ProofCV { T: T, C: C, s: s, pub_bases: pub_bases.clone(), num_secrets: l };
 }
 
-pub fn bs_gen_signature(mpk: &PublicParams, sk: &SecretKeyD, proof: &ProofCV) -> SignatureD {
+pub fn bs_check_proof_and_gen_signature(mpk: &PublicParams, sk: &SecretKeyD, proof: &ProofCV) -> SignatureD {
    if bs_verify_nizk_proof(&proof) {
-        return part2_compute_signature(&mpk, &sk, proof.C);
+        return bs_compute_blind_signature(&mpk, &sk, proof.C, proof.num_secrets);
    } else {
        panic!("Invalid proof: could not verify the NIZK proof");
    }
@@ -399,8 +402,8 @@ pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
     let mut msg = "(in verify proof) challenge -> c";
     debug_elem_in_hex(msg, &c);
 
-    let l = proof.s.len();
-    assert!(l > 1);
+    let l = proof.s.len(); // number of s values
+    assert!(l <= proof.pub_bases.len());
 
     let mut lhs = proof.pub_bases[0] * proof.s[0];
     for i in 1 .. l {
@@ -417,12 +420,15 @@ pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
 }
 
 // internal function
-fn part2_compute_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2) -> SignatureD {
+pub fn bs_compute_blind_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2, num_secrets: usize) -> SignatureD {
     let rng = &mut rand::thread_rng();
     let alpha = Fr::random(rng);
     let a = mpk.g2 * alpha;
     let mut A: Vec<G2> = Vec::new();
     let mut B: Vec<G2> = Vec::new();
+    println!("Num secrets: {}", num_secrets);
+    println!("sk z len: {}", sk.z.len());
+    assert!(sk.z.len() <= num_secrets);
     let l = sk.z.len();
 
     for i in 0 .. l {

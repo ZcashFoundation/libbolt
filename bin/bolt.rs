@@ -443,14 +443,14 @@ fn main() {
         let proof = clsigs::bs_gen_nizk_proof(&m1, &cm_csp.pub_bases, w_com.c);
         // old -> let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
 
-        let int_sig = clsigs::bs_gen_signature(&mpk, &m_keypair.sk, &proof);
+        let int_sig = clsigs::bs_check_proof_and_gen_signature(&mpk, &m_keypair.sk, &proof);
 
         println!("Generated signature interactively!");
 
 
         let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
 
-        let int_sig = clsigs::bs_gen_signature(&mpk, &m_keypair.sk, &proof);
+        let int_sig = clsigs::bs_check_proof_and_gen_signature(&mpk, &m_keypair.sk, &proof);
 
         println!("Generated signature interactively!");
         // int_sig = interactively generated signature
@@ -483,8 +483,8 @@ fn main() {
     let cust_keypair = bidirectional::keygen(&pp);
 
     println!("[4] libbolt - generate the initial channel state");
-    let b0_cust = 10;
-    let b0_merch = 15;
+    let b0_cust = 50;
+    let b0_merch = 50;
     let mut channel = bidirectional::init_channel("A -> B");
     let msg = "Open Channel ID: ";
     libbolt::debug_elem_in_hex(msg, &channel.cid);
@@ -505,7 +505,7 @@ fn main() {
     let wallet_sig = bidirectional::establish_merchant_phase2(&pp, &mut channel, &init_merch_data, &proof1);
 
     println!("[6c] libbolt - complete channel establishment");
-    bidirectional::establish_customer_phase3(&pp, wallet_sig, &merch_keypair.pk, &mut init_cust_data.csk);
+    assert!(bidirectional::establish_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data.csk, wallet_sig));
 
     assert!(channel.channel_established);
 
@@ -515,9 +515,28 @@ fn main() {
     println!("******************************************");
     println!("Testing the pay protocol..");
     // let's test the pay protocol
-    let channel_token = &init_cust_data.T;
-    let wallet = &init_cust_data.csk;
-    let pay_proof = bidirectional::payment_by_customer_phase1(&pp, &channel_token, &merch_keypair.pk, &wallet, 5);
+    //let channel_token = &init_cust_data.T;
+    //let wallet = &init_cust_data.csk;
+    let (new_wallet, pay_proof) = bidirectional::payment_by_customer_phase1(&pp, &init_cust_data.T, // channel token
+                                                                            &merch_keypair.pk, // merchant pub key
+                                                                            &init_cust_data.csk, // wallet
+                                                                            5); // balance increment
 
-    bidirectional::payment_by_merchant_phase2(&pp, &pay_proof, &init_merch_data);
+    // TODO: add merchant state (1 -> 2 -> 3, etc) to keep track of where customer is in the pay protocol
+    // get the refund token (rt_w)
+    let rt_w = bidirectional::payment_by_merchant_phase1(&pp, &pay_proof, &init_merch_data);
+
+    // get the revocation token (rv_w) on the old public key (wpk)
+    let rv_w = bidirectional::payment_by_customer_phase2(&pp, &init_cust_data.csk, &new_wallet, &merch_keypair.pk, &rt_w);
+
+    // get the new wallet sig (new_wallet_sig) on the new wallet
+    let new_wallet_sig = bidirectional::payment_by_merchant_phase2(&pp, &pay_proof, &mut init_merch_data, &rv_w);
+
+    assert!(bidirectional::payment_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet, new_wallet_sig));
+
+    let wallet = &init_cust_data.csk;
+    let merch_wallet = &init_merch_data.csk;
+    println!("Customer balance: {}", wallet.balance);
+    println!("Merchant balance: {}", merch_wallet.balance);
+    println!("Pay protocol complete!");
 }
