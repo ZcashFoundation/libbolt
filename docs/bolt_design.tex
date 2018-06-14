@@ -298,7 +298,7 @@ Suppose $M = g_1 ^ {m^{(0)}} \prod_{i=1}^{\ell} {Z_i}^{m^{(i)}}$ is a commitment
 
 \item The prover and verifier execute the following protocol:
 \begin{enumerate}
-\item Verify proof $\pi = PK\{(u^0, \dots, u^\ell, p) : ({{\sf v}_s})^p = {{\sf v}_x} {{\sf v}_{xy}}^{u^0}  \prod_{i=1}^\ell ({\sf v}_{(xy,i)})^{u_i}\}$.
+\item Verify proof $\pi = PK\{(\mu^0, \dots, \mu^\ell, \rho) : ({{\sf v}_s})^\rho = {{\sf v}_x} {{\sf v}_{xy}}^{\mu^0}  \prod_{i=1}^\ell ({\sf v}_{(xy,i)})^{\mu_i}\}$.
 \item Check if $e(Z_i, \tilde{a}) \stackrel{?}{=} e(g_1, \tilde{A_i})$ and $e(Y, \tilde{a}) \stackrel{?}{=} e(g_1, \tilde{b})$ and $e(Y, \tilde{A_i}) \stackrel{?}{=} e(g_1, \tilde{B_i})$.
 \end{enumerate}
 
@@ -470,7 +470,7 @@ The customer obtains a new wallet $w_{new} := (sk_0, sk_c, k_1, k_2, r, B, \sigm
 \begin{itemize}
 \item Parse $w$ to obtain $\vec{ck}$ and the current coin index $i$.
 \item Compute $\sigma \leftarrow {\sf Sign}(sk_c, {\sf refund}||{\sf cID}||i||ck_i)$.
-\\	NOTE: {\sf cID} uniquely identifies the channel being closed
+\\	{\bf NOTE}: {\sf cID} uniquely identifies the channel being closed
 \item Output ${\sf rc}_{C} := ({\sf cID}, i, ck_i, \sigma)$.
 \end{itemize}
 
@@ -516,21 +516,22 @@ The bidirectional payment construction enables compact closure and compact walle
 
 % Key generation description
 \item ${\sf KeyGen}({\sf PP}) \rightarrow (pk, sk)$. 
-\begin{itemize}
-\item Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
-\end{itemize}
+%\begin{itemize}
+%\item 
+Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note that $pk$ can be derived from the $sk$.
+%\end{itemize}
 
 % Init algorithm for customer
 \medskip \noindent
 \item ${\sf Init_{C}}({\sf PP}, {\sf cID}, \BC, \BM, pk_c, sk_c) \rightarrow ({\sf T}_{\sf c}, csk_{\sf c})$. On input a keypair $(pk_c, sk_c)$, perform the following:
 
-\begin{itemize} 
+\begin{enumerate} 
 \item Customer generates wallet commitment by sampling random coins $r$.
 \item Compute ephemeral keypair $(wpk, wsk) \leftarrow {\sf KeyGen}({\sf PP})$.
 \item Compute ${\sf wCom} = {\sf Commit}({\sf cID}, wpk, \BC; r)$.
 %\item For $i = 1$ to $\BC$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
 \item Output ${\sf T}_{\sf c} = (pk_c, {\sf wCom})$ and retains secret $csk_{\sf c} = (sk_c, {\sf cID}, wpk, wsk, r, \BC)$.
-\end{itemize}
+\end{enumerate}
 
 % Init algorithm description for merchant
 \item ${\sf Init_{M}}({\sf PP}, \BC, \BM, pk_m, sk_m) \rightarrow {\sf T}_m, csk_m$. On input a keypair $(pk_m, sk_m)$, perform the following:
@@ -565,66 +566,66 @@ The merchant does the following:
 \end{enumerate}
 
 \medskip \noindent
-The customer obtains a wallet $w := (\BC, wpk, wsk, r, \sigma_w)$ and the merchant sets its state to {\sf established}.
+The customer obtains a wallet $w := (\BC, wpk, wsk, r, \sigma_w)$ and the merchant sets its state to {\sf established} for the channel.
 
 
 % Pay protocol description
 \item ${\sf Pay}( C\{{\sf PP}, \epsilon, w_{\sf old})\}, \{M({\sf PP}, \epsilon, {\bf S}_{\sf old})\})$. On input parameters, a payment amount $\epsilon$, and a wallet $w_{\sf old}$ from a customer, and the merchant's current state ${\bf S}_{\sf old}$ (initially set to $0$) from the merchant: the customer receives a payment success bit $R_{\sf C}$ and the new wallet $w_{\sf new}$ on success. The merchant receives a payment success bit $R_{\sf M}$ and an updated ${\bf S}_{\sf new}$ on success.
 
 \medskip \noindent
-The customer does the following:
+In the first phase, the customer does the following:
 \begin{enumerate}
 \item Parse $w_{old}$ as $({\sf cID}, B, wpk, wsk, r, \sigma_w)$.
-\item Sample $(wpk', wsk') \leftarrow {\sf KeyGen}(PP)$.
+\item Sample $(wpk', wsk') \leftarrow {\sf KeyGen}(\PP)$.
 \item Sample random coins $r'$.
 \item Generate ${\sf wCom'} \leftarrow {\sf Commit}({\sf cID}, wpk', B - \epsilon; r')$
 \item Generate proof $\pi_2$ as follows:
 \\ $\pi_2 = PK\{ (wpk', B, r', \sigma_w) : {\sf wCom'} = {\sf Commit}({\sf cID}, wpk', B - \epsilon; r') 
-\\ \wedge {\sf Verify}(pk_m, (wpk, B), \sigma_w) = 1
+\\  \wedge {\sf Verify}(pk_m, (wpk, B), \sigma_w) = 1
 \\ \wedge 0 \leq (B - \epsilon) \leq {\sf val}_{\sf max} \}$
 
-\begin{itemize}
-\item Compute $C_1 = g^B \cdot h^{r_1}$
-\item Compute $C_2 = C_1 / g^\epsilon$
-\item Compute $C_3 = g_1^{x_1} \cdot g_2^{x_2} \cdot h^{r_3}$
-\item Compute ${\sf wCom'} = C_2 \cdot C_3$. Keep ${\sf wCom'}$ private.
-\item Prove commitment ${\sf wCom'}$ in zero knowledge (via {\sf NIZK}).
-\item Prove knowledge of valid signature $\sigma_w$ on $(x_1, x_2, B)$ in $C_1 \cdot C_3$.
-\item Prove that $i$ is in the range $0 < i \leq B$.
-\end{itemize}
-
-
-\item Send $(\epsilon, {\sf wCom'}, wpk, \pi_2)$.
+%\begin{itemize}
+%\item Compute $C_1 = g^B \cdot h^{r_1}$
+%\item Compute $C_2 = C_1 / g^\epsilon$
+%\item Compute $C_3 = g_1^{x_1} \cdot g_2^{x_2} \cdot h^{r_3}$
+%\item Compute ${\sf wCom'} = C_2 \cdot C_3$. Keep ${\sf wCom'}$ private.
+%\item Prove commitment ${\sf wCom'}$ in zero knowledge (via {\sf NIZK}).
+%\item Prove knowledge of valid signature $\sigma_w$ on $(x_1, x_2, B)$ in $C_1 \cdot C_3$.
+%\item Prove that $i$ is in the range $0 < i \leq B$.
+%\end{itemize}
+\item Send $(\epsilon, {\sf wCom'}, wpk, \pi_2)$ to the merchant.
 \end{enumerate}
 
 \medskip \noindent
-The merchant does the following:
+In response, the merchant does the following for the first phase:
 \begin{enumerate}
-\item Verify $\pi_2$ and ensure that $(wpk, \cdot) \notin {\bf S}$ and $\epsilon_{\sf min} \leq \epsilon \leq \epsilon_{\sf max}$
+\item Verify $\pi_2$, ensure that $(wpk, \cdot) \notin {\bf S}$ and $\epsilon_{\sf min} \leq \epsilon \leq \epsilon_{\sf max}$
 \item If these conditions do not hold, abort and output $\bot$
 \item Set ${\bf S}_{\sf new} := {\bf S}_{\sf old} \cup \{(wpk, \bot)\}$.
 \item If $\epsilon < 0$, then $R_{M} \leftarrow 1$ otherwise $R_{M} \leftarrow \bot$.
 \item Execute interactive protocol to generate a {\bf partially blind signature} $rt_{w'}$ under $sk_m$ on the message $({\sf refund}||wpk'||B - \epsilon)$.
-\\ NOTE: $wpk'$ and $B - \epsilon$ are the contents of ${\sf wCom'}$.
-\\ % \todo{Expand}
-\item The customer obtains $rt_{w'}$ at the end of the protocol.
+\\ {\bf NOTE}: $wpk'$ and $B - \epsilon$ are the contents of ${\sf wCom'}$.
+%\\ \todo{Expand}
+\item The customer obtains $rt_{w'}$ at the end of this phase.
 \end{enumerate}
 
 \medskip \noindent
 In the second phase, the customer does the following:
 \begin{enumerate}
-\item Check that ${\sf Verify}(pk_m, rt_{w'}, {\sf refund}||wpk'||B - \epsilon) = 1$
+\item Check that ${\sf Verify}(pk_m, ({\sf refund}||wpk'||B - \epsilon), rt_{w'}) = 1$
 \item If verification failure or message does not arrive, abort and output $rt_{w'}$.
-\item Otherwise, compute $\sigma_{rev} = {\sf Sign}(wsk, {\sf revoke}||{\sf cID}||wpk)$ and output $\sigma_{rev}$.
+\item Otherwise, compute $\sigma_{rev} = {\sf Sign}(wsk, {\sf revoke}||{\sf cID}||wpk)$.
+\item Send $\sigma_{rev}$ to the merchant.
 \end{enumerate}
 
 \medskip \noindent
 In the second phase, the merchant does the following:
 \begin{enumerate}
-\item Ensure ${\sf Verify}(wpk, {\sf revoke}||wpk, \sigma_{rev}) = 1$. 
+\item Ensure ${\sf Verify}(wpk, ({\sf revoke}||wpk), \sigma_{rev}) = 1$.
 \item If so, set ${\bf S}_{\sf new} := {\bf S}_{\sf old} \cup \{(wpk, \sigma_{rev}\}$ and $R_{M} \leftarrow 1$.
-\item Execute interactive protocol to generate a blind signature $\sigma_{w'}$ on the contents of ${\sf wCom'}$ using $sk_m$. 
+\item Execute interactive protocol to generate a {\bf blind signature} $\sigma_{w'}$ on the contents of ${\sf wCom'}$ using $sk_m$. 
 \item If this completes, set $R_{M} \leftarrow 2$.
+\item Send $\sigma_{w'}$ back to the customer.
 \end{enumerate}
 
 \medskip \noindent
