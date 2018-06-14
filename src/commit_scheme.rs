@@ -111,7 +111,6 @@ decommit(pk, cm, msg) -> bool where
 - outputs T/F for whether the cm is a valid commitment to the msg
 */
 pub fn ped92_decommit(pk: &PublicKey, cm: &Commitment, m: Fr) -> bool {
-    //let m = msg.hash();
     let p = "decommit -> m";
     debug_elem_in_hex(p, &m);
 

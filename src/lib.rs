@@ -22,10 +22,6 @@ pub mod ote;
 pub mod clsigs;
 pub mod commit_scheme;
 
-// Begin CL Signature scheme data structures
-
-// End CL Signature scheme data structures
-
 //pub fn hash_string(s: &str) -> String {
 //    let digest = sha256::hash(s.as_bytes());
 //    format!("{:X}", HexSlice::new(&digest))
@@ -959,11 +955,11 @@ pub mod bidirectional {
     pub struct PaymentProof {
         proof2a: clsigs::ProofCV, // proof of committed values in new wallet
         proof2b: clsigs::ProofVS, // proof of knowledge of wallet signature
+        // TODO: add proof2c: range proof that balance - balance_inc is between (0, val_max)
         balance: i32, // balance increment
         w_com: commit_scheme::Commitment, // commitment for new wallet
         wpk: secp256k1::PublicKey, // verification key for old wallet
         wallet_sig: clsigs::SignatureD // blinded signature for old wallet
-        // TODO: add proof2c: range proof that balance - balance_inc is between (0, val_max)
     }
 
     pub struct RevokeToken<'a> {
@@ -1058,8 +1054,8 @@ pub mod bidirectional {
         x.push(csk_c.cid);
         x.push(h_wpk);
         x.push(b0);
-        println!("establish_customer_phase1 - secrets for original wallet");
-        print_secret_vector(&x);
+        //println!("establish_customer_phase1 - secrets for original wallet");
+        //print_secret_vector(&x);
 
         // generate proof of knowledge for committed values
         let proof_1 = clsigs::bs_gen_nizk_proof(&x, &pub_bases, t_c.w_com.c);
@@ -1083,11 +1079,12 @@ pub mod bidirectional {
             x.push(hashPubKeyToFr(&w.wpk));
             x.push(Fr::from_str(w.balance.to_string().as_str()).unwrap());
 
-            println!("establish_customer_final - print secrets");
-            print_secret_vector(&x);
+            //println!("establish_customer_final - print secrets");
+            //print_secret_vector(&x);
 
             assert!(clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &sig));
             w.signature = Some(sig);
+            println!("establish_customer_final - verified merchant signature on initial wallet with {}", w.balance);
             return true;
         }
         // must be an old wallet
@@ -1096,13 +1093,13 @@ pub mod bidirectional {
     ///// end of establish channel protocol
 
     ///// begin of pay protocol
-    pub fn payment_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
+    pub fn pay_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
                                       old_w: &CustomerWallet, balance_increment: i32) -> (CustomerWallet, PaymentProof) {
-        println!("Run pay algorithm by Customer - phase 1.");
+        println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
         // get balance, keypair, commitment randomness and wallet sig
         let rng = &mut rand::thread_rng();
 
-        let B = old_w.balance;
+        let bal = old_w.balance;
         let old_wpk = &old_w.wpk;
         let old_wsk = &old_w.wsk;
         let old_r = &old_w.r;
@@ -1117,17 +1114,14 @@ pub mod bidirectional {
         // new sample randomness r'
         let r_pr = Fr::random(rng);
 
-//        let g2 = pp.cl_mpk.g2.clone();
-//        let bases = pk.Z2.clone();
-//        let cm_csp = commit_scheme::setup(pp.l, bases, g2);
         // retrieve the commitment scheme parameters based on merchant's PK
         let cm_csp = generate_commit_setup(&pp, &pk_m);
 
         let cid = old_w.cid.clone();
         // retrieve old balance
-        let old_balance = Fr::from_str(B.to_string().as_str()).unwrap();
+        let old_balance = Fr::from_str(bal.to_string().as_str()).unwrap();
         // convert balance into Fr (B - e)
-        let updated_balance = B - balance_increment;
+        let updated_balance = bal - balance_increment;
         let updated_balance_pr = Fr::from_str(updated_balance.to_string().as_str()).unwrap();
 
         let mut new_wallet_sec: Vec<Fr> = Vec::new();
@@ -1139,8 +1133,6 @@ pub mod bidirectional {
         let w_com = commit_scheme::commit(&cm_csp, &new_wallet_sec, r_pr);
 
         // generate proof of knowledge for committed values
-//        let mut pub_bases = pk.Z2.clone();
-//        pub_bases.insert(0, g2);
         let proof_cv = clsigs::bs_gen_nizk_proof(&new_wallet_sec, &cm_csp.pub_bases, w_com.c);
 
         // generate proof of knowledge of valid signature on previous wallet signature
@@ -1162,7 +1154,7 @@ pub mod bidirectional {
         //print_secret_vector(&old_x);
 
         let proof_vs = clsigs::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
-        //clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk, &proof_vs, &blind_sigs);
+        // create payment proof which includes params to reveal wpk from old wallet
         let payment_proof = PaymentProof {
                                 proof2a: proof_cv, // proof of knowledge for committed values
                                 proof2b: proof_vs, // proof of knowledge of signature on old wallet
@@ -1172,6 +1164,7 @@ pub mod bidirectional {
                                 wpk: old_wpk.clone(), // showing public key for old wallet
                                 wallet_sig: blind_sigs // blinded signature for old wallet
                             };
+        // create new wallet structure (w/o signature or refund token)
         let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
                             r: r_pr, balance: updated_balance, signature: None,
                             refund_token: None };
@@ -1181,7 +1174,7 @@ pub mod bidirectional {
     // NOTE regarding balance increments
     // a positive increment => increment merchant balance, and decrement customer balance
     // a negative increment => decrement merchant balance, and increment customer balance
-    pub fn payment_by_merchant_phase1(pp: &PublicParams, proof: &PaymentProof, m_data: &InitMerchantData) -> clsigs::SignatureD {
+    pub fn pay_by_merchant_phase1(pp: &PublicParams, proof: &PaymentProof, m_data: &InitMerchantData) -> clsigs::SignatureD {
         println!("Run pay algorithm by Merchant - phase 2");
         let blind_sigs = &proof.wallet_sig;
         let proof_cv = &proof.proof2a;
@@ -1200,13 +1193,12 @@ pub mod bidirectional {
         }
 
         // verify the proof of knowledge for committed values in new wallet
-        //let new_wallet_sig = clsigs::bs_check_proof_and_gen_signature(&pp.cl_mpk, &sk_m, &proof_cv);
         if clsigs::bs_verify_nizk_proof(&proof_cv) {
             // generate refund token on new wallet
             let i = pk_m.Z2.len()-1;
-            let C_refund = proof_cv.C + (pk_m.Z2[i] * convertStrToFr("refund"));
+            let c_refund = proof_cv.C + (pk_m.Z2[i] * convertStrToFr("refund"));
             // generating partially blind signature on refund || wpk' || B - e
-            let rt_w = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, C_refund, proof_cv.num_secrets + 1); // proof_cv.C
+            let rt_w = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, c_refund, proof_cv.num_secrets + 1); // proof_cv.C
             println!("Yay! Proof of knowledge of commitment on new wallet is valid");
             return rt_w;
         }
@@ -1217,10 +1209,10 @@ pub mod bidirectional {
         panic!("Failed verification!");
     }
 
-    pub fn payment_by_customer_phase2<'a>(pp: &PublicParams, old_w: &CustomerWallet, new_w: &CustomerWallet,
+    pub fn pay_by_customer_phase2<'a>(pp: &PublicParams, old_w: &CustomerWallet, new_w: &CustomerWallet,
                                       pk_m: &clsigs::PublicKeyD, rt_w: &clsigs::SignatureD) -> RevokeToken<'a> {
 
-        // (1) verify the rt_w against the new wallet contents
+        // (1) verify the refund token (rt_w) against the new wallet contents
         let mut x: Vec<Fr> = Vec::new();
         x.push(new_w.r.clone());
         x.push(new_w.cid.clone());
@@ -1244,7 +1236,7 @@ pub mod bidirectional {
         panic!("FAIL: Merchant did not provide a valid refund token!");
     }
 
-    pub fn payment_by_merchant_phase2(pp: &PublicParams, proof: &PaymentProof, m_data: &mut InitMerchantData, rv: &RevokeToken) -> clsigs::SignatureD {
+    pub fn pay_by_merchant_phase2(pp: &PublicParams, proof: &PaymentProof, m_data: &mut InitMerchantData, rv: &RevokeToken) -> clsigs::SignatureD {
         let proof_cv = &proof.proof2a;
         let sk_m = &m_data.csk.sk;
         let schnorr = secp256k1::Secp256k1::new();
@@ -1261,7 +1253,7 @@ pub mod bidirectional {
         panic!("FAIL: Customer did not provide valid revocation token!");
     }
 
-    pub fn payment_by_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
+    pub fn pay_by_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
                                      c_data: &mut InitCustomerData,
                                      mut new_w: CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if new_w.signature.is_none() {
@@ -1271,8 +1263,8 @@ pub mod bidirectional {
             x.push(hashPubKeyToFr(&new_w.wpk));
             x.push(Fr::from_str(new_w.balance.to_string().as_str()).unwrap());
 
-            println!("payment_by_customer_final - print secrets");
-            print_secret_vector(&x);
+            //println!("payment_by_customer_final - print secrets");
+            //print_secret_vector(&x);
 
             assert!(clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &sig));
             new_w.signature = Some(sig);

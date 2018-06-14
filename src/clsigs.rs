@@ -374,8 +374,9 @@ pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
 
     // hash T to get the challenge
     let c = hashG2ToFr(&T);
-    let msg = "challenge -> c";
-    debug_elem_in_hex(msg, &c);
+    // debug
+    //let msg = "challenge -> c";
+    //debug_elem_in_hex(msg, &c);
 
     // compute s values
     let mut s: Vec<Fr> = Vec::new();
@@ -399,8 +400,9 @@ pub fn bs_check_proof_and_gen_signature(mpk: &PublicParams, sk: &SecretKeyD, pro
 pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
     // if proof is valid, then call part
     let c = hashG2ToFr(&proof.T);
-    let mut msg = "(in verify proof) challenge -> c";
-    debug_elem_in_hex(msg, &c);
+    // debug
+    //let mut msg = "(in verify proof) challenge -> c";
+    //debug_elem_in_hex(msg, &c);
 
     let l = proof.s.len(); // number of s values
     assert!(l <= proof.pub_bases.len());
@@ -410,12 +412,14 @@ pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
         //println!("(in verify proof) i => {}", i);
         lhs = lhs + (proof.pub_bases[i] * proof.s[i]);
     }
-    msg = "(in verify proof) lhs => ";
-    debug_g2_in_hex(msg, &lhs);
+    // debug
+    //msg = "(in verify proof) lhs => ";
+    //debug_g2_in_hex(msg, &lhs);
 
     let rhs = (proof.C * c) + proof.T;
-    msg = "(in verify proof) rhs => ";
-    debug_g2_in_hex(msg, &rhs);
+    // debug
+    //msg = "(in verify proof) rhs => ";
+    //debug_g2_in_hex(msg, &rhs);
     return lhs == rhs;
 }
 
@@ -426,8 +430,8 @@ pub fn bs_compute_blind_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2, nu
     let a = mpk.g2 * alpha;
     let mut A: Vec<G2> = Vec::new();
     let mut B: Vec<G2> = Vec::new();
-    println!("Num secrets: {}", num_secrets);
-    println!("sk z len: {}", sk.z.len());
+    //println!("Num secrets: {}", num_secrets);
+    //println!("sk z len: {}", sk.z.len());
     assert!(sk.z.len() <= num_secrets);
     let l = sk.z.len();
 
@@ -515,8 +519,8 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
     for i in 0 .. cp.vxyi.len() {
         pub_bases.push(cp.vxyi[i]); // u_1 ... u_l
     }
-    println!("(vs_gen_nizk_proof) Number of secrets: {}", l);
-    println!("(vs_gen_nizk_proof) Number of bases: {}", pub_bases.len());
+    //println!("(vs_gen_nizk_proof) Number of secrets: {}", l);
+    //println!("(vs_gen_nizk_proof) Number of bases: {}", pub_bases.len());
 
     // compute the T
     let mut T = pub_bases[0].pow(t[0]);  // vx ^ t0
@@ -526,20 +530,19 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
 
     // hash T to get the challenge
     let c = hashGtToFr(&T);
-    let msg = "(gen nizk proof) challenge -> c";
-    debug_elem_in_hex(msg, &c);
+    // debug
+    //let msg = "(gen nizk proof) challenge -> c";
+    //debug_elem_in_hex(msg, &c);
 
     // compute s values
     let mut s: Vec<Fr> = Vec::new();
-    let _s = c + t[0]; // for vx s0 = (1*c + t[0])
+    let _s = c + t[0]; // for vx => s0 = (1*c + t[0])
     s.push(_s);
     for i in 1 .. l {
-        println!("(gen nizk proof) i => {}", i);
+        //println!("(gen nizk proof) i => {}", i);
         let _s = (x[i-1] * c) + t[i];
         s.push(_s);
     }
-//    println!("(gen nizk proof) i => {}", l-1);
-//    s.push((x[l-1] * c) + t[l-1]);
 
     return ProofVS { T: T, A: A, s: s, pub_bases: pub_bases };
 }
@@ -547,26 +550,27 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
 fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
     // if proof is valid, then call part
     let c = hashGtToFr(&proof.T);
-    let mut msg = "(in verify proof) challenge -> c";
-    debug_elem_in_hex(msg, &c);
+    // debug
+    //let mut msg = "(in verify proof) challenge -> c";
+    //debug_elem_in_hex(msg, &c);
 
     let l = proof.s.len();
     assert!(l > 1);
 
-    println!("(in verify proof) i => 0");
+    //println!("(in verify proof) i => 0");
     let mut lhs = proof.pub_bases[0].pow(proof.s[0]);
     for i in 1 .. l {
-        println!("(in verify proof) i => {}", i);
+        //println!("(in verify proof) i => {}", i);
         lhs = lhs * (proof.pub_bases[i].pow(proof.s[i]));
     }
     // debug
-    msg = "(in verify proof) lhs => ";
-    debug_gt_in_hex(msg, &lhs);
+    //msg = "(in verify proof) lhs => ";
+    //debug_gt_in_hex(msg, &lhs);
 
     let rhs = proof.A.pow(c) * proof.T;
     // debug
-    msg = "(in verify proof) rhs => ";
-    debug_gt_in_hex(msg, &rhs);
+    //msg = "(in verify proof) rhs => ";
+    //debug_gt_in_hex(msg, &rhs);
     return lhs == rhs;
 }
 

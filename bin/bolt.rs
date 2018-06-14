@@ -517,26 +517,26 @@ fn main() {
     // let's test the pay protocol
     //let channel_token = &init_cust_data.T;
     //let wallet = &init_cust_data.csk;
-    let (new_wallet, pay_proof) = bidirectional::payment_by_customer_phase1(&pp, &init_cust_data.T, // channel token
-                                                                            &merch_keypair.pk, // merchant pub key
-                                                                            &init_cust_data.csk, // wallet
-                                                                            5); // balance increment
+    let (new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
+                                                                        &merch_keypair.pk, // merchant pub key
+                                                                        &init_cust_data.csk, // wallet
+                                                                        5); // balance increment
 
     // TODO: add merchant state (1 -> 2 -> 3, etc) to keep track of where customer is in the pay protocol
     // get the refund token (rt_w)
-    let rt_w = bidirectional::payment_by_merchant_phase1(&pp, &pay_proof, &init_merch_data);
+    let rt_w = bidirectional::pay_by_merchant_phase1(&pp, &pay_proof, &init_merch_data);
 
     // get the revocation token (rv_w) on the old public key (wpk)
-    let rv_w = bidirectional::payment_by_customer_phase2(&pp, &init_cust_data.csk, &new_wallet, &merch_keypair.pk, &rt_w);
+    let rv_w = bidirectional::pay_by_customer_phase2(&pp, &init_cust_data.csk, &new_wallet, &merch_keypair.pk, &rt_w);
 
     // get the new wallet sig (new_wallet_sig) on the new wallet
-    let new_wallet_sig = bidirectional::payment_by_merchant_phase2(&pp, &pay_proof, &mut init_merch_data, &rv_w);
+    let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&pp, &pay_proof, &mut init_merch_data, &rv_w);
 
-    assert!(bidirectional::payment_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet, new_wallet_sig));
+    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet, new_wallet_sig));
 
-    let wallet = &init_cust_data.csk;
+    let cust_wallet = &init_cust_data.csk;
     let merch_wallet = &init_merch_data.csk;
-    println!("Customer balance: {}", wallet.balance);
+    println!("Customer balance: {}", cust_wallet.balance);
     println!("Merchant balance: {}", merch_wallet.balance);
     println!("Pay protocol complete!");
 }
