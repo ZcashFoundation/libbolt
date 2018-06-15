@@ -423,7 +423,7 @@ fn main() {
         //let mut m: Vec<Fr> = Vec::new();
         let mut C = mpk.g2 * m1[0];
         for i in 0 .. b {
-            println!("index: {}", i);
+            //println!("index: {}", i);
             C = C + (m_keypair.pk.Z2[i] * m1[i+1]);
         }
         let msg = "Sample Commit output:";
@@ -485,7 +485,7 @@ fn main() {
     println!("[4] libbolt - generate the initial channel state");
     let b0_cust = 50;
     let b0_merch = 50;
-    let mut channel = bidirectional::init_channel("A -> B");
+    let mut channel = bidirectional::init_channel(String::from("A -> B"));
     let msg = "Open Channel ID: ";
     libbolt::debug_elem_in_hex(msg, &channel.cid);
 
@@ -522,15 +522,14 @@ fn main() {
                                                                         &init_cust_data.csk, // wallet
                                                                         5); // balance increment
 
-    // TODO: add merchant state (1 -> 2 -> 3, etc) to keep track of where customer is in the pay protocol
     // get the refund token (rt_w)
-    let rt_w = bidirectional::pay_by_merchant_phase1(&pp, &pay_proof, &init_merch_data);
+    let rt_w = bidirectional::pay_by_merchant_phase1(&pp, &mut channel, &pay_proof, &init_merch_data);
 
     // get the revocation token (rv_w) on the old public key (wpk)
     let rv_w = bidirectional::pay_by_customer_phase2(&pp, &init_cust_data.csk, &new_wallet, &merch_keypair.pk, &rt_w);
 
     // get the new wallet sig (new_wallet_sig) on the new wallet
-    let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&pp, &pay_proof, &mut init_merch_data, &rv_w);
+    let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof, &mut init_merch_data, &rv_w);
 
     assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet, new_wallet_sig));
 
@@ -538,5 +537,11 @@ fn main() {
     let merch_wallet = &init_merch_data.csk;
     println!("Customer balance: {}", cust_wallet.balance);
     println!("Merchant balance: {}", merch_wallet.balance);
+
     println!("Pay protocol complete!");
+
+
+//    bidirectional::update_merchant_state(&mut channel, &pay_proof.wpk, Some(rv_w.signature));
+//    assert!(bidirectional::exist_in_merchant_state(&channel, &pay_proof.wpk, Some(rv_w.signature)));
+//    println!("Stored the pub key and rev token!");
 }

@@ -623,6 +623,13 @@ pub fn hashPubKeyToFr(wpk: &secp256k1::PublicKey) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
+pub fn computePubKeyFingerprint(wpk: &secp256k1::PublicKey) -> String {
+    let x_slice = wpk.serialize();
+    let sha2_digest = sha512::hash(&x_slice);
+    let h = format!("{:x}", HexSlice::new(&sha2_digest[0..16]));
+    return h;
+}
+
 pub fn hashBufferToFr<'a>(prefix: &'a str, buf: &[u8; 64]) -> Fr {
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(prefix.as_bytes());
@@ -634,15 +641,6 @@ pub fn hashBufferToFr<'a>(prefix: &'a str, buf: &[u8; 64]) -> Fr {
     hash_buf.copy_from_slice(&sha2_digest[0..64]);
     return Fr::interpret(&hash_buf);
 }
-
-//pub fn hashStrToFr(x: &str) -> Fr {
-//    // TODO: change to serde (instead of rustc_serialize)
-//    let sha2_digest = sha512::hash(x.as_slice());
-//
-//    let mut hash_buf: [u8; 64] = [0; 64];
-//    hash_buf.copy_from_slice(&sha2_digest[0..64]);
-//    return Fr::interpret(&hash_buf);
-//}
 
 fn convertToFr(input_buf: &Vec<u8>) -> Fr {
     // hash the inputs via SHA256
@@ -710,14 +708,14 @@ impl<'a> RefundMessage<'a> {
 }
 
 #[derive(Clone)]
-pub struct RevokedMessage<'a> {
-    pub msgtype: &'a str,
+pub struct RevokedMessage {
+    pub msgtype: String,
     pub wpk: secp256k1::PublicKey,
     pub sig: Option<Vec<u8>> // represents revocation token serialized compact bytes
 }
 
-impl<'a> RevokedMessage<'a> {
-    pub fn new(_msgtype: &'a str, _wpk: secp256k1::PublicKey, _sig: Option<Vec<u8>>) -> RevokedMessage<'a> {
+impl RevokedMessage {
+    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey, _sig: Option<Vec<u8>>) -> RevokedMessage {
         RevokedMessage {
             msgtype: _msgtype, wpk: _wpk, sig: _sig
         }
@@ -871,12 +869,14 @@ pub mod bidirectional {
     use secp256k1; // ::{Secp256k1, PublicKey, SecretKey};
     use RefundMessage;
     use RevokedMessage;
+    use HashMap;
     use hashPubKeyToFr;
     use hashBufferToFr;
     use debug_elem_in_hex;
     use debug_gt_in_hex;
     use convertToFr;
     use convertStrToFr;
+    use computePubKeyFingerprint;
 
     fn print_secret_vector(x: &Vec<Fr>) {
         for i in 0 .. x.len() {
@@ -934,9 +934,15 @@ pub mod bidirectional {
 
     // TODO: add method to display contents of the channel state
     // should include contents of the channel state
-    pub struct ChannelState<'a> {
-        //pub pub_keys: HashMap,
-        pub name: &'a str,
+    pub struct PubKeyMap {
+        wpk: secp256k1::PublicKey,
+        revoke_token: Option<secp256k1::Signature>
+    }
+
+    pub struct ChannelState {
+        keys: HashMap<String, PubKeyMap>,
+        R: i32,
+        pub name: String,
         pub cid: Fr,
         pub pay_init: bool,
         pub channel_established: bool
@@ -947,8 +953,8 @@ pub mod bidirectional {
         signature: clsigs::SignatureD
     }
 
-    pub struct ChannelClosure_M<'a> {
-        message: RevokedMessage<'a>,
+    pub struct ChannelClosure_M {
+        message: RevokedMessage,
         signature: clsigs::SignatureD
     }
 
@@ -956,15 +962,15 @@ pub mod bidirectional {
         proof2a: clsigs::ProofCV, // proof of committed values in new wallet
         proof2b: clsigs::ProofVS, // proof of knowledge of wallet signature
         // TODO: add proof2c: range proof that balance - balance_inc is between (0, val_max)
-        balance: i32, // balance increment
+        balance_inc: i32, // balance increment
         w_com: commit_scheme::Commitment, // commitment for new wallet
-        wpk: secp256k1::PublicKey, // verification key for old wallet
+        pub wpk: secp256k1::PublicKey, // verification key for old wallet (TODO:: remove pub)
         wallet_sig: clsigs::SignatureD // blinded signature for old wallet
     }
 
-    pub struct RevokeToken<'a> {
-        message: RevokedMessage<'a>,
-        signature: secp256k1::Signature
+    pub struct RevokeToken {
+        message: RevokedMessage,
+        pub signature: secp256k1::Signature
     }
 
     pub fn setup() -> PublicParams {
@@ -995,7 +1001,7 @@ pub mod bidirectional {
         return cm_csp;
     }
 
-    pub fn init_customer<'a>(pp: &PublicParams, channel: &ChannelState, b0_customer: i32,
+    pub fn init_customer(pp: &PublicParams, channel: &ChannelState, b0_customer: i32,
                          cm_csp: &commit_scheme::CSParams, keypair: &clsigs::KeyPairD) -> InitCustomerData {
         println!("Run Init customer...");
         let rng = &mut rand::thread_rng();
@@ -1032,14 +1038,15 @@ pub mod bidirectional {
         return InitMerchantData { T: keypair.pk.clone(), csk: csk_m, bases: cm_csp.pub_bases };
     }
 
-    pub fn init_channel<'a>(name: &'a str) -> ChannelState<'a> {
+    pub fn init_channel(name: String) -> ChannelState {
         let cid = generate_channel_id();
-        // TODO: add hashmap definition to store wpks and optionally store rev tokens?
-        return ChannelState { name: name, cid: cid, channel_established: false, pay_init: false }
+        let keys = HashMap::new(); // will store wpks/revoke_tokens
+        return ChannelState { keys: keys, R: 0, name: name, cid: cid, channel_established: false, pay_init: false }
     }
 
     //// begin of establish channel protocol
-    pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData, m_data: &InitMerchantData) -> clsigs::ProofCV {
+    pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData,
+                                     m_data: &InitMerchantData) -> clsigs::ProofCV {
         println!("Run establish_customer algorithm...");
         // obtain customer init data
         let t_c = &c_data.T;
@@ -1071,7 +1078,8 @@ pub mod bidirectional {
         return wallet_sig;
     }
 
-    pub fn establish_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD, w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
+    pub fn establish_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
+                                    w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if w.signature.is_none() {
             let mut x: Vec<Fr> = Vec::new();
             x.push(w.r.clone());
@@ -1094,7 +1102,7 @@ pub mod bidirectional {
 
     ///// begin of pay protocol
     pub fn pay_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
-                                      old_w: &CustomerWallet, balance_increment: i32) -> (CustomerWallet, PaymentProof) {
+                                  old_w: &CustomerWallet, balance_increment: i32) -> (CustomerWallet, PaymentProof) {
         println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
         // get balance, keypair, commitment randomness and wallet sig
         let rng = &mut rand::thread_rng();
@@ -1122,6 +1130,10 @@ pub mod bidirectional {
         let old_balance = Fr::from_str(bal.to_string().as_str()).unwrap();
         // convert balance into Fr (B - e)
         let updated_balance = bal - balance_increment;
+        if (updated_balance < 0) {
+            panic!("pay_by_customer_phase1 - insufficient funds to make payment!");
+        }
+
         let updated_balance_pr = Fr::from_str(updated_balance.to_string().as_str()).unwrap();
 
         let mut new_wallet_sec: Vec<Fr> = Vec::new();
@@ -1159,7 +1171,7 @@ pub mod bidirectional {
                                 proof2a: proof_cv, // proof of knowledge for committed values
                                 proof2b: proof_vs, // proof of knowledge of signature on old wallet
                                 w_com: w_com,
-                                balance: balance_increment, // epsilon - increment/decrement
+                                balance_inc: balance_increment, // epsilon - increment/decrement
                               //w_com_pr: w_com_pr, // old commitment minus wpk
                                 wpk: old_wpk.clone(), // showing public key for old wallet
                                 wallet_sig: blind_sigs // blinded signature for old wallet
@@ -1174,7 +1186,8 @@ pub mod bidirectional {
     // NOTE regarding balance increments
     // a positive increment => increment merchant balance, and decrement customer balance
     // a negative increment => decrement merchant balance, and increment customer balance
-    pub fn pay_by_merchant_phase1(pp: &PublicParams, proof: &PaymentProof, m_data: &InitMerchantData) -> clsigs::SignatureD {
+    pub fn pay_by_merchant_phase1(pp: &PublicParams, mut state: &mut ChannelState, proof: &PaymentProof,
+                                  m_data: &InitMerchantData) -> clsigs::SignatureD {
         println!("Run pay algorithm by Merchant - phase 2");
         let blind_sigs = &proof.wallet_sig;
         let proof_cv = &proof.proof2a;
@@ -1185,11 +1198,18 @@ pub mod bidirectional {
 
         // let's first confirm that proof of knowledge of signature on old wallet is valid
         let proof_vs_old_wallet = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
-        if proof_vs_old_wallet {
-            println!("Yay! Proof of knowledge of signature is valid!");
-
+        let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
+        if proof_vs_old_wallet && !is_existing_wpk {
+            println!("Proof of knowledge of signature is valid!");
+            if (proof.balance_inc < 0) {
+                // negative increment
+                state.R = 1;
+            } else {
+                // postiive increment
+                state.R = -1; // -1 denotes \bot here
+            }
         } else {
-            panic!("FAILURE! Verification failure for old wallet signature !");
+            panic!("pay_by_merchant_phase1 - Verification failure for old wallet signature !");
         }
 
         // verify the proof of knowledge for committed values in new wallet
@@ -1199,19 +1219,17 @@ pub mod bidirectional {
             let c_refund = proof_cv.C + (pk_m.Z2[i] * convertStrToFr("refund"));
             // generating partially blind signature on refund || wpk' || B - e
             let rt_w = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, c_refund, proof_cv.num_secrets + 1); // proof_cv.C
-            println!("Yay! Proof of knowledge of commitment on new wallet is valid");
+            println!("pay_by_merchant_phase1 - Proof of knowledge of commitment on new wallet is valid");
+            update_merchant_state(&mut state, &proof.wpk, None);
             return rt_w;
         }
 
-        // generate signature for new wallet with updated balance
-
         // let's update the merchant's wallet balance now
-        panic!("Failed verification!");
+        panic!("pay_by_merchant_phase1 - NIZK verification failed for new wallet commitment!");
     }
 
-    pub fn pay_by_customer_phase2<'a>(pp: &PublicParams, old_w: &CustomerWallet, new_w: &CustomerWallet,
-                                      pk_m: &clsigs::PublicKeyD, rt_w: &clsigs::SignatureD) -> RevokeToken<'a> {
-
+    pub fn pay_by_customer_phase2(pp: &PublicParams, old_w: &CustomerWallet, new_w: &CustomerWallet,
+                                  pk_m: &clsigs::PublicKeyD, rt_w: &clsigs::SignatureD) -> RevokeToken {
         // (1) verify the refund token (rt_w) against the new wallet contents
         let mut x: Vec<Fr> = Vec::new();
         x.push(new_w.r.clone());
@@ -1225,32 +1243,36 @@ pub mod bidirectional {
         if (is_rt_w_valid) {
             println!("Refund token is valid against the new wallet!");
             let mut schnorr = secp256k1::Secp256k1::new();
-            let rm = RevokedMessage::new("revoked", old_w.wpk, None);
+            let rm = RevokedMessage::new(String::from("revoked"), old_w.wpk, None);
             let msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
             // msg = "revoked"|| old_wpk (for old wallet)
             let rv_w = schnorr.sign(&msg, &old_w.wsk);
-
             // return the revocation token
             return RevokeToken { message: rm, signature: rv_w.unwrap() };
         }
-        panic!("FAIL: Merchant did not provide a valid refund token!");
+        panic!("pay_by_customer_phase2 - Merchant did not provide a valid refund token!");
     }
 
-    pub fn pay_by_merchant_phase2(pp: &PublicParams, proof: &PaymentProof, m_data: &mut InitMerchantData, rv: &RevokeToken) -> clsigs::SignatureD {
+    pub fn pay_by_merchant_phase2(pp: &PublicParams, mut state: &mut ChannelState,
+                                  proof: &PaymentProof, m_data: &mut InitMerchantData,
+                                  rv: &RevokeToken) -> clsigs::SignatureD {
         let proof_cv = &proof.proof2a;
         let sk_m = &m_data.csk.sk;
         let schnorr = secp256k1::Secp256k1::new();
         let msg = secp256k1::Message::from_slice(&rv.message.hash_to_slice()).unwrap();
         // verify that the revocation token is valid
         let is_rv_valid = schnorr.verify(&msg, &rv.signature, &proof.wpk).is_ok();
-        // TODO: check that we are in the proper state
+
         if clsigs::bs_verify_nizk_proof(&proof_cv) && is_rv_valid {
+            // update merchant state with (wpk, sigma_rev)
+            update_merchant_state(&mut state, &proof.wpk, Some(rv.signature));
             let new_wallet_sig = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, proof_cv.C, proof_cv.num_secrets);
-            m_data.csk.balance += proof.balance;
+            m_data.csk.balance += proof.balance_inc;
+            state.R = 2;
             return new_wallet_sig;
         }
 
-        panic!("FAIL: Customer did not provide valid revocation token!");
+        panic!("pay_by_merchant_phase2 - Customer did not provide valid revocation token!");
     }
 
     pub fn pay_by_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
@@ -1298,38 +1320,61 @@ pub mod bidirectional {
         return ChannelClosure_C { message: m, signature: sigma };
     }
 
-    fn exist_in_merchant_state(s: &ChannelState, wpk: &secp256k1::PublicKey, sig_rev: &clsigs::SignatureD) -> bool {
-        // TODO: check the database for the fingerprint for the wpk + sig?
-        return true;
+    fn exist_in_merchant_state(state: &ChannelState, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> bool {
+        if (state.keys.is_empty()) {
+            return false;
+        }
+
+        let fingerprint = computePubKeyFingerprint(wpk);
+        if (state.keys.contains_key(&fingerprint)) {
+            let pub_key = state.keys.get(&fingerprint).unwrap();
+            if pub_key.revoke_token.is_none() {
+                // let's just check the public key
+                return (pub_key.wpk == *wpk);
+            }
+            if (!rev.is_none()) {
+                return (pub_key.wpk == *wpk && pub_key.revoke_token.unwrap() == rev.unwrap());
+            }
+            return (pub_key.wpk == *wpk);
+        }
+
+        return false;
     }
 
-    fn update_merchant_state(s: &mut ChannelState, wpk: &secp256k1::PublicKey) -> bool {
-        // TODO: implement this method to update channel state db with current public key hash?
+    fn update_merchant_state(state: &mut ChannelState, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> bool {
+        let fingerprint = computePubKeyFingerprint(wpk);
+        //println!("Print fingerprint: {}", fingerprint);
+        if !rev.is_none() {
+            let cust_pub_key = PubKeyMap { wpk: wpk.clone(), revoke_token: Some(rev.unwrap().clone()) };
+            state.keys.insert(fingerprint, cust_pub_key);
+        } else {
+            let cust_pub_key = PubKeyMap { wpk: wpk.clone(), revoke_token: None };
+            state.keys.insert(fingerprint, cust_pub_key);
+        }
         return true;
     }
 
     // for merchant => on input the merchant's current state S_old and a customer channel closure message,
     // outputs a merchant channel closure message rc_m and updated merchant state S_new
     pub fn merchant_refute<'a>(pp: &PublicParams, T_c: &ChannelToken, m_data: &InitMerchantData,
-                  state: &mut ChannelState, rc_c: ChannelClosure_C<'a>)  -> Option<ChannelClosure_M<'a>> {
+                  state: &mut ChannelState, rc_c: ChannelClosure_C<'a>, rv_token: &secp256k1::Signature)  -> Option<ChannelClosure_M> {
         println!("Run Refute...");
 
         let is_valid = clsigs::verifyD(&pp.cl_mpk, &T_c.pk, &rc_c.message.hash(), &rc_c.signature);
         if is_valid {
             let wpk = rc_c.message.wpk;
-            let rv_token = rc_c.signature; // TODO: change to \sigma_rev
             let balance = rc_c.message.balance;
-            if exist_in_merchant_state(&state, &wpk, &rv_token) {
+            if exist_in_merchant_state(&state, &wpk, Some(*rv_token)) {
                 // let mut s = Secp256k1::new();
                 // let sig = rv_token.serialize_compact(&s);
                 // TODO: convert rv_w into a slice
-                let rm = RevokedMessage::new("revoked", wpk, None);
+                let rm = RevokedMessage::new(String::from("revoked"), wpk, None);
                 // sign the revoked message
                 let signature = clsigs::signD(&pp.cl_mpk, &m_data.csk.sk, &rm.hash());
                 return Some(ChannelClosure_M { message: rm, signature: signature });
             } else {
                 // update state to include the user's wallet key
-                assert!(update_merchant_state(state, &wpk));
+                assert!(update_merchant_state(state, &wpk, Some(*rv_token)));
                 return None;
             }
         } else {
@@ -1340,7 +1385,7 @@ pub mod bidirectional {
     // on input th ecustmomer and merchant channel tokens T_c, T_m
     // along with closure messages rc_c, rc_m
     pub fn resolve<'a>(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData,         // cust and merch
-                   rc_c: Option<ChannelClosure_C<'a>>, rc_m: Option<ChannelClosure_M<'a>>) -> (i32, i32) {
+                   rc_c: Option<ChannelClosure_C<'a>>, rc_m: Option<ChannelClosure_M>) -> (i32, i32) {
         println!("Run Resolve...");
         let total_balance = c.csk.balance + m.csk.balance;
         if (rc_c.is_none() && rc_m.is_none()) {
