@@ -22,6 +22,9 @@ pub mod ote;
 pub mod clsigs;
 pub mod commit_scheme;
 
+const E_MIN: i32 = 1;
+const E_MAX: i32 = 255;
+
 //pub fn hash_string(s: &str) -> String {
 //    let digest = sha256::hash(s.as_bytes());
 //    format!("{:X}", HexSlice::new(&digest))
@@ -660,18 +663,18 @@ fn convertStrToFr<'a>(input: &'a str) -> Fr {
 
 // refund message
 #[derive(Clone)]
-pub struct RefundMessage<'a> {
-    pub msgtype: &'a str, // purpose type of message
+pub struct RefundMessage {
+    pub msgtype: String, // purpose type of message
     pub cid: Fr, // channel identifier
     pub wpk: secp256k1::PublicKey,
     pub balance: usize, // the balance
-    pub r: Option<&'a Fr>, // randomness from customer wallet
-    pub rt: Option<&'a clsigs::SignatureD> // refund token
+    pub r: Option<Fr>, // randomness from customer wallet
+    pub rt: Option<clsigs::SignatureD> // refund token
 }
 
-impl<'a> RefundMessage<'a> {
-    pub fn new(_msgtype: &'a str, _cid: Fr, _wpk: secp256k1::PublicKey,
-               _balance: usize, _r: Option<&'a Fr>, _rt: Option<&'a clsigs::SignatureD>) -> RefundMessage<'a> {
+impl RefundMessage {
+    pub fn new(_msgtype: String, _cid: Fr, _wpk: secp256k1::PublicKey,
+               _balance: usize, _r: Option<Fr>, _rt: Option<clsigs::SignatureD>) -> RefundMessage {
         RefundMessage {
             msgtype: _msgtype, cid: _cid, wpk: _wpk, balance: _balance, r: _r, rt: _rt
         }
@@ -699,8 +702,11 @@ impl<'a> RefundMessage<'a> {
         }
 
         if (!self.rt.is_none()) {
-            let rt = self.rt.unwrap();
-            v.push(rt.hash(self.msgtype));
+            let rt = {
+                &self.rt.clone()
+            };
+            let rt_ref = rt.as_ref();
+            v.push(rt_ref.unwrap().hash(&self.msgtype));
         }
 
         return v;
@@ -877,6 +883,8 @@ pub mod bidirectional {
     use convertToFr;
     use convertStrToFr;
     use computePubKeyFingerprint;
+    use E_MIN;
+    use E_MAX;
 
     fn print_secret_vector(x: &Vec<Fr>) {
         for i in 0 .. x.len() {
@@ -948,8 +956,8 @@ pub mod bidirectional {
         pub channel_established: bool
     }
 
-    pub struct ChannelClosure_C<'a> {
-        message: RefundMessage<'a>,
+    pub struct ChannelClosure_C {
+        message: RefundMessage,
         signature: clsigs::SignatureD
     }
 
@@ -1199,7 +1207,8 @@ pub mod bidirectional {
         // let's first confirm that proof of knowledge of signature on old wallet is valid
         let proof_vs_old_wallet = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
         let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
-        if proof_vs_old_wallet && !is_existing_wpk {
+        let is_within_range = (proof.balance_inc >= E_MIN && proof.balance_inc <= E_MAX);
+        if proof_vs_old_wallet && !is_existing_wpk && is_within_range {
             println!("Proof of knowledge of signature is valid!");
             if (proof.balance_inc < 0) {
                 // negative increment
@@ -1242,7 +1251,7 @@ pub mod bidirectional {
 
         if (is_rt_w_valid) {
             println!("Refund token is valid against the new wallet!");
-            let mut schnorr = secp256k1::Secp256k1::new();
+            let schnorr = secp256k1::Secp256k1::new();
             let rm = RevokedMessage::new(String::from("revoked"), old_w.wpk, None);
             let msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
             // msg = "revoked"|| old_wpk (for old wallet)
@@ -1300,18 +1309,18 @@ pub mod bidirectional {
     ///// end of pay protocol
 
     // for customer => on input a wallet w, it outputs a customer channel closure message rc_c
-    pub fn customer_refund<'a>(pp: &PublicParams, state: &ChannelState, m_data: &InitMerchantData,
-                  c_data: &'a InitCustomerData) -> ChannelClosure_C<'a> {
+    pub fn customer_refund(pp: &PublicParams, state: &ChannelState, m_data: &InitMerchantData,
+                  c_data: &InitCustomerData) -> ChannelClosure_C {
         println!("Run Refund...");
         let m;
         let w = &c_data.csk; // get wallet
         let balance = w.balance as usize;
         if !state.pay_init {
             // pay protocol not invoked so take the balane
-            m = RefundMessage::new("refundUnsigned", state.cid, w.wpk, balance, Some(&w.r), None);
+            m = RefundMessage::new(String::from("refundUnsigned"), state.cid, w.wpk, balance, Some(w.r), None);
         } else {
             // if channel has already been activated, then take unspent funds
-            m = RefundMessage::new("refundToken", state.cid, w.wpk, balance, None, w.refund_token.as_ref());
+            m = RefundMessage::new(String::from("refundToken"), state.cid, w.wpk, balance, None, w.refund_token.clone());
         }
 
         // generate signature on the balance/channel id, etc to obtain funds back
@@ -1356,8 +1365,8 @@ pub mod bidirectional {
 
     // for merchant => on input the merchant's current state S_old and a customer channel closure message,
     // outputs a merchant channel closure message rc_m and updated merchant state S_new
-    pub fn merchant_refute<'a>(pp: &PublicParams, T_c: &ChannelToken, m_data: &InitMerchantData,
-                  state: &mut ChannelState, rc_c: ChannelClosure_C<'a>, rv_token: &secp256k1::Signature)  -> Option<ChannelClosure_M> {
+    pub fn merchant_refute(pp: &PublicParams, T_c: &ChannelToken, m_data: &InitMerchantData,
+                  state: &mut ChannelState, rc_c: ChannelClosure_C, rv_token: &secp256k1::Signature)  -> Option<ChannelClosure_M> {
         println!("Run Refute...");
 
         let is_valid = clsigs::verifyD(&pp.cl_mpk, &T_c.pk, &rc_c.message.hash(), &rc_c.signature);
@@ -1385,7 +1394,7 @@ pub mod bidirectional {
     // on input th ecustmomer and merchant channel tokens T_c, T_m
     // along with closure messages rc_c, rc_m
     pub fn resolve<'a>(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData,         // cust and merch
-                   rc_c: Option<ChannelClosure_C<'a>>, rc_m: Option<ChannelClosure_M>) -> (i32, i32) {
+                   rc_c: Option<ChannelClosure_C>, rc_m: Option<ChannelClosure_M>) -> (i32, i32) {
         println!("Run Resolve...");
         let total_balance = c.csk.balance + m.csk.balance;
         if (rc_c.is_none() && rc_m.is_none()) {

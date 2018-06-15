@@ -351,16 +351,14 @@ fn main() {
 
     //println!("{}", keypair.pk);
 
-//    let msg1 = libbolt::RefundMessage::new(alice_sk, 10).hash(); // TODO: add ck (l-bit key)
-//    let msg2 = libbolt::RefundMessage::new(alice_sk, 11).hash(); // TODO: add ck (l-bit key)
     let mut m1 : Vec<Fr> = Vec::new();
     let mut m2 : Vec<Fr> = Vec::new();
-    let mut m3 : Vec<Fr> = Vec::new();
+    //let mut m3 : Vec<Fr> = Vec::new();
 
     for i in 0 .. l+1 {
         m1.push(Fr::random(rng));
         m2.push(Fr::random(rng));
-        m3.push(Fr::random(rng));
+        //m3.push(Fr::random(rng));
     }
 
     let signature = clsigs::signD(&mpk, &m_keypair.sk, &m1);
@@ -371,7 +369,7 @@ fn main() {
     assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m2, &signature) == false);
     let end2 = PreciseTime::now();
     assert!(clsigs::verifyD(&mpk, &c_keypair.pk, &m1, &signature) == false);
-//    assert!(clsigs::verifyD(&mpk, &keypair.pk, &m3, &signature) == false);
+    //assert!(clsigs::verifyD(&mpk, &keypair.pk, &m3, &signature) == false);
 
     println!("CL signatures verified!");
     println!("{} seconds for verifying valid signatures.", start1.to(end1));
@@ -391,7 +389,7 @@ fn main() {
     let balance = 100;
     let r = Fr::random(rng);
     let cid = Fr::random(rng);
-    let refund_message1 = libbolt::RefundMessage::new("refundUnsigned", cid, wpk, balance, Some(&r), None);
+    let refund_message1 = libbolt::RefundMessage::new(String::from("refundUnsigned"), cid, wpk, balance, Some(r), None);
     let rm1 = refund_message1.hash();
     println!("RefundMessage => {}", refund_message1.msgtype);
     for i in 0 .. rm1.len() {
@@ -399,7 +397,7 @@ fn main() {
         libbolt::debug_elem_in_hex(&p, &rm1[i]);
     }
 
-    let refund_message2 = libbolt::RefundMessage::new("refundToken", cid, wpk, balance+15, None, Some(&signature));
+    let refund_message2 = libbolt::RefundMessage::new(String::from("refundToken"), cid, wpk, balance+15, None, Some(signature));
     let rm2 = refund_message2.hash();
     println!("RefundMessage (token) => {}", refund_message2.msgtype);
     for i in 0 .. rm2.len() {
@@ -515,8 +513,6 @@ fn main() {
     println!("******************************************");
     println!("Testing the pay protocol..");
     // let's test the pay protocol
-    //let channel_token = &init_cust_data.T;
-    //let wallet = &init_cust_data.csk;
     let (new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
                                                                         &merch_keypair.pk, // merchant pub key
                                                                         &init_cust_data.csk, // wallet
@@ -533,15 +529,40 @@ fn main() {
 
     assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet, new_wallet_sig));
 
-    let cust_wallet = &init_cust_data.csk;
-    let merch_wallet = &init_merch_data.csk;
-    println!("Customer balance: {}", cust_wallet.balance);
-    println!("Merchant balance: {}", merch_wallet.balance);
+    {
+        // scope localizes the immutable borrow here (for debug purposes only)
+        let cust_wallet = &init_cust_data.csk;
+        let merch_wallet = &init_merch_data.csk;
+        println!("Customer balance: {}", cust_wallet.balance);
+        println!("Merchant balance: {}", merch_wallet.balance);
+    }
 
+    let (new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
+                                                                        &merch_keypair.pk, // merchant pub key
+                                                                        &init_cust_data.csk, // wallet
+                                                                        10); // balance increment
+
+    // get the refund token (rt_w)
+    let rt_w1 = bidirectional::pay_by_merchant_phase1(&pp, &mut channel, &pay_proof1, &init_merch_data);
+
+    // get the revocation token (rv_w) on the old public key (wpk)
+    let rv_w1 = bidirectional::pay_by_customer_phase2(&pp, &init_cust_data.csk, &new_wallet1, &merch_keypair.pk, &rt_w1);
+
+    // get the new wallet sig (new_wallet_sig) on the new wallet
+    let new_wallet_sig1 = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof1, &mut init_merch_data, &rv_w1);
+
+    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet1, new_wallet_sig1));
+
+    {
+        let cust_wallet = &init_cust_data.csk;
+        let merch_wallet = &init_merch_data.csk;
+        println!("Updated balances...");
+        println!("Customer balance: {}", cust_wallet.balance);
+        println!("Merchant balance: {}", merch_wallet.balance);
+        let updated_cust_bal = b0_cust - 15;
+        let updated_merch_bal = b0_merch + 15;
+        assert_eq!(updated_cust_bal, cust_wallet.balance);
+        assert_eq!(updated_merch_bal, merch_wallet.balance);
+    }
     println!("Pay protocol complete!");
-
-
-//    bidirectional::update_merchant_state(&mut channel, &pay_proof.wpk, Some(rv_w.signature));
-//    assert!(bidirectional::exist_in_merchant_state(&channel, &pay_proof.wpk, Some(rv_w.signature)));
-//    println!("Stored the pub key and rev token!");
 }
