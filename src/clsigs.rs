@@ -247,7 +247,7 @@ pub fn keygenD(mpk : &PublicParams, l: usize) -> KeyPairD {
 }
 
 pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
-    assert_eq!(m.len(), sk.z.len()+1);
+    assert!(m.len() <= sk.z.len()+1);
     let l = m.len();
 
     let rng = &mut rand::thread_rng();
@@ -617,5 +617,5 @@ pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS,
         println!("ERROR: Failed to verify pairing eq 3");
     }
 
-    return result1 && result2 && result3;
+    return result && result1 && result2 && result3;
 }

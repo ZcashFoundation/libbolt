@@ -665,7 +665,6 @@ fn convertStrToFr<'a>(input: &'a str) -> Fr {
 #[derive(Clone)]
 pub struct RefundMessage {
     pub msgtype: String, // purpose type of message
-    pub cid: Fr, // channel identifier
     pub wpk: secp256k1::PublicKey,
     pub balance: usize, // the balance
     pub r: Option<Fr>, // randomness from customer wallet
@@ -673,10 +672,10 @@ pub struct RefundMessage {
 }
 
 impl RefundMessage {
-    pub fn new(_msgtype: String, _cid: Fr, _wpk: secp256k1::PublicKey,
+    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey,
                _balance: usize, _r: Option<Fr>, _rt: Option<clsigs::SignatureD>) -> RefundMessage {
         RefundMessage {
-            msgtype: _msgtype, cid: _cid, wpk: _wpk, balance: _balance, r: _r, rt: _rt
+            msgtype: _msgtype, wpk: _wpk, balance: _balance, r: _r, rt: _rt
         }
     }
 
@@ -685,8 +684,6 @@ impl RefundMessage {
         let mut input_buf = Vec::new();
         input_buf.extend_from_slice(self.msgtype.as_bytes());
         v.push(convertToFr(&input_buf));
-
-        v.push(self.cid.clone());
 
         v.push(hashPubKeyToFr(&self.wpk));
 
@@ -717,11 +714,11 @@ impl RefundMessage {
 pub struct RevokedMessage {
     pub msgtype: String,
     pub wpk: secp256k1::PublicKey,
-    pub sig: Option<Vec<u8>> // represents revocation token serialized compact bytes
+    pub sig: Option<[u8; 64]> // represents revocation token serialized compact bytes
 }
 
 impl RevokedMessage {
-    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey, _sig: Option<Vec<u8>>) -> RevokedMessage {
+    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey, _sig: Option<[u8; 64]>) -> RevokedMessage {
         RevokedMessage {
             msgtype: _msgtype, wpk: _wpk, sig: _sig
         }
@@ -737,7 +734,7 @@ impl RevokedMessage {
 
         if (!self.sig.is_none()) {
             // TODO: make sure we can call hashBufferToFr with sig
-            // v.push(hashBufferToFr(self.msgtype, self.sig.unwrap()));
+            v.push(hashBufferToFr(&self.msgtype, &self.sig.unwrap()));
         }
         return v;
     }
@@ -957,7 +954,7 @@ pub mod bidirectional {
     }
 
     pub struct ChannelClosure_C {
-        message: RefundMessage,
+        pub message: RefundMessage,
         signature: clsigs::SignatureD
     }
 
@@ -1230,6 +1227,7 @@ pub mod bidirectional {
             let rt_w = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, c_refund, proof_cv.num_secrets + 1); // proof_cv.C
             println!("pay_by_merchant_phase1 - Proof of knowledge of commitment on new wallet is valid");
             update_merchant_state(&mut state, &proof.wpk, None);
+            state.pay_init = true;
             return rt_w;
         }
 
@@ -1309,18 +1307,17 @@ pub mod bidirectional {
     ///// end of pay protocol
 
     // for customer => on input a wallet w, it outputs a customer channel closure message rc_c
-    pub fn customer_refund(pp: &PublicParams, state: &ChannelState, m_data: &InitMerchantData,
-                  c_data: &InitCustomerData) -> ChannelClosure_C {
+    pub fn customer_refund(pp: &PublicParams, state: &ChannelState, pk_m: &clsigs::PublicKeyD,
+                           w: &CustomerWallet) -> ChannelClosure_C {
         println!("Run Refund...");
         let m;
-        let w = &c_data.csk; // get wallet
         let balance = w.balance as usize;
         if !state.pay_init {
             // pay protocol not invoked so take the balane
-            m = RefundMessage::new(String::from("refundUnsigned"), state.cid, w.wpk, balance, Some(w.r), None);
+            m = RefundMessage::new(String::from("refundUnsigned"), w.wpk, balance, Some(w.r), None);
         } else {
             // if channel has already been activated, then take unspent funds
-            m = RefundMessage::new(String::from("refundToken"), state.cid, w.wpk, balance, None, w.refund_token.clone());
+            m = RefundMessage::new(String::from("refundToken"), w.wpk, balance, None, w.refund_token.clone());
         }
 
         // generate signature on the balance/channel id, etc to obtain funds back
@@ -1366,7 +1363,7 @@ pub mod bidirectional {
     // for merchant => on input the merchant's current state S_old and a customer channel closure message,
     // outputs a merchant channel closure message rc_m and updated merchant state S_new
     pub fn merchant_refute(pp: &PublicParams, T_c: &ChannelToken, m_data: &InitMerchantData,
-                  state: &mut ChannelState, rc_c: ChannelClosure_C, rv_token: &secp256k1::Signature)  -> Option<ChannelClosure_M> {
+                  state: &mut ChannelState, rc_c: &ChannelClosure_C, rv_token: &secp256k1::Signature)  -> Option<ChannelClosure_M> {
         println!("Run Refute...");
 
         let is_valid = clsigs::verifyD(&pp.cl_mpk, &T_c.pk, &rc_c.message.hash(), &rc_c.signature);
@@ -1374,10 +1371,9 @@ pub mod bidirectional {
             let wpk = rc_c.message.wpk;
             let balance = rc_c.message.balance;
             if exist_in_merchant_state(&state, &wpk, Some(*rv_token)) {
-                // let mut s = Secp256k1::new();
-                // let sig = rv_token.serialize_compact(&s);
-                // TODO: convert rv_w into a slice
-                let rm = RevokedMessage::new(String::from("revoked"), wpk, None);
+                let mut s = secp256k1::Secp256k1::new();
+                let ser_rv_token = rv_token.serialize_compact(&s);
+                let rm = RevokedMessage::new(String::from("revoked"), wpk, Some(ser_rv_token));
                 // sign the revoked message
                 let signature = clsigs::signD(&pp.cl_mpk, &m_data.csk.sk, &rm.hash());
                 return Some(ChannelClosure_M { message: rm, signature: signature });
@@ -1393,8 +1389,9 @@ pub mod bidirectional {
 
     // on input th ecustmomer and merchant channel tokens T_c, T_m
     // along with closure messages rc_c, rc_m
-    pub fn resolve<'a>(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData,         // cust and merch
-                   rc_c: Option<ChannelClosure_C>, rc_m: Option<ChannelClosure_M>) -> (i32, i32) {
+    pub fn resolve(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData,         // cust and merch
+                   rc_c: Option<ChannelClosure_C>, rc_m: Option<ChannelClosure_M>,
+                   rt_w: Option<clsigs::SignatureD>) -> (i32, i32) {
         println!("Run Resolve...");
         let total_balance = c.csk.balance + m.csk.balance;
         if (rc_c.is_none() && rc_m.is_none()) {
@@ -1412,8 +1409,8 @@ pub mod bidirectional {
 //            _ => return (0, 0);
 //        }
 
-        let pk_c = &c.T.pk;
-        let pk_m = &m.T;
+        let pk_c = &c.T.pk; // get public key for customer
+        let pk_m = &m.T; // get public key for merchant
 
         let rc_cust = rc_c.unwrap();
         let rcc_valid = clsigs::verifyD(&pp.cl_mpk, &pk_c, &rc_cust.message.hash(), &rc_cust.signature);
@@ -1425,9 +1422,8 @@ pub mod bidirectional {
 
         if msg.msgtype == "refundUnsigned" {
             // assert the validity of the w_com
-            let bases = c.bases.clone();
-            let g2 = pp.cl_mpk.g2.clone();
-            let cm_csp = commit_scheme::setup(pp.l, bases, g2);
+            let cm_csp = generate_commit_setup(&pp, &pk_m);
+
             let h_wpk = hashPubKeyToFr(&c.csk.wpk);
             // convert balance into Fr
             let balance = Fr::from_str(c.csk.balance.to_string().as_str()).unwrap();
@@ -1441,12 +1437,12 @@ pub mod bidirectional {
             // check that w_com is a valid commitment
             if !commit_scheme::decommit(&cm_csp, &w_com, &x) {
                 // if this fails, then customer gets 0 and merchant gets full channel balance
+                println!("resolve - failed verify commitment on wallet");
                 return (0, total_balance);
             }
         } else if msg.msgtype == "refundToken" {
-            // TODO: check that rt_w is a valid refund token on wpk and balance
-            let rt_w = &rc_cust.signature; // TODO: replace with real rt_w
-            let rt_valid = clsigs::verifyD(&pp.cl_mpk, &pk_c, &msg.hash(), &rt_w);
+            // check that the refund token for specified wallet is valid
+            let rt_valid = clsigs::verifyD(&pp.cl_mpk, &pk_c, &msg.hash(), &rt_w.unwrap());
             if !rt_valid {
                 // refund token signature not valid, so pay full channel balance to merchant
                 return (0, total_balance)

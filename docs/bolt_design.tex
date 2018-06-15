@@ -635,8 +635,8 @@ The customer obtains a new wallet $w_{\sf new} := (B - \epsilon, wpk', wsk', r',
 % Refund algorithm description
 \item ${\sf Refund}({\sf PP}, {\sf T}_{M}, csk_{C}, w) \rightarrow (m, \sigma)$. 
 \begin{enumerate}
-\item If the customer has not invoked the {\sf Pay} protocol, then $m := ({\sf refundUnsigned}, ({\sf cID}, wpk, B), r)$.
-\item Otherwise, set $m := ({\sf refundToken}, ({\sf cID}, wpk, B), rt_w)$.
+\item If the customer has not invoked the {\sf Pay} protocol, then $m := ({\sf refundUnsigned}, (wpk, B), r)$.
+\item Otherwise, set $m := ({\sf refundToken}, (wpk, B), rt_w)$.
 \item Compute $\sigma = {\sf Sign}(sk_c, m)$.
 \item Output ${\sf rc}_{C} = (m, \sigma)$.
 \end{enumerate}
@@ -669,8 +669,8 @@ The customer obtains a new wallet $w_{\sf new} := (B - \epsilon, wpk', wsk', r',
 \item If verification check fails, then output ${B_{\sf final}^{\sf cust}} = B_{\sf total}$ and ${B_{\sf final}^{\sf merch}} = 0$.
 \item Check the refund validity: 
 \begin{enumerate}
-\item[a.] If ${\sf type} = {\sf refundUnsigned}$, check ${\sf wCom} = {\sf Commit}({\sf cID}, wpk, B; {\sf Token})$ and that merchant's token contains $\sigma_{rev}$.
-\item[b.] If ${\sf type} = {\sf refundToken}$, check ${\sf Token}$ is a valid refund token on $({\sf cID}, wpk, B)$.
+\item[a.] If ${\sf type} = {\sf refundUnsigned}$, check ${\sf wCom} = {\sf Commit}(wpk, B; {\sf Token})$ and that merchant's token contains $\sigma_{rev}$.
+\item[b.] If ${\sf type} = {\sf refundToken}$, check ${\sf Token}$ is a valid refund token on $(wpk, B)$.
 \item[c.] If either {\bf (a)} or {\bf (b)} fails, abort and output ${B_{\sf final}^{\sf cust}} = 0$ and ${B_{\sf final}^{\sf merch}} = B_{\sf total}$.
 \end{enumerate}
 \item Check the refutation's validity by checking that ${\sf Verify}(wpk, {\sf revoke}||wpk, \sigma_{rev}) = 1$.

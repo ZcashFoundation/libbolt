@@ -389,7 +389,7 @@ fn main() {
     let balance = 100;
     let r = Fr::random(rng);
     let cid = Fr::random(rng);
-    let refund_message1 = libbolt::RefundMessage::new(String::from("refundUnsigned"), cid, wpk, balance, Some(r), None);
+    let refund_message1 = libbolt::RefundMessage::new(String::from("refundUnsigned"), wpk, balance, Some(r), None);
     let rm1 = refund_message1.hash();
     println!("RefundMessage => {}", refund_message1.msgtype);
     for i in 0 .. rm1.len() {
@@ -397,7 +397,7 @@ fn main() {
         libbolt::debug_elem_in_hex(&p, &rm1[i]);
     }
 
-    let refund_message2 = libbolt::RefundMessage::new(String::from("refundToken"), cid, wpk, balance+15, None, Some(signature));
+    let refund_message2 = libbolt::RefundMessage::new(String::from("refundToken"), wpk, balance+15, None, Some(signature));
     let rm2 = refund_message2.hash();
     println!("RefundMessage (token) => {}", refund_message2.msgtype);
     for i in 0 .. rm2.len() {
@@ -565,4 +565,24 @@ fn main() {
         assert_eq!(updated_merch_bal, merch_wallet.balance);
     }
     println!("Pay protocol complete!");
+
+    println!("******************************************");
+    println!("Testing the dispute algorithms...");
+
+    {
+        let cust_wallet = &init_cust_data.csk;
+        // get channel closure message
+        let rc_c = bidirectional::customer_refund(&pp, &channel, &merch_keypair.pk, &cust_wallet);
+        println!("Obtained the channel closure message: {}", rc_c.message.msgtype);
+
+        let channel_token = &init_cust_data.T;
+        let rc_m = bidirectional::merchant_refute(&pp, &channel_token, &init_merch_data, &mut channel, &rc_c, &rv_w1.signature);
+        println!("Merchant has refuted the refund request!");
+
+
+        let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&pp, &init_cust_data, &init_merch_data,
+                                                                 Some(rc_c), rc_m, Some(rt_w1));
+        println!("Resolved! Customer = {}, Merchant = {}", new_b0_cust, new_b0_merch);
+
+    }
 }
