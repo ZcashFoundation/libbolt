@@ -619,3 +619,8 @@ pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS,
 
     return result && result1 && result2 && result3;
 }
+
+pub fn vs_partial_commitment_open(old_com: G2, old_com_pr: G2, base: G2, wpk: Fr) -> bool {
+    let _old_com = old_com_pr + (base * wpk);
+    return _old_com == old_com;
+}

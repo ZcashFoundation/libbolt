@@ -513,7 +513,7 @@ fn main() {
     println!("******************************************");
     println!("Testing the pay protocol..");
     // let's test the pay protocol
-    let (new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
+    let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
                                                                         &merch_keypair.pk, // merchant pub key
                                                                         &init_cust_data.csk, // wallet
                                                                         5); // balance increment
@@ -527,7 +527,7 @@ fn main() {
     // get the new wallet sig (new_wallet_sig) on the new wallet
     let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof, &mut init_merch_data, &rv_w);
 
-    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet, new_wallet_sig));
+    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, t_c, new_wallet, new_wallet_sig));
 
     {
         // scope localizes the immutable borrow here (for debug purposes only)
@@ -537,7 +537,7 @@ fn main() {
         println!("Merchant balance: {}", merch_wallet.balance);
     }
 
-    let (new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
+    let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
                                                                         &merch_keypair.pk, // merchant pub key
                                                                         &init_cust_data.csk, // wallet
                                                                         10); // balance increment
@@ -551,7 +551,7 @@ fn main() {
     // get the new wallet sig (new_wallet_sig) on the new wallet
     let new_wallet_sig1 = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof1, &mut init_merch_data, &rv_w1);
 
-    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, new_wallet1, new_wallet_sig1));
+    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, t_c1, new_wallet1, new_wallet_sig1));
 
     {
         let cust_wallet = &init_cust_data.csk;

@@ -969,6 +969,9 @@ pub mod bidirectional {
         // TODO: add proof2c: range proof that balance - balance_inc is between (0, val_max)
         balance_inc: i32, // balance increment
         w_com: commit_scheme::Commitment, // commitment for new wallet
+        old_w_com: G2, // old commitment
+        old_w_com_pr: G2, // old commitment minus Z^wpk
+        old_com_base: G2,
         pub wpk: secp256k1::PublicKey, // verification key for old wallet (TODO:: remove pub)
         wallet_sig: clsigs::SignatureD // blinded signature for old wallet
     }
@@ -1107,7 +1110,7 @@ pub mod bidirectional {
 
     ///// begin of pay protocol
     pub fn pay_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
-                                  old_w: &CustomerWallet, balance_increment: i32) -> (CustomerWallet, PaymentProof) {
+                                  old_w: &CustomerWallet, balance_increment: i32) -> (ChannelToken, CustomerWallet, PaymentProof) {
         println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
         // get balance, keypair, commitment randomness and wallet sig
         let rng = &mut rand::thread_rng();
@@ -1156,6 +1159,8 @@ pub mod bidirectional {
         let wallet_sig = old_wallet_sig.clone().unwrap();
 
         let old_h_wpk = hashPubKeyToFr(&old_wpk);
+        let index = 2;
+        let old_w_com_pr = T.w_com.c - (cm_csp.pub_bases[index] * old_h_wpk);
 
         // added the blinding factor to list of secrets
         let mut old_x: Vec<Fr> = Vec::new();
@@ -1177,15 +1182,18 @@ pub mod bidirectional {
                                 proof2b: proof_vs, // proof of knowledge of signature on old wallet
                                 w_com: w_com,
                                 balance_inc: balance_increment, // epsilon - increment/decrement
-                              //w_com_pr: w_com_pr, // old commitment minus wpk
+                                old_w_com: T.w_com.c, // old commitment
+                                old_w_com_pr: old_w_com_pr, // old commitment minus Z^wpk
+                                old_com_base: cm_csp.pub_bases[index], // base Z
                                 wpk: old_wpk.clone(), // showing public key for old wallet
                                 wallet_sig: blind_sigs // blinded signature for old wallet
                             };
         // create new wallet structure (w/o signature or refund token)
+        let t_c = ChannelToken { w_com: w_com, pk: T.pk.clone() };
         let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
                             r: r_pr, balance: updated_balance, signature: None,
                             refund_token: None };
-        return (csk_c, payment_proof);
+        return (t_c, csk_c, payment_proof);
     }
 
     // NOTE regarding balance increments
@@ -1205,7 +1213,12 @@ pub mod bidirectional {
         let proof_vs_old_wallet = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
         let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
         let is_within_range = (proof.balance_inc >= E_MIN && proof.balance_inc <= E_MAX);
-        if proof_vs_old_wallet && !is_existing_wpk && is_within_range {
+        // TODO: verify correctness
+        let is_wpk_valid_reveal = clsigs::vs_partial_commitment_open(proof.old_w_com,
+                                                                     proof.old_w_com_pr,
+                                                                     proof.old_com_base,
+                                                                     hashPubKeyToFr(&proof.wpk));
+        if proof_vs_old_wallet && !is_existing_wpk && is_within_range && is_wpk_valid_reveal {
             println!("Proof of knowledge of signature is valid!");
             if (proof.balance_inc < 0) {
                 // negative increment
@@ -1283,7 +1296,7 @@ pub mod bidirectional {
     }
 
     pub fn pay_by_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
-                                     c_data: &mut InitCustomerData,
+                                     c_data: &mut InitCustomerData, mut new_t: ChannelToken,
                                      mut new_w: CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if new_w.signature.is_none() {
             let mut x: Vec<Fr> = Vec::new();
@@ -1298,6 +1311,7 @@ pub mod bidirectional {
             assert!(clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &sig));
             new_w.signature = Some(sig);
             c_data.csk = new_w;
+            c_data.T = new_t;
             return true;
         }
         // must be an old wallet
