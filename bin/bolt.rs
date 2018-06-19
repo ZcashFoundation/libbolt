@@ -300,47 +300,47 @@ macro_rules! generate_nipk {
 fn main() {
     let rng = &mut rand::thread_rng();
 
-    // Generate private keys
-    let alice_sk = Fr::random(rng);
-    //println!("alice_sk: {}", alice_sk);
-    let bob_sk = Fr::random(rng);
-    let carol_sk = Fr::random(rng);
-
-    // Generate public keys in G1 and G2
-    let (alice_pk1, alice_pk2) = (G1::one() * alice_sk, G2::one() * alice_sk);
-    let (bob_pk1, bob_pk2) = (G1::one() * bob_sk, G2::one() * bob_sk);
-    let (carol_pk1, carol_pk2) = (G1::one() * carol_sk, G2::one() * carol_sk);
-
-    // Each party computes the shared secret
-    let alice_ss = pairing(bob_pk1, carol_pk2).pow(alice_sk);
-    let bob_ss = pairing(carol_pk1, alice_pk2).pow(bob_sk);
-    let carol_ss = pairing(alice_pk1, bob_pk2).pow(carol_sk);
-
-    assert!(alice_ss == bob_ss && bob_ss == carol_ss);
-    println!("All bn unit tests succeeded!");
-
-
-    println!("******************************************");
-
-    // Test the PRF
-    let s = Fr::random(rng);
-    let key = prf::initPRF(s, None);
-
-    let x = Fr::random(rng);
-    let y = prf::compute(&key, x);
-
-    println!("Compute y = 0x{}", libbolt::print(&y));
-
-    // Test the OTE scheme
-    let k = ote::keygen();
-    let X = G1::random(rng);
-    let Y = G1::random(rng);
-    let m = ote::OTMessage { m1: X, m2: Y };
-    let c = ote::otenc(k, &m);
-    let orig_m = ote::otdec(k, &c);
-
-    assert!(m.m1 == orig_m.m1 && m.m2 == orig_m.m2);
-    println!("OTE scheme works as expected!");
+//    // Generate private keys
+//    let alice_sk = Fr::random(rng);
+//    //println!("alice_sk: {}", alice_sk);
+//    let bob_sk = Fr::random(rng);
+//    let carol_sk = Fr::random(rng);
+//
+//    // Generate public keys in G1 and G2
+//    let (alice_pk1, alice_pk2) = (G1::one() * alice_sk, G2::one() * alice_sk);
+//    let (bob_pk1, bob_pk2) = (G1::one() * bob_sk, G2::one() * bob_sk);
+//    let (carol_pk1, carol_pk2) = (G1::one() * carol_sk, G2::one() * carol_sk);
+//
+//    // Each party computes the shared secret
+//    let alice_ss = pairing(bob_pk1, carol_pk2).pow(alice_sk);
+//    let bob_ss = pairing(carol_pk1, alice_pk2).pow(bob_sk);
+//    let carol_ss = pairing(alice_pk1, bob_pk2).pow(carol_sk);
+//
+//    assert!(alice_ss == bob_ss && bob_ss == carol_ss);
+//    println!("All bn unit tests succeeded!");
+//
+//
+//    println!("******************************************");
+//
+//    // Test the PRF
+//    let s = Fr::random(rng);
+//    let key = prf::initPRF(s, None);
+//
+//    let x = Fr::random(rng);
+//    let y = prf::compute(&key, x);
+//
+//    println!("Compute y = 0x{}", libbolt::print(&y));
+//
+//    // Test the OTE scheme
+//    let k = ote::keygen();
+//    let X = G1::random(rng);
+//    let Y = G1::random(rng);
+//    let m = ote::OTMessage { m1: X, m2: Y };
+//    let c = ote::otenc(k, &m);
+//    let orig_m = ote::otdec(k, &c);
+//
+//    assert!(m.m1 == orig_m.m1 && m.m2 == orig_m.m2);
+//    println!("OTE scheme works as expected!");
 
     // Test the CL sigs
     // CL sig tests
@@ -353,12 +353,12 @@ fn main() {
 
     let mut m1 : Vec<Fr> = Vec::new();
     let mut m2 : Vec<Fr> = Vec::new();
-    //let mut m3 : Vec<Fr> = Vec::new();
+    let mut m3 : Vec<Fr> = Vec::new();
 
     for i in 0 .. l+1 {
         m1.push(Fr::random(rng));
         m2.push(Fr::random(rng));
-        //m3.push(Fr::random(rng));
+        m3.push(Fr::random(rng));
     }
 
     let signature = clsigs::signD(&mpk, &m_keypair.sk, &m1);
@@ -369,104 +369,103 @@ fn main() {
     assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m2, &signature) == false);
     let end2 = PreciseTime::now();
     assert!(clsigs::verifyD(&mpk, &c_keypair.pk, &m1, &signature) == false);
-    //assert!(clsigs::verifyD(&mpk, &keypair.pk, &m3, &signature) == false);
+    assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m3, &signature) == false);
 
     println!("CL signatures verified!");
     println!("{} seconds for verifying valid signatures.", start1.to(end1));
     println!("{} seconds for verifying invalid signatures.", end1.to(end2));
 
-    let s1 = signature.hash("prefix type1");
-    let s2 = signature.hash("prefix type2");
-    let p1 = "Hash of signature 1: ";
-    libbolt::debug_elem_in_hex(p1, &s1);
-    let p2 = "Hash of signature 2: ";
-    libbolt::debug_elem_in_hex(p2, &s2);
-
-    let mut schnorr = secp256k1::Secp256k1::new();
-    schnorr.randomize(rng);
-    let (wsk, wpk) = schnorr.generate_keypair(rng).unwrap();
-
-    let balance = 100;
-    let r = Fr::random(rng);
-    let cid = Fr::random(rng);
-    let refund_message1 = libbolt::RefundMessage::new(String::from("refundUnsigned"), wpk, balance, Some(r), None);
-    let rm1 = refund_message1.hash();
-    println!("RefundMessage => {}", refund_message1.msgtype);
-    for i in 0 .. rm1.len() {
-        let p = format!("rm1[{}] = ", i);
-        libbolt::debug_elem_in_hex(&p, &rm1[i]);
-    }
-
-    let refund_message2 = libbolt::RefundMessage::new(String::from("refundToken"), wpk, balance+15, None, Some(signature));
-    let rm2 = refund_message2.hash();
-    println!("RefundMessage (token) => {}", refund_message2.msgtype);
-    for i in 0 .. rm2.len() {
-        let p = format!("rm2[{}] = ", i);
-        libbolt::debug_elem_in_hex(&p, &rm2[i]);
-    }
-
-
-    //assert!(clsigs::verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
+//    let s1 = signature.hash("prefix type1");
+//    let s2 = signature.hash("prefix type2");
+//    let p1 = "Hash of signature 1: ";
+//    libbolt::debug_elem_in_hex(p1, &s1);
+//    let p2 = "Hash of signature 2: ";
+//    libbolt::debug_elem_in_hex(p2, &s2);
+//
+//    let mut schnorr = secp256k1::Secp256k1::new();
+//    schnorr.randomize(rng);
+//    let (wsk, wpk) = schnorr.generate_keypair(rng).unwrap();
+//
+//    let balance = 100;
+//    let r = Fr::random(rng);
+//    let cid = Fr::random(rng);
+//    let refund_message1 = libbolt::RefundMessage::new(String::from("refundUnsigned"), wpk, balance, Some(r), None);
+//    let rm1 = refund_message1.hash();
+//    println!("RefundMessage => {}", refund_message1.msgtype);
+//    for i in 0 .. rm1.len() {
+//        let p = format!("rm1[{}] = ", i);
+//        libbolt::debug_elem_in_hex(&p, &rm1[i]);
+//    }
+//
+//    let refund_message2 = libbolt::RefundMessage::new(String::from("refundToken"), wpk, balance+15, None, Some(signature));
+//    let rm2 = refund_message2.hash();
+//    println!("RefundMessage (token) => {}", refund_message2.msgtype);
+//    for i in 0 .. rm2.len() {
+//        let p = format!("rm2[{}] = ", i);
+//        libbolt::debug_elem_in_hex(&p, &rm2[i]);
+//    }
 
 
-        println!("******************************************");
-        let b = m_keypair.pk.Z2.len();
-        let mut bases: Vec<G2> = Vec::new();
-        bases.push(mpk.g2);
-        for i in 0 .. b {
-            bases.push(m_keypair.pk.Z2[i]);
-        }
 
-        // generate sample commitment
-        //let mut m: Vec<Fr> = Vec::new();
-        let mut C = mpk.g2 * m1[0];
-        for i in 0 .. b {
-            //println!("index: {}", i);
-            C = C + (m_keypair.pk.Z2[i] * m1[i+1]);
-        }
-        let msg = "Sample Commit output:";
-        libbolt::debug_g2_in_hex(msg, &C);
-
-        let cm_csp = commit_scheme::setup(b, m_keypair.pk.Z2.clone(), mpk.g2.clone());
-        let r = m1[0];
-        let w_com = commit_scheme::commit(&cm_csp, &m1, r);
-
-        assert!(commit_scheme::decommit(&cm_csp, &w_com, &m1));
-
-        //let msg = "Commmit Scheme output:";
-        //libbolt::debug_g2_in_hex(msg, &w_com.c);
-
-        //assert_eq!(C, w_com.c);
-        println!("Commitment scheme consistent!!");
-        let proof = clsigs::bs_gen_nizk_proof(&m1, &cm_csp.pub_bases, w_com.c);
-        // old -> let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
-
-        let int_sig = clsigs::bs_check_proof_and_gen_signature(&mpk, &m_keypair.sk, &proof);
-
-        println!("Generated signature interactively!");
-
-
-        let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
-
-        let int_sig = clsigs::bs_check_proof_and_gen_signature(&mpk, &m_keypair.sk, &proof);
-
-        println!("Generated signature interactively!");
-        // int_sig = interactively generated signature
-        assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &int_sig) == true);
-
-        println!("Verified interactively produced signature!");
-
-        let blind_sigs = clsigs::prover_generate_blinded_sig(&int_sig);
-        let common_params1 = clsigs::gen_common_params(&mpk, &m_keypair.pk, &int_sig);
-        println!("Verified blind signature directly!");
-
-        let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params1, common_params1.vs);
-        assert!(clsigs::vs_verify_blind_sig(&mpk, &m_keypair.pk, &proof_vs, &blind_sigs));
-
-        println!("Verified blind signature (via NIZK)!");
+//        println!("******************************************");
+//        let b = m_keypair.pk.Z2.len();
+//        let mut bases: Vec<G2> = Vec::new();
+//        bases.push(mpk.g2);
+//        for i in 0 .. b {
+//            bases.push(m_keypair.pk.Z2[i]);
+//        }
+//
+//        // generate sample commitment
+//        //let mut m: Vec<Fr> = Vec::new();
+//        let mut C = mpk.g2 * m1[0];
+//        for i in 0 .. b {
+//            //println!("index: {}", i);
+//            C = C + (m_keypair.pk.Z2[i] * m1[i+1]);
+//        }
+//        let msg = "Sample Commit output:";
+//        libbolt::debug_g2_in_hex(msg, &C);
+//
+//        let cm_csp = commit_scheme::setup(b, m_keypair.pk.Z2.clone(), mpk.g2.clone());
+//        let r = m1[0];
+//        let w_com = commit_scheme::commit(&cm_csp, &m1, r);
+//
+//        assert!(commit_scheme::decommit(&cm_csp, &w_com, &m1));
+//
+//        //let msg = "Commmit Scheme output:";
+//        //libbolt::debug_g2_in_hex(msg, &w_com.c);
+//
+//        //assert_eq!(C, w_com.c);
+//        println!("Commitment scheme consistent!!");
+//        let proof = clsigs::bs_gen_nizk_proof(&m1, &cm_csp.pub_bases, w_com.c);
+//        // old -> let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+//
+//        let int_sig = clsigs::bs_check_proof_and_gen_signature(&mpk, &m_keypair.sk, &proof);
+//
+//        println!("Generated signature interactively!");
+//
+//
+//        let proof = clsigs::bs_gen_nizk_proof(&m1, &bases, C);
+//
+//        let int_sig = clsigs::bs_check_proof_and_gen_signature(&mpk, &m_keypair.sk, &proof);
+//
+//        println!("Generated signature interactively!");
+//        // int_sig = interactively generated signature
+//        assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &int_sig) == true);
+//
+//        println!("Verified interactively produced signature!");
+//
+//        let blind_sigs = clsigs::prover_generate_blinded_sig(&int_sig);
+//        let common_params1 = clsigs::gen_common_params(&mpk, &m_keypair.pk, &int_sig);
+//        println!("Verified blind signature directly!");
+//
+//        let proof_vs = clsigs::vs_gen_nizk_proof(&m1, &common_params1, common_params1.vs);
+//        assert!(clsigs::vs_verify_blind_sig(&mpk, &m_keypair.pk, &proof_vs, &blind_sigs));
+//
+//        println!("Verified blind signature (via NIZK)!");
 
 
     println!("******************************************");
+// libbolt tests below
 
     println!("[1] libbolt - setup bidirecitonal scheme params");
     let pp = bidirectional::setup();

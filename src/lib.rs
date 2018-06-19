@@ -12,6 +12,7 @@ use std::result;
 use bn::{Group, Fr, G1, G2, Gt, pairing};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
+use sodiumoxide::init;
 use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 use std::collections::HashMap;
@@ -868,6 +869,7 @@ pub mod bidirectional {
     use commit_scheme;
     use clsigs;
     use Message;
+    use sodiumoxide;
     use sodiumoxide::randombytes;
     use secp256k1; // ::{Secp256k1, PublicKey, SecretKey};
     use RefundMessage;
@@ -979,6 +981,10 @@ pub mod bidirectional {
     pub struct RevokeToken {
         message: RevokedMessage,
         pub signature: secp256k1::Signature
+    }
+
+    pub fn init() {
+        sodiumoxide::init();
     }
 
     pub fn setup() -> PublicParams {

@@ -13,7 +13,7 @@ use concat_to_vector;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
-
+use sodiumoxide::randombytes;
 
 pub struct PublicParams {
     pub g1: G1,
@@ -267,37 +267,47 @@ pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
     }
 
     let sig = SignatureD { a: a, A: A, b: b, B: B, c: c };
-    // Ok(sig);
     return sig;
 }
 
-pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
+//pub fn random_small_exp(bits: usize) -> Fr {
+//    let buf_len = bits / 8;
+//    let mut s0 = vec![0; buf_len];
+//    randombytes::randombytes_into(&mut s0);
+//    return Fr::interpret(s0.as_slice());
+//    //debug_elem_in_hex("")
+//    //let mut buf: [u8; buf_len] = [0; buf_len];
+//    //randombytes::randombytes_into(&mut buf);
+//    //return Fr::from_str("1234567890").unwrap();
+//}
+
+pub fn verifyD_unoptimized(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
     //assert!(sig.A.len()+1 <= m.len());
     //assert!(sig.B.len()+1 <= m.len());
     let l = m.len();
     // lhs2a and rhs2a checks that sig.b was formed correctly
-    let lhs2a = pairing(pk.Y, sig.a);
+    let lhs2a = pairing(pk.Y, sig.a); // eq2a
     let rhs2a = pairing(mpk.g1, sig.b);
 
     let mut result1 = true;
     let mut result2b = true;
     // lhs3 and rhs3 checks that sig.c was formed correctly
-    let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]);
+    let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]); // eq3
     let rhs3 = pairing(mpk.g1, sig.c);
 
     for i in 0 .. l-1 {
         // checks that {sig.A}_i was formed correctly
-        let lhs1 = pairing(pk.Z[i], sig.a);
+        let lhs1 = pairing(pk.Z[i], sig.a); // eq1
         let rhs1 = pairing(mpk.g1, sig.A[i]);
         if (lhs1 != rhs1) {
             result1 = false;
         }
-        let lhs2b = pairing(pk.Y, sig.A[i]);
+        let lhs2b = pairing(pk.Y, sig.A[i]); // eq2b
         let rhs2b = pairing(mpk.g1, sig.B[i]);
         if lhs2b != rhs2b {
             result2b = false;
         }
-        lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i+1]);
+        lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i+1]); // eq3
     }
 
 //    let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]);
@@ -305,6 +315,27 @@ pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &Signature
 //        lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i]);
 //    }
     return (result1 == true) && (lhs2a == rhs2a) && (result2b == true) && (lhs3 == rhs3);
+}
+
+// optimized but does not include small exps for security
+pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
+    let l = m.len();
+    let mut Zis = G1::zero();
+    let mut Ais = G2::zero();
+    let mut Bis = G2::zero();
+    let mut _lhs3 = G2::zero();
+    for i in 0 .. l-1 {
+        // checks that {sig.A}_i was formed correctly
+        let Zis = Zis + pk.Z[i]; // TODO; add small exps
+        let Ais = Ais + sig.A[i];
+        let Bis = Bis + sig.B[i];
+        _lhs3 = _lhs3 + (sig.B[i] * m[i+1]);
+    }
+
+    return pairing(Zis, sig.a) *
+             pairing(pk.Y, Ais + sig.a).inverse() *
+              pairing(pk.X, sig.a + (sig.b * m[0]) + _lhs3).inverse() ==
+               pairing(mpk.g1, Ais + -Bis + -sig.b + -sig.c);
 }
 
 pub fn add_two(a: i32) -> i32 {
@@ -573,7 +604,6 @@ fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
     //debug_gt_in_hex(msg, &rhs);
     return lhs == rhs;
 }
-
 
 pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS, sig: &SignatureD) -> bool {
 
