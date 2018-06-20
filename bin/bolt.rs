@@ -468,7 +468,7 @@ fn main() {
 // libbolt tests below
 
     println!("[1] libbolt - setup bidirecitonal scheme params");
-    let pp = bidirectional::setup();
+    let pp = bidirectional::setup(false);
 
     // generate long-lived keypair for merchant -- used to identify
     // it to all customers
@@ -493,7 +493,7 @@ fn main() {
 
     println!("[5b] libbolt - initialize on the customer side with balance {}", b0_cust);
     let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keypair.pk);
-    let mut init_cust_data = bidirectional::init_customer(&pp, &channel, b0_cust, &cm_csp, &cust_keypair);
+    let mut init_cust_data = bidirectional::init_customer(&pp, &channel, b0_cust, b0_merch, &cm_csp, &cust_keypair);
 
     println!("[6a] libbolt - entering the establish protocol for the channel");
     let proof1 = bidirectional::establish_customer_phase1(&pp, &init_cust_data, &init_merch_data);

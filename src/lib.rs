@@ -901,7 +901,8 @@ pub mod bidirectional {
 
     pub struct PublicParams {
         cl_mpk: clsigs::PublicParams,
-        l: usize // messages for committment
+        l: usize, // messages for committment
+        extra_verify: bool // extra verification for certain points in the establish/pay protocol
     }
 
     pub struct ChannelToken {
@@ -917,6 +918,7 @@ pub mod bidirectional {
         wsk: secp256k1::SecretKey, // signature signing key
         r: Fr, // random coins for commitment scheme
         pub balance: i32, // the balance for the user
+        merchant_balance: i32,
         signature: Option<clsigs::SignatureD>,
         refund_token: Option<clsigs::SignatureD>
     }
@@ -987,12 +989,12 @@ pub mod bidirectional {
         sodiumoxide::init();
     }
 
-    pub fn setup() -> PublicParams {
+    pub fn setup(_extra_verify: bool) -> PublicParams {
         // TODO: provide option for generating CRS parameters
         let cl_mpk = clsigs::setupD();
         let l = 4;
         // let nizk = "nizk proof system";
-        let pp = PublicParams { cl_mpk: cl_mpk, l: l };
+        let pp = PublicParams { cl_mpk: cl_mpk, l: l, extra_verify: _extra_verify };
         return pp;
     }
 
@@ -1015,7 +1017,7 @@ pub mod bidirectional {
         return cm_csp;
     }
 
-    pub fn init_customer(pp: &PublicParams, channel: &ChannelState, b0_customer: i32,
+    pub fn init_customer(pp: &PublicParams, channel: &ChannelState, b0_customer: i32, b0_merchant: i32,
                          cm_csp: &commit_scheme::CSParams, keypair: &clsigs::KeyPairD) -> InitCustomerData {
         println!("Run Init customer...");
         let rng = &mut rand::thread_rng();
@@ -1040,8 +1042,8 @@ pub mod bidirectional {
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone() };
         let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
-                                    r: r, balance: b0_customer, signature: None,
-                                    refund_token: None };
+                                    r: r, balance: b0_customer, merchant_balance: b0_merchant,
+                                    signature: None, refund_token: None };
         return InitCustomerData { T: t_c, csk: csk_c, bases: cm_csp.pub_bases.clone() };
     }
 
@@ -1147,6 +1149,7 @@ pub mod bidirectional {
         if (updated_balance < 0) {
             panic!("pay_by_customer_phase1 - insufficient funds to make payment!");
         }
+        let merchant_balance = old_w.merchant_balance + balance_increment;
 
         let updated_balance_pr = Fr::from_str(updated_balance.to_string().as_str()).unwrap();
 
@@ -1197,8 +1200,8 @@ pub mod bidirectional {
         // create new wallet structure (w/o signature or refund token)
         let t_c = ChannelToken { w_com: w_com, pk: T.pk.clone() };
         let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
-                            r: r_pr, balance: updated_balance, signature: None,
-                            refund_token: None };
+                            r: r_pr, balance: updated_balance, merchant_balance: merchant_balance,
+                            signature: None, refund_token: None };
         return (t_c, csk_c, payment_proof);
     }
 
