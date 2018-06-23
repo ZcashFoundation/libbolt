@@ -381,11 +381,11 @@ pub fn hashGtToFr(x: &Gt) -> Fr {
 
 
 pub struct ProofCV {
-    T: G2,
+    pub T: G2,
     pub C: G2,
-    s: Vec<Fr>,
+    pub s: Vec<Fr>,
     pub num_secrets: usize,
-    pub_bases: Vec<G2>
+    pub pub_bases: Vec<G2>
 }
 
 // NIZK for PoK of the opening of a commitment M = g^m0 * Z1^m1 * ... * Zl^ml
@@ -607,7 +607,7 @@ fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
 
 pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS, sig: &SignatureD) -> bool {
 
-    let result = part1_verify_proof_vs(&proof);
+    let result0 = part1_verify_proof_vs(&proof);
     let mut result1 = true;
     let mut result3 = true;
 
@@ -634,7 +634,7 @@ pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS,
         }
     }
 
-    if !result {
+    if !result0 {
         println!("ERROR: Failed to verify proof");
     }
     if !result1 {
@@ -647,10 +647,5 @@ pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS,
         println!("ERROR: Failed to verify pairing eq 3");
     }
 
-    return result && result1 && result2 && result3;
-}
-
-pub fn vs_partial_commitment_open(old_com: G2, old_com_pr: G2, base: G2, wpk: Fr) -> bool {
-    let _old_com = old_com_pr + (base * wpk);
-    return _old_com == old_com;
+    return result0 && result1 && result2 && result3;
 }

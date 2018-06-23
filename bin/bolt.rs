@@ -480,11 +480,12 @@ fn main() {
     let cust_keypair = bidirectional::keygen(&pp);
 
     println!("[4] libbolt - generate the initial channel state");
-    let b0_cust = 50;
-    let b0_merch = 50;
     let mut channel = bidirectional::init_channel(String::from("A -> B"));
     let msg = "Open Channel ID: ";
     libbolt::debug_elem_in_hex(msg, &channel.cid);
+
+    let b0_cust = 50;
+    let b0_merch = 50;
 
     // each party executes the init algorithm on the agreed initial challence balance
     // in order to derive the channel tokens

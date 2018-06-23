@@ -1,6 +1,7 @@
-.PHONY: all bench test doc clean
+.PHONY: all bench test update doc clean
 
 all:
+	export RUST_BACKTRACE=1
 	cargo build
 	cargo run
 
