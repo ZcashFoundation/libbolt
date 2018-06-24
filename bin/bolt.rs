@@ -18,8 +18,8 @@ use libbolt::sym;
 use libbolt::ote;
 use libbolt::clsigs;
 use libbolt::commit_scheme;
-use time::PreciseTime;
 use libbolt::bidirectional;
+use time::PreciseTime;
 
 #[doc(hidden)]
 #[macro_export]
@@ -297,6 +297,29 @@ macro_rules! generate_nipk {
 }
 }
 
+macro_rules! measure {
+    ($x: expr) => {
+        {
+            let s = PreciseTime::now();
+            let res = $x;
+            let e = PreciseTime::now();
+            (res, s.to(e))
+        };
+    }
+}
+
+
+macro_rules! measure_ret_mut {
+    ($x: expr) => {
+        {
+            let s = PreciseTime::now();
+            let mut handle = $x;
+            let e = PreciseTime::now();
+            (handle, s.to(e))
+        };
+    }
+}
+
 fn main() {
     let rng = &mut rand::thread_rng();
 
@@ -341,6 +364,15 @@ fn main() {
 //
 //    assert!(m.m1 == orig_m.m1 && m.m2 == orig_m.m2);
 //    println!("OTE scheme works as expected!");
+//    let numbers = [1,2,3];
+//
+//    let (port, chan)  = Chan::new();
+//    chan.send(numbers);
+//
+//    do spawn {
+//        let numbers = port.recv();
+//        println!("Num: {:d}", numbers[0]);
+//    }
 
     // Test the CL sigs
     // CL sig tests
@@ -363,17 +395,24 @@ fn main() {
 
     let signature = clsigs::signD(&mpk, &m_keypair.sk, &m1);
     //println!("{}", signature);
-    let start1 = PreciseTime::now();
-    assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &signature) == true);
-    let end1 = PreciseTime::now();
-    assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m2, &signature) == false);
-    let end2 = PreciseTime::now();
-    assert!(clsigs::verifyD(&mpk, &c_keypair.pk, &m1, &signature) == false);
-    assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m3, &signature) == false);
 
-    println!("CL signatures verified!");
-    println!("{} seconds for verifying valid signatures.", start1.to(end1));
-    println!("{} seconds for verifying invalid signatures.", end1.to(end2));
+    println!("Checking CL sig verification...");
+
+    let (res1, verify1) = measure!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &signature));
+    assert!(res1 == true);
+    println!("{} seconds for verifying valid signatures.", verify1);
+
+    let (res2, verify2) = measure!(clsigs::verifyD(&mpk, &m_keypair.pk, &m2, &signature));
+    assert!(res2 == false);
+    println!("{} seconds for verifying invalid signatures.", verify2);
+
+    let (res3, verify3) = measure!(clsigs::verifyD(&mpk, &c_keypair.pk, &m1, &signature));
+    assert!(res3 == false);
+    println!("Invalid sig - verify time 3: {}", verify3);
+
+    let (res4, verify4) = measure!(clsigs::verifyD(&mpk, &m_keypair.pk, &m3, &signature));
+    assert!(res4 == false);
+    println!("Invalid sig - verify time 4: {}", verify4);
 
 //    let s1 = signature.hash("prefix type1");
 //    let s2 = signature.hash("prefix type2");
@@ -467,40 +506,47 @@ fn main() {
     println!("******************************************");
 // libbolt tests below
 
-    println!("[1] libbolt - setup bidirecitonal scheme params");
-    let pp = bidirectional::setup(false);
+    //println!("[1a] libbolt - setup bidirecitonal scheme params");
+    let (pp, setup_time1) = measure!(bidirectional::setup(false));
 
-    // generate long-lived keypair for merchant -- used to identify
-    // it to all customers
-    println!("[2] libbolt - generate long-lived key pair for merchant");
-    let merch_keypair = bidirectional::keygen(&pp);
-
-    // customer gnerates an ephemeral keypair for use on a single channel
-    println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
-    let cust_keypair = bidirectional::keygen(&pp);
-
-    println!("[4] libbolt - generate the initial channel state");
+    //println!("[1b] libbolt - generate the initial channel state");
     let mut channel = bidirectional::init_channel(String::from("A -> B"));
-    let msg = "Open Channel ID: ";
-    libbolt::debug_elem_in_hex(msg, &channel.cid);
+
+    println!("Setup time: {}", setup_time1);
+
+    //let msg = "Open Channel ID: ";
+    //libbolt::debug_elem_in_hex(msg, &channel.cid);
 
     let b0_cust = 50;
     let b0_merch = 50;
 
+    // generate long-lived keypair for merchant -- used to identify
+    // it to all customers
+    //println!("[2] libbolt - generate long-lived key pair for merchant");
+    let (merch_keypair, keygen_time1) = measure!(bidirectional::keygen(&pp));
+
+    // customer gnerates an ephemeral keypair for use on a single channel
+    println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
+    let (cust_keypair, keygen_time2) = measure!(bidirectional::keygen(&pp));
+
     // each party executes the init algorithm on the agreed initial challence balance
     // in order to derive the channel tokens
     println!("[5a] libbolt - initialize on the merchant side with balance {}", b0_merch);
-    let mut init_merch_data = bidirectional::init_merchant(&pp, b0_merch, &merch_keypair);
+    let (mut init_merch_data, initm_time) = measure_ret_mut!(bidirectional::init_merchant(&pp, b0_merch, &merch_keypair));
+    println!(">> TIME for init_merchant: {}", initm_time);
 
     println!("[5b] libbolt - initialize on the customer side with balance {}", b0_cust);
     let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keypair.pk);
-    let mut init_cust_data = bidirectional::init_customer(&pp, &channel, b0_cust, b0_merch, &cm_csp, &cust_keypair);
+    let (mut init_cust_data, initc_time) = measure_ret_mut!(bidirectional::init_customer(&pp, &channel, b0_cust, b0_merch, &cm_csp, &cust_keypair));
+    println!(">> TIME for init_customer: {}", initc_time);
 
     println!("[6a] libbolt - entering the establish protocol for the channel");
-    let proof1 = bidirectional::establish_customer_phase1(&pp, &init_cust_data, &init_merch_data);
+    let (proof1, est_cust_time1) = measure!(bidirectional::establish_customer_phase1(&pp, &init_cust_data, &init_merch_data));
+    println!(">> TIME for establish_customer_phase1: {}", est_cust_time1);
 
     println!("[6b] libbolt - obtain the wallet signature from the merchant");
-    let wallet_sig = bidirectional::establish_merchant_phase2(&pp, &mut channel, &init_merch_data, &proof1);
+    let (wallet_sig, est_merch_time2) = measure!(bidirectional::establish_merchant_phase2(&pp, &mut channel, &init_merch_data, &proof1));
+    println!(">> TIME for establish_merchant_phase2: {}", est_merch_time2);
 
     println!("[6c] libbolt - complete channel establishment");
     assert!(bidirectional::establish_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data.csk, wallet_sig));
@@ -513,19 +559,25 @@ fn main() {
     println!("******************************************");
     println!("Testing the pay protocol..");
     // let's test the pay protocol
+    let s = PreciseTime::now();
     let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
                                                                         &merch_keypair.pk, // merchant pub key
                                                                         &init_cust_data.csk, // wallet
                                                                         5); // balance increment
+    let e = PreciseTime::now();
+    println!(">> TIME for pay_by_customer_phase1: {}", s.to(e));
 
     // get the refund token (rt_w)
-    let rt_w = bidirectional::pay_by_merchant_phase1(&pp, &mut channel, &pay_proof, &init_merch_data);
+    let (rt_w, pay_merch_time1) = measure!(bidirectional::pay_by_merchant_phase1(&pp, &mut channel, &pay_proof, &init_merch_data));
+    println!(">> TIME for pay_by_merchant_phase1: {}", pay_merch_time1);
 
     // get the revocation token (rv_w) on the old public key (wpk)
-    let rv_w = bidirectional::pay_by_customer_phase2(&pp, &init_cust_data.csk, &new_wallet, &merch_keypair.pk, &rt_w);
+    let (rv_w, pay_cust_time2) = measure!(bidirectional::pay_by_customer_phase2(&pp, &init_cust_data.csk, &new_wallet, &merch_keypair.pk, &rt_w));
+    println!(">> TIME for pay_by_customer_phase2: {}", pay_cust_time2);
 
     // get the new wallet sig (new_wallet_sig) on the new wallet
-    let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof, &mut init_merch_data, &rv_w);
+    let (new_wallet_sig, pay_merch_time2) = measure!(bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof, &mut init_merch_data, &rv_w));
+    println!(">> TIME for pay_by_merchant_phase2: {}", pay_merch_time2);
 
     assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut init_cust_data, t_c, new_wallet, new_wallet_sig));
 

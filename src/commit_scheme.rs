@@ -159,7 +159,7 @@ pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> Commitment {
     let commitment = Commitment { c: c, r: r };
 
     // debugging
-    println!("{}", commitment);
+    //println!("{}", commitment);
     return commitment;
 }
 
@@ -176,40 +176,3 @@ pub fn decommit(csp: &CSParams, cm: &Commitment, x: &Vec<Fr>) -> bool {
     return dc == cm.c;
 }
 
-
-//pub fn setup() -> PublicParams {
-//    println!("Run Setup...");
-//    let rng = &mut rand::thread_rng();
-//    let g1 = G1::random(rng);
-//    let g2 = G1::random(rng);
-//    let g3 = G1::random(rng);
-//    let g4 = G1::random(rng);
-//    let h = G1::random(rng);
-//    let pp = PublicParams { g1: g1, g2: g2, g3: g3, h: h };
-//    //println!("{}", pp);
-//    return pp;
-//}
-//
-//pub fn commit(pp: &PublicParams, channelId: Fr, wpk: Fr, balance: Fr, R: Option<Fr>) -> Commitment {
-//    let rng = &mut rand::thread_rng();
-//
-//    let r = R.unwrap_or(Fr::random(rng));
-//
-//    let p = "commit -> cid";
-//    debug_elem_in_hex(p, &channelId);
-//    // c = g^m * h^r
-//    let c = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * r);
-//    // return (c, r) <- d=r
-//    let commitment = Commitment { c: c, d: r };
-//
-//    // debugging
-//    println!("{}", commitment);
-//    return commitment;
-//}
-//
-//pub fn decommit(pp: &PublicParams, cm: &Commitment, channelId: Fr, wpk: Fr, balance: Fr) -> bool {
-//    let p = "decommit -> cid";
-//    debug_elem_in_hex(p, &channelId);
-//    let dm = (pp.g1 * channelId) + (pp.g2 * wpk) + (pp.g3 * balance) + (pp.h * cm.d);
-//    return dm == cm.c;
-//}
