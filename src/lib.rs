@@ -1,3 +1,13 @@
+//! This crate is an experimental implementation of Blind Off-chain
+//! lightweight transactions (BOLT).
+//!
+//! It builds on academic work done by Ian Miers and Matthew Green -
+//! https://eprint.iacr.org/2016/701.
+//!
+//! Libbolt relies on BN curves at 128-bit security, as implemented in
+//! [`bn module`](https://github.com/zcash-hackworks/bn).
+//!
+
 extern crate bn;
 extern crate rand;
 extern crate bincode;
@@ -131,290 +141,6 @@ pub fn print(g: &G1) -> String {
     return c_s;
 }
 
-////////////////////////////////// ZK proof compiler ///////////////////////////////////
-
-//pub mod zkp {
-//
-//#[macro_export]
-//macro_rules! log {
-//    ($msg:expr) => {{
-//        let state: i32 = get_log_state();
-//        if state > 0 {
-//            println!("log({}): {}", state, $msg);
-//        }
-//    }};
-//}
-//
-//#[doc(hidden)]
-//#[macro_export]
-//macro_rules! __compute_formula_scalarlist {
-//    // Unbracket a statement
-//    (($publics:ident, $scalars:ident) ($($x:tt)*)) => {
-//        // Add a trailing +
-//        __compute_formula_scalarlist!(($publics,$scalars) $($x)* +)
-//    };
-//    // Inner part of the formula: give a list of &Scalars
-//    // Since there's a trailing +, we can just generate the list as normal...
-//    (($publics:ident, $scalars:ident)
-//     $( $point:ident * $scalar:ident +)+ ) => {
-//        &[ $( $scalars.$scalar ,)* ]
-//    };
-//}
-//
-//#[doc(hidden)]
-//#[macro_export]
-//macro_rules! __compute_formula_pointlist {
-//    // Unbracket a statement
-//    (($publics:ident, $scalars:ident) ($($x:tt)*)) => {
-//        // Add a trailing +
-//        __compute_formula_pointlist!(($publics,$scalars) $($x)* +)
-//    };
-//    // Inner part of the formula: give a list of &Scalars
-//    // Since there's a trailing +, we can just generate the list as normal...
-//    (($publics:ident, $scalars:ident)
-//     $( $point:ident * $scalar:ident +)* ) => {
-//        &[ $( *($publics.$point) ,)* ]
-//    };
-//}
-//
-//#[doc(hidden)]
-//#[macro_export]
-//macro_rules! __compute_commitments_consttime {
-//    (($publics:ident, $scalars:ident) $($lhs:ident = $statement:tt),+) => {
-//        Commitments {
-//            $( $lhs :
-//               multiscalar_mult(
-//                   __compute_formula_scalarlist!(($publics, $scalars) $statement),
-//                   __compute_formula_pointlist!(($publics, $scalars) $statement),
-//               )
-//            ),+
-//        }
-//    }
-//}
-//
-//#[doc(hidden)]
-//#[macro_export]
-//macro_rules! __recompute_commitments_vartime {
-//    (($publics:ident, $scalars:ident, $minus_c:ident) $($lhs:ident = $statement:tt),+) => {
-//        Commitments {
-//            $( $lhs :
-//               vartime::multiscalar_mult(
-//                   __compute_formula_scalarlist!(($publics, $scalars) $statement)
-//                       .into_iter()
-//                       .chain(iter::once(&($minus_c)))
-//                   ,
-//                   __compute_formula_pointlist!(($publics, $scalars) $statement)
-//                       .into_iter()
-//                       .chain(iter::once($publics.$lhs))
-//               )
-//            ),+
-//        }
-//    }
-//}
-//
-//#[macro_export]
-//macro_rules! create_nipk {
-//(
-//    $proof_module_name:ident // Name of the module to create
-//    ,
-//    ( $($secret:ident),+ ) // Secret variables, sep by commas
-//    ,
-//    ( $($public:ident),+ ) // Public variables, sep by commas
-//    :
-//    // List of statements to prove
-//    // Format: LHS = ( ... RHS expr ... ),
-//    $($lhs:ident = $statement:tt),+
-//) => {
-//    mod $proof_module_name {
-//        use $crate::{Group, Fr, G1}
-//        use $crate::sodiumoxide::crypto::hash;
-//        // use $crate::sha2::{Digest, Sha512};
-//        use $crate::rand::Rng;
-//
-//        use std::iter;
-//
-//        #[derive(Copy, Clone)]
-//        pub struct Secrets<'a> {
-//            // Create a parameter for each secret value
-//            $(
-//                pub $secret : &'a Fr,
-//            )+
-//        }
-//
-//        #[derive(Copy, Clone)]
-//        pub struct Publics<'a> {
-//            // Create a parameter for each public value
-//            $(
-//                pub $public : &'a G1,
-//            )+
-//        }
-//
-//        // Hack because we can't concat identifiers,
-//        // so do responses.x instead of responses_x
-//        // rand.x instead of rand_x, etc.
-//
-//        struct Commitments {$($lhs: G1,)+ }
-//        struct Randomnesses {$($secret : Scalar,)+}
-//        #[derive(Serialize, Deserialize)]
-//        struct Responses {$($secret : Scalar,)+}
-//
-//        #[derive(Serialize, Deserialize)]
-//        pub struct Proof {
-//            challenge: Fr,
-//            responses: Responses,
-//        }
-//
-//        impl Proof {
-//            /// Create a `Proof`, in constant time, from the given
-//            /// `Publics` and `Secrets`.
-//            #[allow(dead_code)]
-//            pub fn create<R: Rng>(
-//                rng: &mut R,
-//                publics: Publics,
-//                secrets: Secrets,
-//            ) -> Proof {
-//                let rand = Randomnesses{
-//                    $(
-//                        $secret : Fr::random(rng),
-//                    )+
-//                };
-//                // $statement_rhs = `X * x + Y * y + Z * z`
-//                // should become
-//                // `publics.X * rand.x + publics.Y * rand.y + publics.Z * rand.z`
-//                let commitments: Commitments;
-//                commitments = __compute_commitments_consttime!(
-//                    (publics, rand) $($lhs = $statement),*
-//                );
-//
-//                let mut hash_state = hash::State::new();
-//
-//                $(
-//                    hash_state.update(publics.$public.as_bytes());
-//                )+
-//                $(
-//                    hash_state.update(commitments.$lhs.as_bytes());
-//                )+
-//
-//                let digest = hash_state.finalize();
-//                let mut digest_buf: [u8; 64] = [0; 64];
-//                digest_buf.copy_from_slice(&digest[0..64]);
-//                let challenge = Fr::interpret(&digest_buf); // Scalar::from_hash(hash);
-//
-//                let responses = Responses{
-//                    $(
-//                        $secret : &(&challenge * secrets.$secret) + &rand.$secret,
-//                    )+
-//                };
-//
-//                Proof{ challenge: challenge, responses: responses }
-//            }
-//
-//            /// Verify the `Proof` using the public parameters `Publics`.
-//            #[allow(dead_code)]
-//            pub fn verify(&self, publics: Publics) -> Result<(),()> {
-//                // `A = X * x + Y * y`
-//                // should become
-//                // `publics.X * responses.x + publics.Y * responses.y - publics.A * self.challenge`
-//                let responses = &self.responses;
-//                let minus_c = -&self.challenge;
-//                let commitments = __recompute_commitments_vartime!(
-//                    (publics, responses, minus_c) $($lhs = $statement),*
-//                );
-//
-//                let mut hash_state = hash::State::new();
-//                // Add each public point into the hash
-//                $(
-//                    hash_state.update(publics.$public.as_bytes());
-//                )+
-//                // Add each (recomputed) commitment into the hash
-//                $(
-//                    hash_state.update(commitments.$lhs.as_bytes());
-//                )*
-//
-//                let digest = hash_state.finalize();
-//                let mut digest_buf: [u8; 64] = [0; 64];
-//                digest_buf.copy_from_slice(&digest[0..64]);
-//                // Recompute challenge
-//                let challenge = Fr::interpret(&digest_buf); // Scalar::from_hash(hash);
-//
-//                if challenge == self.challenge { Ok(()) } else { Err(()) }
-//            }
-//        }
-//
-//        #[cfg(test)]
-//        mod bench {
-//            extern crate test;
-//
-//            use $crate::rand;
-//
-//            use super::*;
-//
-//            use self::test::Bencher;
-//
-//            #[bench]
-//            #[allow(dead_code)]
-//            fn create(b: &mut Bencher) {
-//                let rng = &mut rand::thread_rng();
-//                //let mut rng = OsRng::new().unwrap();
-//
-//                // Need somewhere to actually put the public points
-//                struct DummyPublics { $( pub $public : G1, )+ }
-//                let dummy_publics = DummyPublics {
-//                    $( $public : G1::random(&mut rng) , )+
-//                };
-//
-//                let publics = Publics {
-//                    $( $public : &dummy_publics.$public , )+
-//                };
-//
-//                struct DummySecrets { $( pub $secret : Fr, )+ }
-//                let dummy_secrets = DummySecrets {
-//                    $( $secret : Fr::random(&mut rng) , )+
-//                };
-//
-//                let secrets = Secrets {
-//                    $( $secret : &dummy_secrets.$secret , )+
-//                };
-//
-//                b.iter(|| Proof::create(&mut rng, publics, secrets));
-//            }
-//
-//            #[bench]
-//            #[allow(dead_code)]
-//            fn verify(b: &mut Bencher) {
-//                let mut rng = OsRng::new().unwrap();
-//
-//                // Need somewhere to actually put the public points
-//                struct DummyPublics { $( pub $public : G1, )+ }
-//                let dummy_publics = DummyPublics {
-//                    $( $public : G1::random(&mut rng) , )+
-//                };
-//
-//                let publics = Publics {
-//                    $( $public : &dummy_publics.$public , )+
-//                };
-//
-//                struct DummySecrets { $( pub $secret : Fr, )+ }
-//                let dummy_secrets = DummySecrets {
-//                    $( $secret : Fr::random(&mut rng) , )+
-//                };
-//
-//                let secrets = Secrets {
-//                    $( $secret : &dummy_secrets.$secret , )+
-//                };
-//
-//                let p = Proof::create(&mut rng, publics, secrets);
-//
-//                b.iter(|| p.verify(publics));
-//            }
-//        }
-//    }
-//}
-//}
-//
-//}
-////////////////////////////////// ZK proof compiler ///////////////////////////////////
-
 ////////////////////////////////// SymKeyEnc ///////////////////////////////////
 /*
     Symmetric Key Encryption Scheme.
@@ -533,11 +259,6 @@ impl<'a> SpendMessage<'a> {
     }
 }
 
-// coin message
-
-
-////////////////////////////////// CL Sigs /////////////////////////////////////
-
 #[derive(Copy, Clone)]
 pub struct Message {
     sk: clsigs::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
@@ -553,32 +274,21 @@ impl Message {
         }
     }
 
-    pub fn hash(&self) -> Fr {
+    pub fn hash(&self) -> Vec<Fr> {
         let mut input_buf = self.sk.encode();
-        // TODO: add sk_sigs to encode it
-        let k1_vec: Vec<u8> = encode(&self.k1, Infinite).unwrap();
-        let k2_vec: Vec<u8> = encode(&self.k2, Infinite).unwrap();
-        // encode k1 in the vector
-        input_buf.extend(k1_vec);
-        // encode k2 in the vector
-        input_buf.extend(k2_vec);
-        // encoee the balance as a hex string
-        let b = format!("{:x}", self.balance);
-//        println!("Balance: {}", b);
-        input_buf.extend_from_slice(b.as_bytes());
-//        let mut in_str = String::new();
-//        for y in input_buf.iter() {
-//            in_str = format!("{}{:x}", in_str, y);
-//        }
-//        println!("input_buf: {}", in_str);
+        let mut v: Vec<Fr> = Vec::new();
 
-        // hash the inputs via SHA256
-        let sha2_digest = sha512::hash(input_buf.as_slice());
-        // println!("hash: {:?}", sha2_digest);
-        // let h = format!("{:x}", HexSlice::new(&sha2_digest));
-        let mut hash_buf: [u8; 64] = [0; 64];
-        hash_buf.copy_from_slice(&sha2_digest[0..64]);
-        return Fr::interpret(&hash_buf);
+        v.push(convertToFr(&input_buf));
+//        let k1_vec: Vec<u8> = encode(&self.k1, Infinite).unwrap();
+//        let k2_vec: Vec<u8> = encode(&self.k2, Infinite).unwrap();
+        // encode k1 in the vector
+        v.push(self.k1.clone());
+        v.push(self.k2.clone());
+        // convert the balance into a Fr
+        let bal = Fr::from_str(self.balance.to_string().as_str()).unwrap();
+        v.push(bal);
+
+        return v;
     }
 }
 
@@ -684,11 +394,11 @@ impl RefundMessage {
         v.push(convertToFr(&b_buf));
 
         //let r_vec: Vec<u8> = encode(&self.r, Infinite).unwrap();
-        if (!self.r.is_none()) {
+        if !self.r.is_none() {
             v.push(self.r.unwrap().clone());
         }
 
-        if (!self.rt.is_none()) {
+        if !self.rt.is_none() {
             let rt = {
                 &self.rt.clone()
             };
@@ -722,7 +432,7 @@ impl RevokedMessage {
 
         v.push(hashPubKeyToFr(&self.wpk));
 
-        if (!self.sig.is_none()) {
+        if !self.sig.is_none() {
             // TODO: make sure we can call hashBufferToFr with sig
             v.push(hashBufferToFr(&self.msgtype, &self.sig.unwrap()));
         }
@@ -743,100 +453,103 @@ impl RevokedMessage {
     }
 }
 
-////////////////////////////////// NIZKP //////////////////////////////////
+////////////////////////////////// Utilities //////////////////////////////////
 
-//pub mod unidirectional {
-//    use std::fmt;
-//    use rand;
-//    use bn::{Group, Fr};
-//    use sym;
-//    use commit_scheme;
-//    use clsigs;
-//    use Message;
-//    use sodiumoxide::randombytes;
-//
-//    pub struct PublicParams {
-//        cm_mpk: commit_scheme::PublicKey,
-//        cl_mpk: clsigs::PublicParams,
-//        l_bits: i32
-//        // TODO: add NIZK proof system pub params
-//    }
-//
-//    pub struct ChannelToken {
-//        w_com: commit_scheme::Commitment,
-//        pk: clsigs::PublicKey
-//    }
-//
-//    pub struct CustSecretKey {
-//        sk: clsigs::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
-//        k1: Fr, // seed 1 for PRF
-//        k2: Fr, // seed 2 for PRF
-//        r: Fr, // random coins for commitment scheme
-//        balance: i32, // the balance for the user
-//        ck_vec: Vec<sym::SymKey>
-//    }
-//
-//    pub struct MerchSecretKey {
-//        sk: clsigs::SecretKey,
-//        balance: i32
-//    }
-//
-//    pub struct InitCustomerData {
-//        T: ChannelToken,
-//        csk: CustSecretKey
-//    }
-//
-//    pub struct InitMerchantData {
-//        T: clsigs::PublicKey,
-//        csk: MerchSecretKey
-//    }
-//
-//    pub fn setup() -> PublicParams {
-//        // TODO: provide option for generating CRS parameters
-//        let cm_pk = commit_scheme::setup();
-//        let cl_mpk = clsigs::setup();
-//        let l = 256;
-//        // let nizk = "nizk proof system";
-//        let pp = PublicParams { cm_mpk: cm_pk, cl_mpk: cl_mpk, l_bits: l };
-//        return pp;
-//    }
-//
-//    pub fn keygen(pp: &PublicParams) -> clsigs::KeyPair {
-//        // TODO: figure out what we need from public params to generate keys
-//        println!("Run Keygen...");
-//        let keypair = clsigs::keygen(&pp.cl_mpk);
-//        return keypair;
-//    }
-//
-//    pub fn init_customer(pp: &PublicParams, b0_customer: i32, keypair: &clsigs::KeyPair) -> InitCustomerData {
-//        println!("Run Init customer...");
-//        sym::init();
-//        let rng = &mut rand::thread_rng();
-//        // pick two distinct seeds
-//        let l = 256;
-//        let k1 = Fr::random(rng);
-//        let k2 = Fr::random(rng);
-//        let r = Fr::random(rng);
-//        let msg = Message::new(keypair.sk, k1, k2, b0_customer).hash();
-//
-//        let mut ck_vec: Vec<sym::SymKey> = Vec::new();
-//        // generate the vector ck of sym keys
-//        for i in 1 .. b0_customer {
-//            let ck = sym::keygen(l);
-//            ck_vec.push(ck);
-//        }
-//        let w_com = commit_scheme::commit(&pp.cm_mpk, msg, Some(r));
-//        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
-//        let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
-//        return InitCustomerData { T: t_c, csk: csk_c };
-//    }
-//
-//    pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPair) -> InitMerchantData {
-//        println!("Run Init merchant...");
-//        let csk_m = MerchSecretKey { sk: keypair.sk, balance: b0_merchant };
-//        return InitMerchantData { T: keypair.pk, csk: csk_m };
-//    }
-//
+/////////////////////////////// Unidirectional ////////////////////////////////
+
+pub mod unidirectional {
+    use std::fmt;
+    use rand;
+    use bn::{Group, Fr};
+    use sym;
+    use commit_scheme;
+    use clsigs;
+    use Message;
+    use sodiumoxide::randombytes;
+
+    pub struct PublicParams {
+        cl_mpk: clsigs::PublicParams,
+        l: usize
+        // TODO: add NIZK proof system pub params
+    }
+
+    pub struct ChannelToken {
+        w_com: commit_scheme::Commitment,
+        pk: clsigs::PublicKey
+    }
+
+    pub struct CustSecretKey {
+        sk: clsigs::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
+        k1: Fr, // seed 1 for PRF
+        k2: Fr, // seed 2 for PRF
+        r: Fr, // random coins for commitment scheme
+        balance: i32, // the balance for the user
+        ck_vec: Vec<sym::SymKey>
+    }
+
+    pub struct MerchSecretKey {
+        sk: clsigs::SecretKey,
+        balance: i32
+    }
+
+    pub struct InitCustomerData {
+        T: ChannelToken,
+        csk: CustSecretKey
+    }
+
+    pub struct InitMerchantData {
+        T: clsigs::PublicKey,
+        csk: MerchSecretKey
+    }
+
+    pub fn setup() -> PublicParams {
+        let cl_mpk = clsigs::setupD();
+        let l = 4;
+        // let nizk = "nizk proof system";
+        let pp = PublicParams { cl_mpk: cl_mpk, l: l };
+        return pp;
+    }
+
+    pub fn keygen(pp: &PublicParams) -> clsigs::KeyPairD {
+        // TODO: figure out what we need from public params to generate keys
+        println!("Run Keygen...");
+        let keypair = clsigs::keygenD(&pp.cl_mpk, pp.l);
+        return keypair;
+    }
+
+    pub fn init_customer(pp: &PublicParams, cm_pk: commit_scheme::CSParams,
+                         b0_customer: i32, b0_merchant: i32,
+                         keypair: &clsigs::KeyPair) -> InitCustomerData {
+        println!("Run Init customer...");
+        sym::init();
+        let rng = &mut rand::thread_rng();
+        // pick two distinct seeds
+        let l = 256;
+        let k1 = Fr::random(rng);
+        let k2 = Fr::random(rng);
+        let r = Fr::random(rng);
+        let msg = Message::new(keypair.sk, k1, k2, b0_customer);
+
+        let mut ck_vec: Vec<sym::SymKey> = Vec::new();
+        // generate the vector ck of sym keys
+        for i in 1 .. b0_customer {
+            let ck = sym::keygen(l);
+            ck_vec.push(ck);
+        }
+
+        // TODO: get bidirectional setup
+        let w_com = commit_scheme::commit(&cm_pk, &msg.hash(), r);
+        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
+        let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
+        return InitCustomerData { T: t_c, csk: csk_c };
+    }
+
+    pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPair) -> InitMerchantData {
+        println!("Run Init merchant...");
+        let csk_m = MerchSecretKey { sk: keypair.sk, balance: b0_merchant };
+        return InitMerchantData { T: keypair.pk, csk: csk_m };
+    }
+
 //    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
 //        println ! ("Run establish_customer algorithm...");
 //        // set sk_0 to random bytes of length l
@@ -847,8 +560,11 @@ impl RevokedMessage {
 //
 //        let pi1 = create_nizk_proof_one(csk_c.sk, csk_c.k1, csk_c.k2, );
 //    }
-//}
+}
 
+/////////////////////////////// Unidirectional ////////////////////////////////
+
+/////////////////////////////// Bidirectional ////////////////////////////////
 pub mod bidirectional {
     use std::fmt;
     use rand;
@@ -859,7 +575,7 @@ pub mod bidirectional {
     use Message;
     use sodiumoxide;
     use sodiumoxide::randombytes;
-    use secp256k1; // ::{Secp256k1, PublicKey, SecretKey};
+    use secp256k1;
     use RefundMessage;
     use RevokedMessage;
     use HashMap;
@@ -1084,7 +800,7 @@ pub mod bidirectional {
     pub fn establish_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
                                     w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if w.signature.is_none() {
-            if (pp.extra_verify) {
+            if pp.extra_verify {
                 let mut x: Vec<Fr> = Vec::new();
                 x.push(w.r.clone());
                 x.push(w.cid.clone());
@@ -1135,7 +851,7 @@ pub mod bidirectional {
         let old_balance = Fr::from_str(bal.to_string().as_str()).unwrap();
         // convert balance into Fr (B - e)
         let updated_balance = bal - balance_increment;
-        if (updated_balance < 0) {
+        if updated_balance < 0 {
             panic!("pay_by_customer_phase1 - insufficient funds to make payment!");
         }
         // record the potential to payment
@@ -1235,7 +951,7 @@ pub mod bidirectional {
         // check that the proof of valid signature and then
         if proof_vs_old_wallet && !is_existing_wpk && is_within_range {
             println!("Proof of knowledge of signature is valid!");
-            if (proof.balance_inc < 0) {
+            if proof.balance_inc < 0 {
                 // negative increment
                 state.R = 1;
             } else {
@@ -1275,7 +991,7 @@ pub mod bidirectional {
 
         let is_rt_w_valid = clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &rt_w);
 
-        if (is_rt_w_valid) {
+        if is_rt_w_valid {
             println!("Refund token is valid against the new wallet!");
             let schnorr = secp256k1::Secp256k1::new();
             let rm = RevokedMessage::new(String::from("revoked"), old_w.wpk, None);
@@ -1314,7 +1030,7 @@ pub mod bidirectional {
                                      c_data: &mut InitCustomerData, mut new_t: ChannelToken,
                                      mut new_w: CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if new_w.signature.is_none() {
-            if (pp.extra_verify) {
+            if pp.extra_verify {
                 let mut x: Vec<Fr> = Vec::new();
                 x.push(new_w.r.clone());
                 x.push(new_w.cid.clone());
@@ -1361,18 +1077,18 @@ pub mod bidirectional {
     }
 
     fn exist_in_merchant_state(state: &ChannelState, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> bool {
-        if (state.keys.is_empty()) {
+        if state.keys.is_empty() {
             return false;
         }
 
         let fingerprint = computePubKeyFingerprint(wpk);
-        if (state.keys.contains_key(&fingerprint)) {
+        if state.keys.contains_key(&fingerprint) {
             let pub_key = state.keys.get(&fingerprint).unwrap();
             if pub_key.revoke_token.is_none() {
                 // let's just check the public key
                 return (pub_key.wpk == *wpk);
             }
-            if (!rev.is_none()) {
+            if !rev.is_none() {
                 return (pub_key.wpk == *wpk && pub_key.revoke_token.unwrap() == rev.unwrap());
             }
             return (pub_key.wpk == *wpk);
@@ -1430,7 +1146,7 @@ pub mod bidirectional {
                    rt_w: Option<clsigs::SignatureD>) -> (i32, i32) {
         println!("Run Resolve...");
         let total_balance = c.csk.balance + m.csk.balance;
-        if (rc_c.is_none() && rc_m.is_none()) {
+        if rc_c.is_none() && rc_m.is_none() {
             panic!("resolve - Did not specify channel closure messages for either customer or merchant!");
         }
 
