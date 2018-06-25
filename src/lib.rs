@@ -538,8 +538,6 @@ impl<'a> SpendMessage<'a> {
 
 ////////////////////////////////// CL Sigs /////////////////////////////////////
 
-////////////////////////////////// COMMITMENT //////////////////////////////////
-
 #[derive(Copy, Clone)]
 pub struct Message {
     sk: clsigs::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
@@ -584,9 +582,7 @@ impl Message {
     }
 }
 
-////////////////////////////////// COMMITMENT //////////////////////////////////
-
-////////////////////////////////// NIZKP //////////////////////////////////
+////////////////////////////////// Utilities //////////////////////////////////
 
 pub fn concat_to_vector(output: &mut Vec<u8>, t: &G2) {
     let t_vec: Vec<u8> = encode(t, Infinite).unwrap();
@@ -601,15 +597,8 @@ pub struct Proof {
     s2: Fr
 }
 
-//pub fn hash(g: &G1, h: &G1, X: &G1, Y: &G1, T: &Gt) -> Fr {
-//    let g_vec: Vec<u8> = encode(&g, Infinite).unwrap();
-//
-//    // TODO: fix this
-//    return Fr::from_str("1234567890").unwrap();
-//}
-
 pub fn hashG1ToFr(x: &G1) -> Fr {
-    // TODO: change to serde (instead of rustc_serialize)
+    // TODO: use serde (instead of rustc_serialize)
     let x_vec: Vec<u8> = encode(&x, Infinite).unwrap();
     let sha2_digest = sha512::hash(x_vec.as_slice());
 
@@ -848,7 +837,6 @@ impl RevokedMessage {
 //        return InitMerchantData { T: keypair.pk, csk: csk_m };
 //    }
 //
-//    // TODO: requires NIZK proof system
 //    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
 //        println ! ("Run establish_customer algorithm...");
 //        // set sk_0 to random bytes of length l

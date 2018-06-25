@@ -1,8 +1,8 @@
 #![feature(test)]
 // clsigs.rs
+
 use std::fmt;
 use std::str;
-//use std::default;
 use rand;
 use bn::{Group, Fr, G1, G2, Gt, pairing};
 use debug_elem_in_hex;

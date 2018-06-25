@@ -5,8 +5,8 @@ authors = ["J. Ayo Akinyele <ayo@yeletech.org>"]
 description = "library for Blind Off-chain Lightweight Transactions (BOLT)"
 keywords = ["zcash", "payment channels", "bolt"]
 readme = "README.md"
-homepage = "https://github.com/yeletech/libbolt"
-repository = "https://github.com/yeletech/libbolt"
+homepage = "https://github.com/ZcashFoundation/libbolt"
+repository = "https://github.com/ZcashFoundation/libbolt"
 license = "MIT License"
 
 [dependencies]
