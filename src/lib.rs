@@ -114,25 +114,6 @@ impl<'a> fmt::UpperHex for HexSlice<'a> {
         Ok(())
     }
 }
-// To hash this message structure, encode each element in the tuple
-// as a byte stream, then apply a hash on it. Then, convert the output value into
-// a Fr element.
-
-pub fn misc_tests() {
-    let rng = &mut rand::thread_rng();
-    let a = Fr::random(rng);
-    // println!("crs = {}", stringify!(a));
-    // let limit = bincode::SizeLimit::Bounded(256);
-    let encoded: Vec<u8> = encode(&a, Infinite).unwrap();
-    println!("a length = {}", encoded.len());
-    println!("a = {:?}", encoded);
-    print!("a (hex) = 0x");
-    for x in encoded.iter() {
-        print!("{:x}", x);
-    }
-    print!("\n");
-
-}
 
 pub fn print(g: &G1) -> String {
     let c_vec: Vec<u8> = encode(g, Infinite).unwrap();
@@ -143,65 +124,6 @@ pub fn print(g: &G1) -> String {
 
     return c_s;
 }
-
-////////////////////////////////// SymKeyEnc ///////////////////////////////////
-/*
-    Symmetric Key Encryption Scheme.
-*/
-//pub mod sym {
-//    use std::fmt;
-//    use sodiumoxide;
-//    use sodiumoxide::crypto::secretbox;
-//
-//    pub struct SymCT {
-//        nonce: secretbox::Nonce,
-//        ciphertext: Vec<u8>
-//    }
-//
-//
-//    impl fmt::Display for SymCT {
-//        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//            let mut y_s = String::new();
-//            for y in self.ciphertext.iter() {
-//                y_s = format!("{}{:x}", y_s, y);
-//            }
-//
-//            write!(f, "CT : (ct=0x{})", y_s)
-//        }
-//    }
-//
-//    #[derive(Clone)]
-//    pub struct SymKey {
-//        key: secretbox::Key,
-//        l: i32
-//    }
-//
-//    pub fn init() {
-//        sodiumoxide::init();
-//    }
-//
-//    pub fn keygen(l: i32) -> SymKey {
-//        // TODO: make sure key is a l-bit key
-//        return SymKey { key: secretbox::gen_key(), l: l };
-//    }
-//
-//    pub fn encrypt(key: &SymKey, plaintext: &String) -> SymCT {
-//        let nonce = secretbox::gen_nonce();
-//        let pt = plaintext.as_bytes();
-//        let ct = secretbox::seal(pt, &nonce, &key.key);
-//        return SymCT { nonce: nonce, ciphertext: ct };
-//    }
-//
-//    pub fn decrypt(key: &SymKey, ciphertext: &SymCT) -> String {
-//        let nonce = ciphertext.nonce;
-//        let pt = secretbox::open(&ciphertext.ciphertext, &nonce, &key.key).unwrap();
-//        // TODO: investigate better error handling here
-//        let plaintext = String::from_utf8(pt).expect("Found invalid UTF-8");
-//        return plaintext;
-//    }
-//}
-
-////////////////////////////////// SymKeyEnc ///////////////////////////////////
 
 // OLD RefundMessage
 //impl<'a> RefundMessage<'a> {
@@ -823,7 +745,6 @@ pub mod bidirectional {
                 x.push(w.cid.clone());
                 x.push(Fr::from_str(w.balance.to_string().as_str()).unwrap());
                 x.push(w.h_wpk.clone());
-                //x.push(hashPubKeyToFr(&w.wpk));
 
                 //println!("establish_customer_final - print secrets");
                 //print_secret_vector(&x);
