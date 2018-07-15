@@ -379,7 +379,7 @@ pub fn hashGtToFr(x: &Gt) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
-
+#[derive(Clone)]
 pub struct ProofCV {
     pub T: G2,
     pub C: G2,
@@ -503,6 +503,7 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
 }
 
 // TODO: generate proof for the
+#[derive(Clone)]
 pub struct CommonParams {
     vx: Gt,
     vxy: Gt,
@@ -510,6 +511,7 @@ pub struct CommonParams {
     pub vs: Gt
 }
 
+#[derive(Clone)]
 pub struct ProofVS {
     T: Gt,
     A: Gt,

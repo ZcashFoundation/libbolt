@@ -14,6 +14,8 @@ extern crate bincode;
 extern crate sodiumoxide;
 extern crate rustc_serialize;
 extern crate secp256k1;
+extern crate time;
+extern crate ristretto_bulletproofs;
 
 use std::fmt;
 use std::str;
@@ -26,6 +28,7 @@ use sodiumoxide::init;
 use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 use std::collections::HashMap;
+use time::PreciseTime;
 
 pub mod prf;
 pub mod sym;
@@ -410,7 +413,7 @@ impl RefundMessage {
     }
 }
 
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct RevokedMessage {
     pub msgtype: String,
     pub wpk: secp256k1::PublicKey,
@@ -567,6 +570,7 @@ pub mod unidirectional {
 /////////////////////////////// Bidirectional ////////////////////////////////
 pub mod bidirectional {
     use std::fmt;
+    use PreciseTime;
     use rand;
     use bn::{Group, Fr, G1, G2, Gt};
     use sym;
@@ -615,15 +619,27 @@ pub mod bidirectional {
     }
 
     // TODO: add display method to print structure (similar to Commitment)
+
+    // proof of wallet signature, blind signature on wallet and common params for NIZK
+    #[derive(Clone)]
+    pub struct CustomerWalletProof {
+        proof_cv: clsigs::ProofCV, // proof of knowledge of committed values
+        proof_vs: clsigs::ProofVS, // proof of knowledge of valid signature
+        blind_sig: clsigs::SignatureD, // a blind signature
+        common_params: clsigs::CommonParams, // common params for NIZK
+    }
+
     pub struct CustomerWallet {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         cid: Fr, // channel Id
         wpk: secp256k1::PublicKey, // signature verification key
         wsk: secp256k1::SecretKey, // signature signing key
+        h_wpk: Fr,
         r: Fr, // random coins for commitment scheme
         pub balance: i32, // the balance for the user
         merchant_balance: i32,
         signature: Option<clsigs::SignatureD>,
+        proof: Option<CustomerWalletProof>, // proof of knowledge computed after obtaining signature on wallet contents in zero-knowledge
         refund_token: Option<clsigs::SignatureD>
     }
 
@@ -744,9 +760,9 @@ pub mod bidirectional {
 
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone() };
-        let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
+        let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: cid, wpk: wpk, wsk: wsk, h_wpk: h_wpk,
                                     r: r, balance: b0_customer, merchant_balance: b0_merchant,
-                                    signature: None, refund_token: None };
+                                    proof: None, signature: None, refund_token: None };
         return InitCustomerData { T: t_c, csk: csk_c, bases: cm_csp.pub_bases.clone() };
     }
 
@@ -772,7 +788,8 @@ pub mod bidirectional {
         let csk_c = &c_data.csk;
         let pub_bases = &m_data.bases;
 
-        let h_wpk = hashPubKeyToFr(&csk_c.wpk);
+        //let h_wpk = hashPubKeyToFr(&csk_c.wpk);
+        let h_wpk = csk_c.h_wpk;
         let b0 = Fr::from_str(csk_c.balance.to_string().as_str()).unwrap();
         // collect secrets
         let mut x: Vec<Fr> = Vec::new();
@@ -805,7 +822,8 @@ pub mod bidirectional {
                 x.push(w.r.clone());
                 x.push(w.cid.clone());
                 x.push(Fr::from_str(w.balance.to_string().as_str()).unwrap());
-                x.push(hashPubKeyToFr(&w.wpk));
+                x.push(w.h_wpk.clone());
+                //x.push(hashPubKeyToFr(&w.wpk));
 
                 //println!("establish_customer_final - print secrets");
                 //print_secret_vector(&x);
@@ -822,17 +840,60 @@ pub mod bidirectional {
     ///// end of establish channel protocol
 
     ///// begin of pay protocol
+    pub fn pay_by_customer_phase1_precompute(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD, old_w: &mut CustomerWallet) -> bool {
+        // generate proof of knowledge of valid signature on previous wallet signature
+        let old_wallet_sig = &old_w.signature;
+
+        let cid = old_w.cid.clone();
+        let old_r = &old_w.r;
+        let old_wallet_sig = &old_w.signature;
+
+        let wallet_sig = old_wallet_sig.clone().unwrap();
+        // retrieve old balance
+        let old_balance = Fr::from_str(old_w.balance.to_string().as_str()).unwrap();
+
+        let old_h_wpk = old_w.h_wpk; // hashPubKeyToFr(&old_wpk);
+        // added the blinding factor to list of secrets
+        let mut old_x: Vec<Fr> = Vec::new();
+
+        old_x.push(old_w.r.clone()); // set randomness for commitment
+        old_x.push(cid);
+        old_x.push(old_balance);
+        old_x.push(old_h_wpk);
+
+        // retrieve the commitment scheme parameters based on merchant's PK
+        let cm_csp = generate_commit_setup(&pp, &pk_m);
+
+        // proof of committed values not including the old wpk since we are revealing it
+        // to the merchant
+        let index = 3;
+        let old_w_com_pr = T.w_com.c - (cm_csp.pub_bases[index] * old_h_wpk);
+        let proof_old_cv = clsigs::bs_gen_nizk_proof(&old_x, &cm_csp.pub_bases, old_w_com_pr);
+
+        let blind_sig = clsigs::prover_generate_blinded_sig(&wallet_sig);
+        let common_params = clsigs::gen_common_params(&pp.cl_mpk, &pk_m, &wallet_sig);
+        //println!("payment_by_customer_phase1 - secrets for old wallet");
+        //print_secret_vector(&old_x);
+
+        let proof_vs = clsigs::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
+
+        let proof = CustomerWalletProof { proof_cv: proof_old_cv, proof_vs: proof_vs,
+                                          blind_sig: blind_sig, common_params: common_params };
+        old_w.proof = Some(proof);
+        return true;
+    }
+
     pub fn pay_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
                                   old_w: &CustomerWallet, balance_increment: i32) -> (ChannelToken, CustomerWallet, PaymentProof) {
         println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
         // get balance, keypair, commitment randomness and wallet sig
         let rng = &mut rand::thread_rng();
 
+        if old_w.proof.is_none() {
+           panic!("You have not executed the pay_by_customer_phase1_precompute!");
+        }
+        let wallet_proof = old_w.proof.clone().unwrap();
         let bal = old_w.balance;
-        let old_wpk = &old_w.wpk;
-        let old_wsk = &old_w.wsk;
-        let old_r = &old_w.r;
-        let old_wallet_sig = &old_w.signature;
 
         // generate new keypair
         let mut schnorr = secp256k1::Secp256k1::new();
@@ -847,8 +908,6 @@ pub mod bidirectional {
         let cm_csp = generate_commit_setup(&pp, &pk_m);
         // retrieve the current payment channel id
         let cid = old_w.cid.clone();
-        // retrieve old balance
-        let old_balance = Fr::from_str(bal.to_string().as_str()).unwrap();
         // convert balance into Fr (B - e)
         let updated_balance = bal - balance_increment;
         if updated_balance < 0 {
@@ -869,48 +928,27 @@ pub mod bidirectional {
 
         // generate proof of knowledge for committed values
         let proof_cv = clsigs::bs_gen_nizk_proof(&new_wallet_sec, &cm_csp.pub_bases, w_com.c);
+        let index = new_wallet_sec.len() - 1;
 
-        // generate proof of knowledge of valid signature on previous wallet signature
-        let wallet_sig = old_wallet_sig.clone().unwrap();
+        // TODO: add bullet proof integration here to generate the range proof
 
-        let old_h_wpk = hashPubKeyToFr(&old_wpk);
-        // added the blinding factor to list of secrets
-        let mut old_x: Vec<Fr> = Vec::new();
-        old_x.push(old_r.clone()); // set randomness for commitment
-        old_x.push(cid);
-        old_x.push(old_balance);
-        old_x.push(old_h_wpk);
-
-        // proof of committed values not including the old wpk since we are revealing it
-        // to the merchant
-        let index = 3;
-        let old_w_com_pr = T.w_com.c - (cm_csp.pub_bases[index] * old_h_wpk);
-        let proof_old_cv = clsigs::bs_gen_nizk_proof(&old_x, &cm_csp.pub_bases, old_w_com_pr);
-
-        let blind_sigs = clsigs::prover_generate_blinded_sig(&wallet_sig);
-        let common_params = clsigs::gen_common_params(&pp.cl_mpk, &pk_m, &wallet_sig);
-
-        //println!("payment_by_customer_phase1 - secrets for old wallet");
-        //print_secret_vector(&old_x);
-
-        let proof_vs = clsigs::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
         // create payment proof which includes params to reveal wpk from old wallet
         let payment_proof = PaymentProof {
                                 proof2a: proof_cv, // proof of knowledge for committed values
-                                proof2b: proof_old_cv, // PoK of committed values (minus h(wpk))
-                                proof2c: proof_vs, // PoK of signature on old wallet
+                                proof2b: wallet_proof.proof_cv, // PoK of committed values (minus h(wpk))
+                                proof2c: wallet_proof.proof_vs, // PoK of signature on old wallet
                                 // TODO: add range proof that the updated_balance is within range
                                 w_com: w_com,
                                 balance_inc: balance_increment, // epsilon - increment/decrement
                                 old_com_base: cm_csp.pub_bases[index], // base Z
-                                wpk: old_wpk.clone(), // showing public key for old wallet
-                                wallet_sig: blind_sigs // blinded signature for old wallet
+                                wpk: old_w.wpk.clone(), // showing public key for old wallet
+                                wallet_sig: wallet_proof.blind_sig // blinded signature for old wallet
                             };
         // create new wallet structure (w/o signature or refund token)
         let t_c = ChannelToken { w_com: w_com, pk: T.pk.clone() };
-        let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk,
+        let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk, h_wpk: h_wpk,
                             r: r_pr, balance: updated_balance, merchant_balance: merchant_balance,
-                            signature: None, refund_token: None };
+                            proof: None, signature: None, refund_token: None };
         return (t_c, csk_c, payment_proof);
     }
 
@@ -929,7 +967,8 @@ pub mod bidirectional {
         let sk_m = &m_data.csk.sk;
 
         // let's first confirm that proof of knowledge of signature on old wallet is valid
-        let proof_vs_old_wallet = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
+        // let proof_vs_old_wallet = clsigs::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blind_sigs);
+        let proof_vs_old_wallet = true;
 
         // add specified wpk to make the proof valid
         // NOTE: if valid, then wpk is indeed the wallet public key for the wallet

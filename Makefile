@@ -2,23 +2,23 @@
 
 all:
 	export RUST_BACKTRACE=1
-	cargo build
-	cargo run
+	cargo +nightly build
+	cargo +nightly run
 
 bench:
-	cargo bench
+	cargo +nightly bench
 
 test:
 	# runs the unit test suite
-	cargo test
+	cargo +nightly test
 
 update:
 	# updates local git repos (for forked bn lib)
-	cargo update
+	cargo +nightly update
 
 doc:
 	# generates the documentation
-	cargo doc
+	cargo +nightly doc
 
 clean:
-	cargo clean
+	cargo +nightly clean

@@ -283,6 +283,7 @@ fn main() {
     println!("******************************************");
     println!("Testing the pay protocol..");
     // let's test the pay protocol
+    assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &init_cust_data.T, &merch_keypair.pk, &mut init_cust_data.csk));
     let s = PreciseTime::now();
     let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
                                                                         &merch_keypair.pk, // merchant pub key
@@ -313,6 +314,7 @@ fn main() {
         println!("Merchant balance: {}", merch_wallet.balance);
     }
 
+    assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &init_cust_data.T, &merch_keypair.pk, &mut init_cust_data.csk));
     let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
                                                                         &merch_keypair.pk, // merchant pub key
                                                                         &init_cust_data.csk, // wallet
