@@ -3,6 +3,7 @@
 */
 use std::fmt;
 use sodiumoxide;
+use sodiumoxide::init;
 use sodiumoxide::crypto::secretbox;
 
 pub struct SymCT {
@@ -28,7 +29,7 @@ pub struct SymKey {
     l: i32
 }
 
-pub fn init() {
+pub fn init_mod() {
     sodiumoxide::init();
 }
 

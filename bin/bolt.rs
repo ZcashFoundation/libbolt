@@ -1,5 +1,6 @@
 extern crate bn;
 extern crate rand;
+extern crate rand_core;
 extern crate libbolt;
 extern crate bincode;
 #[macro_use]
@@ -9,6 +10,8 @@ extern crate time;
 extern crate secp256k1;
 
 use std::fmt;
+use rand::{Rng, thread_rng};
+use rand_core::RngCore;
 use bn::{Group, Fr, G1, G2, pairing};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};

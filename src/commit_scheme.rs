@@ -1,7 +1,8 @@
 // commit_schemes.rs
 
 use std::fmt;
-use rand;
+//use rand::prelude::*;
+use rand::{thread_rng, Rng};
 use bn::{Group, Fr, G1, G2};
 use clsigs;
 use debug_elem_in_hex;
@@ -70,7 +71,7 @@ Implements the setup algorithm for the Pedersen92 commitment scheme
 */
 pub fn ped92_setup() -> PublicKey {
     println!("Run Setup...");
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let g = G2::random(rng);
     let h = G2::random(rng);
     let pk = PublicKey { g: g, h: h };
@@ -85,7 +86,7 @@ commit(pk, msg) -> cm where
 - cm is the output commitment message for the given message
 */
 pub fn ped92_commit(pk: &PublicKey, m: Fr, R: Option<Fr>) -> Commitment {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
 
     let r = R.unwrap_or(Fr::random(rng));
     //let r = Fr::random(rng);
@@ -125,7 +126,7 @@ a vector of messages.
 */
 
 pub fn setup(len: usize, pub_bases: Vec<G2>, h: G2) -> CSParams {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     //let base_h = h.unwrap_or(G2::random(rng));
     let mut p: Vec<G2> = Vec::new();
     p.push(h);
@@ -145,7 +146,7 @@ pub fn setup(len: usize, pub_bases: Vec<G2>, h: G2) -> CSParams {
 }
 
 pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> Commitment {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
 
     //let r = R.unwrap_or(Fr::random(rng));
     // c = g1^m1 * ... * gn^mn * h^r

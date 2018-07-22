@@ -3,7 +3,8 @@
 
 use std::fmt;
 use std::str;
-use rand;
+//use rand::prelude::*;
+use rand::{thread_rng, Rng};
 use bn::{Group, Fr, G1, G2, Gt, pairing};
 use debug_elem_in_hex;
 use debug_g1_in_hex;
@@ -101,7 +102,7 @@ impl fmt::Display for Signature {
 // scheme A - for a single message
 
 pub fn setupA() -> PublicParams {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let g1 = G1::random(rng);
     let g2 = G2::random(rng);
     let mpk = PublicParams { g1: g1, g2: g2 };
@@ -109,7 +110,7 @@ pub fn setupA() -> PublicParams {
 }
 
 pub fn keygenA(mpk : &PublicParams) -> KeyPair {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
     let sk = SecretKey { x: x, y: y };
@@ -120,7 +121,7 @@ pub fn keygenA(mpk : &PublicParams) -> KeyPair {
 }
 
 pub fn signA(sk: &SecretKey, m: Fr) -> Signature {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let a = G2::random(rng);
 
     let b = a * sk.y;
@@ -138,7 +139,7 @@ pub fn verifyA(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> bo
 }
 
 //pub fn gen_blind(sig: &Signature) -> Signature {
-//    let rng = &mut rand::thread_rng();
+//    let rng = &mut thread_rng();
 //    let r = Fr::random(rng);
 //    let r1 = Fr::random(rng);
 //    let a = sig.a * r;
@@ -210,7 +211,7 @@ impl SignatureD {
 }
 
 pub fn setupD() -> PublicParams {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let g1 = G1::random(rng);
     let g2 = G2::random(rng);
     let mpk = PublicParams { g1: g1, g2: g2 };
@@ -218,7 +219,7 @@ pub fn setupD() -> PublicParams {
 }
 
 pub fn keygenD(mpk : &PublicParams, l: usize) -> KeyPairD {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
     let X = mpk.g1 * x;
@@ -250,7 +251,7 @@ pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
     assert!(m.len() <= sk.z.len()+1);
     let l = m.len();
 
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     //let a = mpk.g2 * Fr::random(rng); // G2::random(rng);
     let a = G2::random(rng);
     let mut A: Vec<G2> = Vec::new();
@@ -390,7 +391,7 @@ pub struct ProofCV {
 
 // NIZK for PoK of the opening of a commitment M = g^m0 * Z1^m1 * ... * Zl^ml
 pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let l = x.len(); // number of secrets
     let mut t: Vec<Fr> = Vec::new();
     for i in 0 .. l {
@@ -456,7 +457,7 @@ pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
 
 // internal function
 pub fn bs_compute_blind_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2, num_secrets: usize) -> SignatureD {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let alpha = Fr::random(rng);
     let a = mpk.g2 * alpha;
     let mut A: Vec<G2> = Vec::new();
@@ -481,7 +482,7 @@ pub fn bs_compute_blind_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2, nu
 
 // Prover first randomizes the signature
 pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let r = Fr::random(rng);
     let rpr = Fr::random(rng);
 
@@ -539,7 +540,7 @@ pub fn gen_common_params(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) 
 }
 
 pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
-    let rng = &mut rand::thread_rng();
+    let rng = &mut thread_rng();
     let l = x.len() + 1;
     let mut t: Vec<Fr> = Vec::new();
     for i in 0 .. l {

@@ -7,28 +7,34 @@
 //! Libbolt relies on BN curves at 128-bit security, as implemented in
 //! [`bn module`](https://github.com/zcash-hackworks/bn).
 //!
+#![feature(extern_prelude)]
 
 extern crate bn;
 extern crate rand;
+extern crate rand_core;
 extern crate bincode;
 extern crate sodiumoxide;
 extern crate rustc_serialize;
 extern crate secp256k1;
 extern crate time;
-extern crate ristretto_bulletproofs;
+extern crate bulletproofs;
+extern crate curve25519_dalek;
 
 use std::fmt;
 use std::str;
-use std::default;
-use std::result;
-use bn::{Group, Fr, G1, G2, Gt, pairing};
+//use std::result;
+use bn::{Group, Fr, G1, G2, Gt};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
-use sodiumoxide::init;
 use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 use std::collections::HashMap;
 use time::PreciseTime;
+//use rand::{rngs::OsRng, Rng};
+use curve25519_dalek::scalar::Scalar;
+use bulletproofs::ProofTranscript;
+use bulletproofs::RangeProof;
+use bulletproofs::{Generators, PedersenGenerators};
 
 pub mod prf;
 pub mod sym;
@@ -384,7 +390,8 @@ impl RevokedMessage {
 
 pub mod unidirectional {
     use std::fmt;
-    use rand;
+    use rand::{Rng, thread_rng};
+    use rand_core::RngCore;
     use bn::{Group, Fr};
     use sym;
     use commit_scheme;
@@ -446,7 +453,7 @@ pub mod unidirectional {
                          b0_customer: i32, b0_merchant: i32,
                          keypair: &clsigs::KeyPair) -> InitCustomerData {
         println!("Run Init customer...");
-        sym::init();
+        sym::init_mod();
         let rng = &mut rand::thread_rng();
         // pick two distinct seeds
         let l = 256;
@@ -493,7 +500,13 @@ pub mod unidirectional {
 pub mod bidirectional {
     use std::fmt;
     use PreciseTime;
-    use rand;
+    //use rand::prelude::*;
+    //use rand::{rngs::OsRng, Rng};
+    //use rand::prelude::thread_rng;
+    //use rand::{Rng, thread_rng};
+    use rand::{rngs::OsRng, Rng};
+    use rand_core::RngCore;
+    //use rand::{thread_rng, Rng};
     use bn::{Group, Fr, G1, G2, Gt};
     use sym;
     use commit_scheme;
@@ -502,6 +515,7 @@ pub mod bidirectional {
     use sodiumoxide;
     use sodiumoxide::randombytes;
     use secp256k1;
+    use secp256k1::*;
     use RefundMessage;
     use RevokedMessage;
     use HashMap;
@@ -514,6 +528,12 @@ pub mod bidirectional {
     use computePubKeyFingerprint;
     use E_MIN;
     use E_MAX;
+    use bulletproofs;
+    use curve25519_dalek::scalar::Scalar;
+    use curve25519_dalek::ristretto::RistrettoPoint;
+    use bulletproofs::ProofTranscript;
+    use bulletproofs::RangeProof;
+    use bulletproofs::{Generators, PedersenGenerators};
 
     fn print_secret_vector(x: &Vec<Fr>) {
         for i in 0 .. x.len() {
@@ -532,6 +552,8 @@ pub mod bidirectional {
     pub struct PublicParams {
         cl_mpk: clsigs::PublicParams,
         l: usize, // messages for committment
+        range_proof_gens: bulletproofs::Generators,
+        range_proof_bits: usize,
         extra_verify: bool // extra verification for certain points in the establish/pay protocol
     }
 
@@ -609,11 +631,17 @@ pub mod bidirectional {
         signature: clsigs::SignatureD
     }
 
+    // proof of valid balance
+    pub struct ProofVB {
+        range_proof: bulletproofs::RangeProof,
+        value_commitment: RistrettoPoint
+    }
+
     pub struct PaymentProof {
         proof2a: clsigs::ProofCV, // PoK of committed values in new wallet
         proof2b: clsigs::ProofCV, // PoK of committed values in old wallet (minus wpk)
         proof2c: clsigs::ProofVS, // PoK of old wallet signature (that includes wpk)
-        // TODO: add proof2d: range proof that balance - balance_inc is between (0, val_max)
+        proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
         balance_inc: i32, // balance increment
         w_com: commit_scheme::Commitment, // commitment for new wallet
         old_com_base: G2,
@@ -635,7 +663,11 @@ pub mod bidirectional {
         let cl_mpk = clsigs::setupD();
         let l = 4;
         // let nizk = "nizk proof system";
-        let pp = PublicParams { cl_mpk: cl_mpk, l: l, extra_verify: _extra_verify };
+        let n = 32; // bitsize: 32-bit (0, 2^32-1)
+        let num_rand_values = 1;
+        let generators = Generators::new(PedersenGenerators::default(), n, num_rand_values);
+
+        let pp = PublicParams { cl_mpk: cl_mpk, l: l, range_proof_gens: generators, range_proof_bits: n, extra_verify: _extra_verify };
         return pp;
     }
 
@@ -665,7 +697,7 @@ pub mod bidirectional {
         // generate verification key and signing key (for wallet)
         let mut schnorr = secp256k1::Secp256k1::new();
         schnorr.randomize(rng);
-        let (wsk, wpk) = schnorr.generate_keypair(rng).unwrap();
+        let (wsk, wpk) = schnorr.generate_keypair(rng);
         let h_wpk = hashPubKeyToFr(&wpk);
         // convert balance into Fr
         let b0 = Fr::from_str(b0_customer.to_string().as_str()).unwrap();
@@ -808,7 +840,7 @@ pub mod bidirectional {
                                   old_w: &CustomerWallet, balance_increment: i32) -> (ChannelToken, CustomerWallet, PaymentProof) {
         println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
         // get balance, keypair, commitment randomness and wallet sig
-        let rng = &mut rand::thread_rng();
+        let mut rng = &mut rand::thread_rng();
 
         if old_w.proof.is_none() {
            panic!("You have not executed the pay_by_customer_phase1_precompute!");
@@ -819,12 +851,11 @@ pub mod bidirectional {
         // generate new keypair
         let mut schnorr = secp256k1::Secp256k1::new();
         schnorr.randomize(rng);
-        let (wsk, wpk) = schnorr.generate_keypair(rng).unwrap();
+        let (wsk, wpk) = schnorr.generate_keypair(rng);
         let h_wpk = hashPubKeyToFr(&wpk);
 
         // new sample randomness r'
         let r_pr = Fr::random(rng);
-
         // retrieve the commitment scheme parameters based on merchant's PK
         let cm_csp = generate_commit_setup(&pp, &pk_m);
         // retrieve the current payment channel id
@@ -851,14 +882,25 @@ pub mod bidirectional {
         let proof_cv = clsigs::bs_gen_nizk_proof(&new_wallet_sec, &cm_csp.pub_bases, w_com.c);
         let index = new_wallet_sec.len() - 1;
 
-        // TODO: add bullet proof integration here to generate the range proof
+        // bullet proof integration here to generate the range proof
+        let mut osrng = OsRng::new().unwrap();
+        let mut transcript = ProofTranscript::new(b"BOLT Range Proof");
+        let value = updated_balance as u64;
+        let val_blinding = Scalar::random(&mut osrng);
+        let range_proof = RangeProof::prove_single(&pp.range_proof_gens, &mut transcript,
+                                                   &mut osrng, value, &val_blinding,
+                                                   pp.range_proof_bits).unwrap();
+        let pg = &pp.range_proof_gens.pedersen_generators;
+        let value_cm = pg.commit(Scalar::from_u64(value), val_blinding);
+
+        let proof_rp = ProofVB { range_proof: range_proof, value_commitment: value_cm };
 
         // create payment proof which includes params to reveal wpk from old wallet
         let payment_proof = PaymentProof {
                                 proof2a: proof_cv, // proof of knowledge for committed values
                                 proof2b: wallet_proof.proof_cv, // PoK of committed values (minus h(wpk))
                                 proof2c: wallet_proof.proof_vs, // PoK of signature on old wallet
-                                // TODO: add range proof that the updated_balance is within range
+                                proof3: proof_rp, // range proof that the updated_balance is within a public range
                                 w_com: w_com,
                                 balance_inc: balance_increment, // epsilon - increment/decrement
                                 old_com_base: cm_csp.pub_bases[index], // base Z
@@ -905,11 +947,19 @@ pub mod bidirectional {
         }
 
         let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
-        let is_within_range = (proof.balance_inc >= E_MIN && proof.balance_inc <= E_MAX);
+        let is_within_range = proof.balance_inc >= E_MIN && proof.balance_inc <= E_MAX;
+        // check the range proof of the updated balance
+        let mut osrng = OsRng::new().unwrap();
+        let mut transcript = ProofTranscript::new(b"BOLT Range Proof");
+        let is_range_proof_valid = proof.proof3.range_proof.verify(&[proof.proof3.value_commitment],
+                                                                   &pp.range_proof_gens,
+                                                                   &mut transcript,
+                                                                   &mut osrng,
+                                                                   pp.range_proof_bits).is_ok();
 
         // if above is is_wpk_valid_reveal => true, then we can proceed to
         // check that the proof of valid signature and then
-        if proof_vs_old_wallet && !is_existing_wpk && is_within_range {
+        if proof_vs_old_wallet && !is_existing_wpk && is_within_range && is_range_proof_valid {
             println!("Proof of knowledge of signature is valid!");
             if proof.balance_inc < 0 {
                 // negative increment
@@ -959,7 +1009,7 @@ pub mod bidirectional {
             // msg = "revoked"|| old_wpk (for old wallet)
             let rv_w = schnorr.sign(&msg, &old_w.wsk);
             // return the revocation token
-            return RevokeToken { message: rm, signature: rv_w.unwrap() };
+            return RevokeToken { message: rm, signature: rv_w };
         }
         panic!("pay_by_customer_phase2 - Merchant did not provide a valid refund token!");
     }
@@ -1046,12 +1096,12 @@ pub mod bidirectional {
             let pub_key = state.keys.get(&fingerprint).unwrap();
             if pub_key.revoke_token.is_none() {
                 // let's just check the public key
-                return (pub_key.wpk == *wpk);
+                return pub_key.wpk == *wpk;
             }
             if !rev.is_none() {
-                return (pub_key.wpk == *wpk && pub_key.revoke_token.unwrap() == rev.unwrap());
+                return pub_key.wpk == *wpk && pub_key.revoke_token.unwrap() == rev.unwrap();
             }
-            return (pub_key.wpk == *wpk);
+            return pub_key.wpk == *wpk;
         }
 
         return false;
