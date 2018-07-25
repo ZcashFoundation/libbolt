@@ -213,7 +213,7 @@ impl Message {
         let mut input_buf = self.sk.encode();
         let mut v: Vec<Fr> = Vec::new();
 
-        v.push(convertToFr(&input_buf));
+        v.push(convert_to_fr(&input_buf));
 //        let k1_vec: Vec<u8> = encode(&self.k1, Infinite).unwrap();
 //        let k2_vec: Vec<u8> = encode(&self.k2, Infinite).unwrap();
         // encode k1 in the vector
@@ -242,7 +242,7 @@ pub struct Proof {
     s2: Fr
 }
 
-pub fn hashG1ToFr(x: &G1) -> Fr {
+pub fn hash_g1_to_fr(x: &G1) -> Fr {
     // TODO: use serde (instead of rustc_serialize)
     let x_vec: Vec<u8> = encode(&x, Infinite).unwrap();
     let sha2_digest = sha512::hash(x_vec.as_slice());
@@ -252,7 +252,7 @@ pub fn hashG1ToFr(x: &G1) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
-pub fn hashPubKeyToFr(wpk: &secp256k1::PublicKey) -> Fr {
+pub fn hash_pub_key_to_fr(wpk: &secp256k1::PublicKey) -> Fr {
     let x_slice = wpk.serialize_uncompressed();
     let sha2_digest = sha512::hash(&x_slice);
 
@@ -261,14 +261,14 @@ pub fn hashPubKeyToFr(wpk: &secp256k1::PublicKey) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
-pub fn computePubKeyFingerprint(wpk: &secp256k1::PublicKey) -> String {
+pub fn compute_pub_key_fingerprint(wpk: &secp256k1::PublicKey) -> String {
     let x_slice = wpk.serialize();
     let sha2_digest = sha512::hash(&x_slice);
     let h = format!("{:x}", HexSlice::new(&sha2_digest[0..16]));
     return h;
 }
 
-pub fn hashBufferToFr<'a>(prefix: &'a str, buf: &[u8; 64]) -> Fr {
+pub fn hash_buffer_to_fr<'a>(prefix: &'a str, buf: &[u8; 64]) -> Fr {
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(prefix.as_bytes());
     input_buf.extend_from_slice(buf);
@@ -280,7 +280,7 @@ pub fn hashBufferToFr<'a>(prefix: &'a str, buf: &[u8; 64]) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
-fn convertToFr(input_buf: &Vec<u8>) -> Fr {
+fn convert_to_fr(input_buf: &Vec<u8>) -> Fr {
     // hash the inputs via SHA256
     let sha2_digest = sha512::hash(input_buf.as_slice());
     // println!("hash: {:?}", sha2_digest);
@@ -290,10 +290,10 @@ fn convertToFr(input_buf: &Vec<u8>) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
-fn convertStrToFr<'a>(input: &'a str) -> Fr {
+fn convert_str_to_fr<'a>(input: &'a str) -> Fr {
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(input.as_bytes());
-    return convertToFr(&input_buf);
+    return convert_to_fr(&input_buf);
 }
 
 // refund message
@@ -318,15 +318,15 @@ impl RefundMessage {
         let mut v: Vec<Fr> = Vec::new();
         let mut input_buf = Vec::new();
         input_buf.extend_from_slice(self.msgtype.as_bytes());
-        v.push(convertToFr(&input_buf));
+        v.push(convert_to_fr(&input_buf));
 
-        v.push(hashPubKeyToFr(&self.wpk));
+        v.push(hash_pub_key_to_fr(&self.wpk));
 
         // encoee the balance as a hex string
         let b = format!("{:x}", self.balance);
         let mut b_buf = Vec::new();
         b_buf.extend_from_slice(b.as_bytes());
-        v.push(convertToFr(&b_buf));
+        v.push(convert_to_fr(&b_buf));
 
         //let r_vec: Vec<u8> = encode(&self.r, Infinite).unwrap();
         if !self.r.is_none() {
@@ -363,13 +363,13 @@ impl RevokedMessage {
         let mut v: Vec<Fr> = Vec::new();
         let mut input_buf = Vec::new();
         input_buf.extend_from_slice(self.msgtype.as_bytes());
-        v.push(convertToFr(&input_buf));
+        v.push(convert_to_fr(&input_buf));
 
-        v.push(hashPubKeyToFr(&self.wpk));
+        v.push(hash_pub_key_to_fr(&self.wpk));
 
         if !self.sig.is_none() {
-            // TODO: make sure we can call hashBufferToFr with sig
-            v.push(hashBufferToFr(&self.msgtype, &self.sig.unwrap()));
+            // TODO: make sure we can call hash_buffer_to_fr with sig
+            v.push(hash_buffer_to_fr(&self.msgtype, &self.sig.unwrap()));
         }
         return v;
     }
@@ -519,13 +519,13 @@ pub mod bidirectional {
     use RefundMessage;
     use RevokedMessage;
     use HashMap;
-    use hashPubKeyToFr;
-    use hashBufferToFr;
+    use hash_pub_key_to_fr;
+    use hash_buffer_to_fr;
     use debug_elem_in_hex;
     use debug_gt_in_hex;
-    use convertToFr;
-    use convertStrToFr;
-    use computePubKeyFingerprint;
+    use convert_to_fr;
+    use convert_str_to_fr;
+    use compute_pub_key_fingerprint;
     use E_MIN;
     use E_MAX;
     use bulletproofs;
@@ -621,12 +621,12 @@ pub mod bidirectional {
         pub channel_established: bool
     }
 
-    pub struct ChannelClosure_C {
+    pub struct ChannelclosureC {
         pub message: RefundMessage,
         signature: clsigs::SignatureD
     }
 
-    pub struct ChannelClosure_M {
+    pub struct ChannelclosureM {
         message: RevokedMessage,
         signature: clsigs::SignatureD
     }
@@ -697,7 +697,7 @@ pub mod bidirectional {
         let mut schnorr = secp256k1::Secp256k1::new();
         schnorr.randomize(rng);
         let (wsk, wpk) = schnorr.generate_keypair(rng);
-        let h_wpk = hashPubKeyToFr(&wpk);
+        let h_wpk = hash_pub_key_to_fr(&wpk);
         // convert balance into Fr
         let b0 = Fr::from_str(b0_customer.to_string().as_str()).unwrap();
         // randomness for commitment
@@ -739,7 +739,7 @@ pub mod bidirectional {
         let csk_c = &c_data.csk;
         let pub_bases = &m_data.bases;
 
-        //let h_wpk = hashPubKeyToFr(&csk_c.wpk);
+        //let h_wpk = hash_pub_key_to_fr(&csk_c.wpk);
         let h_wpk = csk_c.h_wpk;
         let b0 = Fr::from_str(csk_c.balance.to_string().as_str()).unwrap();
         // collect secrets
@@ -849,7 +849,7 @@ pub mod bidirectional {
         let mut schnorr = secp256k1::Secp256k1::new();
         schnorr.randomize(rng);
         let (wsk, wpk) = schnorr.generate_keypair(rng);
-        let h_wpk = hashPubKeyToFr(&wpk);
+        let h_wpk = hash_pub_key_to_fr(&wpk);
 
         // new sample randomness r'
         let r_pr = Fr::random(rng);
@@ -931,7 +931,7 @@ pub mod bidirectional {
 
         // add specified wpk to make the proof valid
         // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
-        let new_C = proof_old_cv.C + (proof.old_com_base * hashPubKeyToFr(&proof.wpk));
+        let new_C = proof_old_cv.C + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
         let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
                                          C: new_C,
                                          s: proof_old_cv.s.clone(),
@@ -972,7 +972,7 @@ pub mod bidirectional {
         if clproto::bs_verify_nizk_proof(&proof_cv) {
             // generate refund token on new wallet
             let i = pk_m.Z2.len()-1;
-            let c_refund = proof_cv.C + (pk_m.Z2[i] * convertStrToFr("refund"));
+            let c_refund = proof_cv.C + (pk_m.Z2[i] * convert_str_to_fr("refund"));
             // generating partially blind signature on refund || wpk' || B - e
             let rt_w = clproto::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, c_refund, proof_cv.num_secrets + 1); // proof_cv.C
             println!("pay_by_merchant_phase1 - Proof of knowledge of commitment on new wallet is valid");
@@ -992,8 +992,8 @@ pub mod bidirectional {
         x.push(new_w.r.clone());
         x.push(new_w.cid.clone());
         x.push(Fr::from_str(new_w.balance.to_string().as_str()).unwrap());
-        x.push(hashPubKeyToFr(&new_w.wpk));
-        x.push(convertStrToFr("refund"));
+        x.push(hash_pub_key_to_fr(&new_w.wpk));
+        x.push(convert_str_to_fr("refund"));
 
         let is_rt_w_valid = clsigs::verifyD(&pp.cl_mpk, &pk_m, &x, &rt_w);
 
@@ -1041,7 +1041,7 @@ pub mod bidirectional {
                 x.push(new_w.r.clone());
                 x.push(new_w.cid.clone());
                 x.push(Fr::from_str(new_w.balance.to_string().as_str()).unwrap());
-                x.push(hashPubKeyToFr(&new_w.wpk));
+                x.push(hash_pub_key_to_fr(&new_w.wpk));
 
                 //println!("payment_by_customer_final - print secrets");
                 //print_secret_vector(&x);
@@ -1064,7 +1064,7 @@ pub mod bidirectional {
 
     // for customer => on input a wallet w, it outputs a customer channel closure message rc_c
     pub fn customer_refund(pp: &PublicParams, state: &ChannelState, pk_m: &clsigs::PublicKeyD,
-                           w: &CustomerWallet) -> ChannelClosure_C {
+                           w: &CustomerWallet) -> ChannelclosureC {
         let m;
         let balance = w.balance as usize;
         if !state.pay_init {
@@ -1078,7 +1078,7 @@ pub mod bidirectional {
         // generate signature on the balance/channel id, etc to obtain funds back
         let m_vec = m.hash();
         let sigma = clsigs::signD(&pp.cl_mpk, &w.sk, &m_vec);
-        return ChannelClosure_C { message: m, signature: sigma };
+        return ChannelclosureC { message: m, signature: sigma };
     }
 
     fn exist_in_merchant_state(state: &ChannelState, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> bool {
@@ -1086,7 +1086,7 @@ pub mod bidirectional {
             return false;
         }
 
-        let fingerprint = computePubKeyFingerprint(wpk);
+        let fingerprint = compute_pub_key_fingerprint(wpk);
         if state.keys.contains_key(&fingerprint) {
             let pub_key = state.keys.get(&fingerprint).unwrap();
             if pub_key.revoke_token.is_none() {
@@ -1103,7 +1103,7 @@ pub mod bidirectional {
     }
 
     fn update_merchant_state(state: &mut ChannelState, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> bool {
-        let fingerprint = computePubKeyFingerprint(wpk);
+        let fingerprint = compute_pub_key_fingerprint(wpk);
         //println!("Print fingerprint: {}", fingerprint);
         if !rev.is_none() {
             let cust_pub_key = PubKeyMap { wpk: wpk.clone(), revoke_token: Some(rev.unwrap().clone()) };
@@ -1118,7 +1118,7 @@ pub mod bidirectional {
     // for merchant => on input the merchant's current state S_old and a customer channel closure message,
     // outputs a merchant channel closure message rc_m and updated merchant state S_new
     pub fn merchant_refute(pp: &PublicParams, T_c: &ChannelToken, m_data: &InitMerchantData,
-                  state: &mut ChannelState, rc_c: &ChannelClosure_C, rv_token: &secp256k1::Signature)  -> Option<ChannelClosure_M> {
+                  state: &mut ChannelState, rc_c: &ChannelclosureC, rv_token: &secp256k1::Signature)  -> Option<ChannelclosureM> {
         let is_valid = clsigs::verifyD(&pp.cl_mpk, &T_c.pk, &rc_c.message.hash(), &rc_c.signature);
         if is_valid {
             let wpk = rc_c.message.wpk;
@@ -1129,7 +1129,7 @@ pub mod bidirectional {
                 let rm = RevokedMessage::new(String::from("revoked"), wpk, Some(ser_rv_token));
                 // sign the revoked message
                 let signature = clsigs::signD(&pp.cl_mpk, &m_data.csk.sk, &rm.hash());
-                return Some(ChannelClosure_M { message: rm, signature: signature });
+                return Some(ChannelclosureM { message: rm, signature: signature });
             } else {
                 // update state to include the user's wallet key
                 assert!(update_merchant_state(state, &wpk, Some(*rv_token)));
@@ -1145,7 +1145,7 @@ pub mod bidirectional {
     // this will be executed by the network --> using new opcodes (makes sure
     // only one person is right)
     pub fn resolve(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData, // cust and merch
-                   rc_c: Option<ChannelClosure_C>, rc_m: Option<ChannelClosure_M>,
+                   rc_c: Option<ChannelclosureC>, rc_m: Option<ChannelclosureM>,
                    rt_w: Option<clsigs::SignatureD>) -> (i32, i32) {
         let total_balance = c.csk.balance + m.csk.balance;
         if rc_c.is_none() && rc_m.is_none() {
@@ -1178,7 +1178,7 @@ pub mod bidirectional {
             // assert the validity of the w_com
             let cm_csp = generate_commit_setup(&pp, &pk_m);
 
-            let h_wpk = hashPubKeyToFr(&c.csk.wpk);
+            let h_wpk = hash_pub_key_to_fr(&c.csk.wpk);
             // convert balance into Fr
             let balance = Fr::from_str(c.csk.balance.to_string().as_str()).unwrap();
 

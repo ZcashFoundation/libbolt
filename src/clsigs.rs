@@ -1,4 +1,3 @@
-#![feature(test)]
 // clsigs.rs
 
 use std::fmt;
@@ -328,7 +327,7 @@ pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &Signature
 }
 
 // NIZK protocol for proving knowledge of a signature
-pub fn hashG2ToFr(x: &G2) -> Fr {
+pub fn hash_g2_to_fr(x: &G2) -> Fr {
     // TODO: change to serde (instead of rustc_serialize)
     let x_vec: Vec<u8> = encode(&x, Infinite).unwrap();
     let sha2_digest = sha512::hash(x_vec.as_slice());
@@ -338,7 +337,7 @@ pub fn hashG2ToFr(x: &G2) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
-pub fn hashGtToFr(x: &Gt) -> Fr {
+pub fn hash_gt_to_fr(x: &Gt) -> Fr {
     // TODO: change to serde (instead of rustc_serialize)
     let x_vec: Vec<u8> = encode(&x, Infinite).unwrap();
     let sha2_digest = sha512::hash(x_vec.as_slice());
@@ -354,7 +353,7 @@ mod tests {
     use bn::{Fr, Group};
 
     #[test]
-    fn schemeA_sign_and_verify_works() {
+    fn scheme_a_sign_and_verify_works() {
         // test ability to sign/verify a single message
         let rng = &mut thread_rng();
 
@@ -372,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn schemeD_sign_and_verify_works() {
+    fn scheme_d_sign_and_verify_works() {
         // test ability to sign/verify a vector of messages
         let rng = &mut thread_rng();
 

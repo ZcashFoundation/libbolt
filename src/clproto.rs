@@ -1,4 +1,3 @@
-#![feature(test)]
 // clproto.rs
 
 use std::fmt;
@@ -14,7 +13,7 @@ use debug_gt_in_hex;
 use concat_to_vector;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
-use clsigs::{PublicParams, SignatureD, PublicKeyD, SecretKeyD, hashG2ToFr, hashGtToFr};
+use clsigs::{PublicParams, SignatureD, PublicKeyD, SecretKeyD, hash_g2_to_fr, hash_gt_to_fr};
 
 #[derive(Clone)]
 pub struct ProofCV {
@@ -41,7 +40,7 @@ pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
     }
 
     // hash T to get the challenge
-    let c = hashG2ToFr(&T);
+    let c = hash_g2_to_fr(&T);
     // debug
     //let msg = "challenge -> c";
     //debug_elem_in_hex(msg, &c);
@@ -67,7 +66,7 @@ pub fn bs_check_proof_and_gen_signature(mpk: &PublicParams, sk: &SecretKeyD, pro
 
 pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
     // if proof is valid, then call part
-    let c = hashG2ToFr(&proof.T);
+    let c = hash_g2_to_fr(&proof.T);
     // debug
     //let mut msg = "(in verify proof) challenge -> c";
     //debug_elem_in_hex(msg, &c);
@@ -199,7 +198,7 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
     }
 
     // hash T to get the challenge
-    let c = hashGtToFr(&T);
+    let c = hash_gt_to_fr(&T);
     // debug
     //let msg = "(gen nizk proof) challenge -> c";
     //debug_elem_in_hex(msg, &c);
@@ -219,7 +218,7 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
 
 fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
     // if proof is valid, then call part
-    let c = hashGtToFr(&proof.T);
+    let c = hash_gt_to_fr(&proof.T);
     // debug
     //let mut msg = "(in verify proof) challenge -> c";
     //debug_elem_in_hex(msg, &c);

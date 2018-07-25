@@ -3,24 +3,22 @@ extern crate rand;
 extern crate rand_core;
 extern crate libbolt;
 extern crate bincode;
-#[macro_use]
 extern crate serde_derive;
 extern crate serde;
 extern crate time;
 extern crate secp256k1;
 
-use std::fmt;
 use rand::{Rng, thread_rng};
 use rand_core::RngCore;
-use bn::{Group, Fr, G1, G2, pairing};
+use bn::{Group, Fr};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 
-use libbolt::prf;
-use libbolt::sym;
-use libbolt::ote;
+//use libbolt::prf;
+//use libbolt::sym;
+//use libbolt::ote;
+//use libbolt::commit_scheme;
 use libbolt::clsigs;
-use libbolt::commit_scheme;
 use libbolt::bidirectional;
 use time::PreciseTime;
 
@@ -63,7 +61,7 @@ fn main() {
     let mut m2 : Vec<Fr> = Vec::new();
     let mut m3 : Vec<Fr> = Vec::new();
 
-    for i in 0 .. l+1 {
+    for _i in 0 .. l+1 {
         m1.push(Fr::random(rng));
         m2.push(Fr::random(rng));
         m3.push(Fr::random(rng));
