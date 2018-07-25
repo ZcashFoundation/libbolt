@@ -44,6 +44,7 @@ pub mod sym;
 pub mod ote;
 pub mod clsigs;
 pub mod commit_scheme;
+pub mod clproto;
 
 const E_MIN: i32 = 1;
 const E_MAX: i32 = 255;
@@ -503,17 +504,13 @@ pub mod unidirectional {
 pub mod bidirectional {
     use std::fmt;
     use PreciseTime;
-    //use rand::prelude::*;
-    //use rand::{rngs::OsRng, Rng};
-    //use rand::prelude::thread_rng;
-    //use rand::{Rng, thread_rng};
     use rand::{rngs::OsRng, Rng};
     use rand_core::RngCore;
-    //use rand::{thread_rng, Rng};
     use bn::{Group, Fr, G1, G2, Gt};
     use sym;
     use commit_scheme;
     use clsigs;
+    use clproto;
     use Message;
     use sodiumoxide;
     use sodiumoxide::randombytes;
@@ -570,10 +567,10 @@ pub mod bidirectional {
     // proof of wallet signature, blind signature on wallet and common params for NIZK
     #[derive(Clone)]
     pub struct CustomerWalletProof {
-        proof_cv: clsigs::ProofCV, // proof of knowledge of committed values
-        proof_vs: clsigs::ProofVS, // proof of knowledge of valid signature
+        proof_cv: clproto::ProofCV, // proof of knowledge of committed values
+        proof_vs: clproto::ProofVS, // proof of knowledge of valid signature
         blind_sig: clsigs::SignatureD, // a blind signature
-        common_params: clsigs::CommonParams, // common params for NIZK
+        common_params: clproto::CommonParams, // common params for NIZK
     }
 
     pub struct CustomerWallet {
@@ -641,9 +638,9 @@ pub mod bidirectional {
     }
 
     pub struct PaymentProof {
-        proof2a: clsigs::ProofCV, // PoK of committed values in new wallet
-        proof2b: clsigs::ProofCV, // PoK of committed values in old wallet (minus wpk)
-        proof2c: clsigs::ProofVS, // PoK of old wallet signature (that includes wpk)
+        proof2a: clproto::ProofCV, // PoK of committed values in new wallet
+        proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
+        proof2c: clproto::ProofVS, // PoK of old wallet signature (that includes wpk)
         proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
         balance_inc: i32, // balance increment
         w_com: commit_scheme::Commitment, // commitment for new wallet
@@ -736,7 +733,7 @@ pub mod bidirectional {
 
     //// begin of establish channel protocol
     pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData,
-                                     m_data: &InitMerchantData) -> clsigs::ProofCV {
+                                     m_data: &InitMerchantData) -> clproto::ProofCV {
         // obtain customer init data
         let t_c = &c_data.T;
         let csk_c = &c_data.csk;
@@ -755,15 +752,15 @@ pub mod bidirectional {
         //print_secret_vector(&x);
 
         // generate proof of knowledge for committed values
-        let proof_1 = clsigs::bs_gen_nizk_proof(&x, &pub_bases, t_c.w_com.c);
+        let proof_1 = clproto::bs_gen_nizk_proof(&x, &pub_bases, t_c.w_com.c);
         return proof_1;
     }
 
     // the merchant calls this method after obtaining proof from the customer
     pub fn establish_merchant_phase2(pp: &PublicParams, state: &mut ChannelState, m_data: &InitMerchantData,
-                                     proof: &clsigs::ProofCV) -> clsigs::SignatureD {
+                                     proof: &clproto::ProofCV) -> clsigs::SignatureD {
         // verifies proof and produces
-        let wallet_sig = clsigs::bs_check_proof_and_gen_signature(&pp.cl_mpk, &m_data.csk.sk, &proof);
+        let wallet_sig = clproto::bs_check_proof_and_gen_signature(&pp.cl_mpk, &m_data.csk.sk, &proof);
         state.channel_established = true;
         return wallet_sig;
     }
@@ -821,14 +818,14 @@ pub mod bidirectional {
         // to the merchant
         let index = 3;
         let old_w_com_pr = T.w_com.c - (cm_csp.pub_bases[index] * old_h_wpk);
-        let proof_old_cv = clsigs::bs_gen_nizk_proof(&old_x, &cm_csp.pub_bases, old_w_com_pr);
+        let proof_old_cv = clproto::bs_gen_nizk_proof(&old_x, &cm_csp.pub_bases, old_w_com_pr);
 
-        let blind_sig = clsigs::prover_generate_blinded_sig(&wallet_sig);
-        let common_params = clsigs::gen_common_params(&pp.cl_mpk, &pk_m, &wallet_sig);
+        let blind_sig = clproto::prover_generate_blinded_sig(&wallet_sig);
+        let common_params = clproto::gen_common_params(&pp.cl_mpk, &pk_m, &wallet_sig);
         //println!("payment_by_customer_phase1 - secrets for old wallet");
         //print_secret_vector(&old_x);
 
-        let proof_vs = clsigs::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
+        let proof_vs = clproto::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
 
         let proof = CustomerWalletProof { proof_cv: proof_old_cv, proof_vs: proof_vs,
                                           blind_sig: blind_sig, common_params: common_params };
@@ -879,7 +876,7 @@ pub mod bidirectional {
         let w_com = commit_scheme::commit(&cm_csp, &new_wallet_sec, r_pr);
 
         // generate proof of knowledge for committed values
-        let proof_cv = clsigs::bs_gen_nizk_proof(&new_wallet_sec, &cm_csp.pub_bases, w_com.c);
+        let proof_cv = clproto::bs_gen_nizk_proof(&new_wallet_sec, &cm_csp.pub_bases, w_com.c);
         let index = new_wallet_sec.len() - 1;
 
         // bullet proof integration here to generate the range proof
@@ -935,12 +932,12 @@ pub mod bidirectional {
         // add specified wpk to make the proof valid
         // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
         let new_C = proof_old_cv.C + (proof.old_com_base * hashPubKeyToFr(&proof.wpk));
-        let new_proof_old_cv = clsigs::ProofCV { T: proof_old_cv.T,
+        let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
                                          C: new_C,
                                          s: proof_old_cv.s.clone(),
                                          pub_bases: proof_old_cv.pub_bases.clone(),
                                          num_secrets: proof_old_cv.num_secrets };
-        let is_wpk_valid_reveal = clsigs::bs_verify_nizk_proof(&new_proof_old_cv);
+        let is_wpk_valid_reveal = clproto::bs_verify_nizk_proof(&new_proof_old_cv);
         if !is_wpk_valid_reveal {
             panic!("pay_by_merchant_phase1 - nizk PoK of committed values that reveals wpk!");
         }
@@ -972,12 +969,12 @@ pub mod bidirectional {
         }
 
         // now we can verify the proof of knowledge for committed values in new wallet
-        if clsigs::bs_verify_nizk_proof(&proof_cv) {
+        if clproto::bs_verify_nizk_proof(&proof_cv) {
             // generate refund token on new wallet
             let i = pk_m.Z2.len()-1;
             let c_refund = proof_cv.C + (pk_m.Z2[i] * convertStrToFr("refund"));
             // generating partially blind signature on refund || wpk' || B - e
-            let rt_w = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, c_refund, proof_cv.num_secrets + 1); // proof_cv.C
+            let rt_w = clproto::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, c_refund, proof_cv.num_secrets + 1); // proof_cv.C
             println!("pay_by_merchant_phase1 - Proof of knowledge of commitment on new wallet is valid");
             update_merchant_state(&mut state, &proof.wpk, None);
             state.pay_init = true;
@@ -1023,10 +1020,10 @@ pub mod bidirectional {
         // verify that the revocation token is valid
         let is_rv_valid = schnorr.verify(&msg, &rv.signature, &proof.wpk).is_ok();
 
-        if clsigs::bs_verify_nizk_proof(&proof_cv) && is_rv_valid {
+        if clproto::bs_verify_nizk_proof(&proof_cv) && is_rv_valid {
             // update merchant state with (wpk, sigma_rev)
             update_merchant_state(&mut state, &proof.wpk, Some(rv.signature));
-            let new_wallet_sig = clsigs::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, proof_cv.C, proof_cv.num_secrets);
+            let new_wallet_sig = clproto::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, proof_cv.C, proof_cv.num_secrets);
             m_data.csk.balance += proof.balance_inc;
             state.R = 2;
             return new_wallet_sig;
@@ -1230,6 +1227,6 @@ mod benches {
 
     #[bench]
     pub fn bench_one(bh: &mut Bencher) {
-        println!("Hello World!");
+        println!("Run benchmark tests here!");
     }
 }

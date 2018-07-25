@@ -52,3 +52,47 @@ pub fn decrypt(key: &SymKey, ciphertext: &SymCT) -> String {
     let plaintext = String::from_utf8(pt).expect("Found invalid UTF-8");
     return plaintext;
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::{Rng, thread_rng};
+
+    #[test]
+    fn symenc_dec_works() {
+        init_mod();
+        // SymKeyEnc tests
+        // TODO: figure out how to apply this to secretbox
+        let l = 128;
+        let key1 = keygen(l);
+
+        // println!("key: {:?}", key);
+
+        let pt1 = String::from("hello world");
+        let ciphertext = encrypt(&key1, &pt1);
+        //println!("{}", ciphertext);
+
+        let pt2 = decrypt(&key1, &ciphertext);
+        //println!("Recovered plaintext: {}", pt2);
+        assert!(pt1 == pt2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn symenc_dec_should_fail() {
+        init_mod();
+        // SymKeyEnc tests
+        // TODO: figure out how to apply this to secretbox
+        let l = 128;
+
+        let key1 = keygen(l);
+        let key2 = keygen(l);
+
+        let pt1 = String::from("hello world");
+        let ciphertext = encrypt(&key1, &pt1);
+
+        let pt3 = decrypt(&key2, &ciphertext);
+        // should fail and panic
+    }
+}

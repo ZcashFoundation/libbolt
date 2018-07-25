@@ -49,36 +49,6 @@ macro_rules! measure_ret_mut {
 
 fn main() {
     let rng = &mut rand::thread_rng();
-//    println!("******************************************");
-//
-//    // Test the PRF
-//    let s = Fr::random(rng);
-//    let key = prf::initPRF(s, None);
-//
-//    let x = Fr::random(rng);
-//    let y = prf::compute(&key, x);
-//
-//    println!("Compute y = 0x{}", libbolt::print(&y));
-//
-//    // Test the OTE scheme
-//    let k = ote::keygen();
-//    let X = G1::random(rng);
-//    let Y = G1::random(rng);
-//    let m = ote::OTMessage { m1: X, m2: Y };
-//    let c = ote::otenc(k, &m);
-//    let orig_m = ote::otdec(k, &c);
-//
-//    assert!(m.m1 == orig_m.m1 && m.m2 == orig_m.m2);
-//    println!("OTE scheme works as expected!");
-//    let numbers = [1,2,3];
-//
-//    let (port, chan)  = Chan::new();
-//    chan.send(numbers);
-//
-//    do spawn {
-//        let numbers = port.recv();
-//        println!("Num: {:d}", numbers[0]);
-//    }
 
     // Test the CL sigs
     // CL sig tests

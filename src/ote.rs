@@ -36,3 +36,25 @@ pub fn otdec(k: G1, c: &OTCiphertext) -> OTMessage {
     let Y = c.c2 - k;
     return OTMessage { m1: X, m2: Y};
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::{Rng, thread_rng};
+    use bn::{G1, Group};
+
+    #[test]
+    fn one_time_enc_dec_works() {
+        let rng = &mut rand::thread_rng();
+
+        // Test the OTE scheme
+        let k = keygen();
+        let X = G1::random(rng);
+        let Y = G1::random(rng);
+        let m = OTMessage { m1: X, m2: Y };
+        let c = otenc(k, &m);
+        let orig_m = otdec(k, &c);
+
+        assert!(m.m1 == orig_m.m1 && m.m2 == orig_m.m2);
+    }
+}
