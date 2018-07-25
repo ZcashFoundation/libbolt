@@ -145,6 +145,16 @@ pub fn setup(len: usize, pub_bases: Vec<G2>, h: G2) -> CSParams {
     return CSParams { pub_bases: p };
 }
 
+pub fn setup_gen_params(len: usize) -> CSParams {
+    let rng = &mut thread_rng();
+
+    let mut p: Vec<G2> = Vec::new();
+    for i in 0 .. len {
+        p.push(G2::random(rng));
+    }
+    return CSParams { pub_bases: p };
+}
+
 pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> Commitment {
     let rng = &mut thread_rng();
 
@@ -169,11 +179,47 @@ pub fn decommit(csp: &CSParams, cm: &Commitment, x: &Vec<Fr>) -> bool {
     let l = x.len();
     //assert!(csp.pub_bases.len() == l);
     // pub_base[0] => h, x[0] => r
-    // TODO: check that cm.r == x[0]
+    // check that cm.r == x[0]
+    // assert!(cm.r == x[0]);
     let mut dc = csp.pub_bases[0] * cm.r;
     for i in 1 .. l {
         dc = dc + (csp.pub_bases[i] * x[i]);
     }
-    return dc == cm.c;
+    return dc == cm.c && cm.r == x[0];
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bn::{Fr, Group};
+
+    #[test]
+    fn commit_one_message_works() {
+        let rng = &mut thread_rng();
+        let pk = ped92_setup();
+
+        let m1 = Fr::random(rng);
+        let m2 = m1 + Fr::from_str("1").unwrap();
+        let r = Fr::random(rng);
+        let c = ped92_commit(&pk, m1, Some(r));
+
+        assert!(ped92_decommit(&pk, &c, m1) == true);
+        assert!(ped92_decommit(&pk, &c, m2) == false);
+    }
+
+    #[test]
+    fn commit_n_message_works() {
+        let rng = &mut thread_rng();
+        let len = 3;
+        let csp = setup_gen_params(len);
+
+        let mut m: Vec<Fr> = Vec::new();
+        for i in 0 .. len {
+            m.push(Fr::random(rng));
+        }
+        let r = m[0];
+        let c = commit(&csp, &m, r);
+
+        assert!(decommit(&csp, &c, &m) == true);
+    }
+}

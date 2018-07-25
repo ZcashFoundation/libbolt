@@ -9,6 +9,9 @@
 //!
 #![feature(extern_prelude)]
 
+#![cfg_attr(all(test, feature = "unstable"), feature(test))]
+#[cfg(all(test, feature = "unstable"))] extern crate test;
+
 extern crate bn;
 extern crate rand;
 extern crate rand_core;
@@ -692,7 +695,6 @@ pub mod bidirectional {
 
     pub fn init_customer(pp: &PublicParams, channel: &ChannelState, b0_customer: i32, b0_merchant: i32,
                          cm_csp: &commit_scheme::CSParams, keypair: &clsigs::KeyPairD) -> InitCustomerData {
-        println!("Run Init customer...");
         let rng = &mut rand::thread_rng();
         // generate verification key and signing key (for wallet)
         let mut schnorr = secp256k1::Secp256k1::new();
@@ -721,7 +723,6 @@ pub mod bidirectional {
     }
 
     pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPairD) -> InitMerchantData {
-        println!("Run Init merchant...");
         let cm_csp = generate_commit_setup(&pp, &keypair.pk);
         let csk_m = MerchSecretKey { sk: keypair.sk.clone(), balance: b0_merchant };
         return InitMerchantData { T: keypair.pk.clone(), csk: csk_m, bases: cm_csp.pub_bases };
@@ -736,7 +737,6 @@ pub mod bidirectional {
     //// begin of establish channel protocol
     pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData,
                                      m_data: &InitMerchantData) -> clsigs::ProofCV {
-        println!("Run establish_customer algorithm...");
         // obtain customer init data
         let t_c = &c_data.T;
         let csk_c = &c_data.csk;
@@ -805,7 +805,7 @@ pub mod bidirectional {
         // retrieve old balance
         let old_balance = Fr::from_str(old_w.balance.to_string().as_str()).unwrap();
 
-        let old_h_wpk = old_w.h_wpk; // hashPubKeyToFr(&old_wpk);
+        let old_h_wpk = old_w.h_wpk;
         // added the blinding factor to list of secrets
         let mut old_x: Vec<Fr> = Vec::new();
 
@@ -838,7 +838,7 @@ pub mod bidirectional {
 
     pub fn pay_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
                                   old_w: &CustomerWallet, balance_increment: i32) -> (ChannelToken, CustomerWallet, PaymentProof) {
-        println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
+        //println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
         // get balance, keypair, commitment randomness and wallet sig
         let mut rng = &mut rand::thread_rng();
 
@@ -920,7 +920,6 @@ pub mod bidirectional {
     // a negative increment => decrement merchant balance, and increment customer balance
     pub fn pay_by_merchant_phase1(pp: &PublicParams, mut state: &mut ChannelState, proof: &PaymentProof,
                                   m_data: &InitMerchantData) -> clsigs::SignatureD {
-        println!("Run pay algorithm by Merchant - phase 2");
         let blind_sigs = &proof.wallet_sig;
         let proof_cv = &proof.proof2a;
         let proof_old_cv = &proof.proof2b;
@@ -1069,7 +1068,6 @@ pub mod bidirectional {
     // for customer => on input a wallet w, it outputs a customer channel closure message rc_c
     pub fn customer_refund(pp: &PublicParams, state: &ChannelState, pk_m: &clsigs::PublicKeyD,
                            w: &CustomerWallet) -> ChannelClosure_C {
-        println!("Run Refund...");
         let m;
         let balance = w.balance as usize;
         if !state.pay_init {
@@ -1124,8 +1122,6 @@ pub mod bidirectional {
     // outputs a merchant channel closure message rc_m and updated merchant state S_new
     pub fn merchant_refute(pp: &PublicParams, T_c: &ChannelToken, m_data: &InitMerchantData,
                   state: &mut ChannelState, rc_c: &ChannelClosure_C, rv_token: &secp256k1::Signature)  -> Option<ChannelClosure_M> {
-        println!("Run Refute...");
-
         let is_valid = clsigs::verifyD(&pp.cl_mpk, &T_c.pk, &rc_c.message.hash(), &rc_c.signature);
         if is_valid {
             let wpk = rc_c.message.wpk;
@@ -1154,7 +1150,6 @@ pub mod bidirectional {
     pub fn resolve(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData, // cust and merch
                    rc_c: Option<ChannelClosure_C>, rc_m: Option<ChannelClosure_M>,
                    rt_w: Option<clsigs::SignatureD>) -> (i32, i32) {
-        println!("Run Resolve...");
         let total_balance = c.csk.balance + m.csk.balance;
         if rc_c.is_none() && rc_m.is_none() {
             panic!("resolve - Did not specify channel closure messages for either customer or merchant!");
@@ -1225,5 +1220,16 @@ pub mod bidirectional {
         }
 
         panic!("resolve - Did not specify channel closure messages for either customer or merchant!");
+    }
+}
+
+#[cfg(all(test, feature = "unstable"))]
+mod benches {
+    use rand::{Rng, thread_rng};
+    use test::{Bencher, black_box};
+
+    #[bench]
+    pub fn bench_one(bh: &mut Bencher) {
+        println!("Hello World!");
     }
 }

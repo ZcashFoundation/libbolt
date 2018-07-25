@@ -32,3 +32,4 @@ features = ["rustc-serialize"]
 [[bin]]
 name = "bolt"
 path = "bin/bolt.rs"
+

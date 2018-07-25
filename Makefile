@@ -1,7 +1,12 @@
-.PHONY: all bench test update doc clean
+.PHONY: all debug bench test update doc clean
 
 all:
-	export RUST_BACKTRACE=1
+	export RUSTFLAGS=-Awarnings
+	cargo +nightly build
+	cargo +nightly run
+
+debug:
+	export RUST_BACKTRACE=1 
 	cargo +nightly build
 	cargo +nightly run
 

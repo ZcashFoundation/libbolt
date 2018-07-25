@@ -3,7 +3,6 @@
 
 use std::fmt;
 use std::str;
-//use rand::prelude::*;
 use rand::{thread_rng, Rng};
 use bn::{Group, Fr, G1, G2, Gt, pairing};
 use debug_elem_in_hex;
@@ -339,23 +338,53 @@ pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &Signature
                pairing(mpk.g1, Ais + -Bis + -sig.b + -sig.c);
 }
 
-pub fn add_two(a: i32) -> i32 {
-    a + 2
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::Bencher;
+    use bn::{Fr, Group};
 
     #[test]
-    fn it_works() {
-        assert_eq!(4, add_two(2));
+    fn schemeA_sign_and_verify_works() {
+        // test ability to sign/verify a single message
+        let rng = &mut thread_rng();
+
+        let mpk = setupA();
+        let keypair = keygenA(&mpk);
+
+        let mut m1 = Fr::random(rng);
+        let mut m2 = Fr::random(rng);
+
+        let signature = signA(&keypair.sk, m1);
+        //println!("{}", signature);
+
+        assert!(verifyA(&mpk, &keypair.pk, m1, &signature) == true);
+        assert!(verifyA(&mpk, &keypair.pk, m2, &signature) == false);
     }
 
-    #[bench]
-    fn bench_add_two(b: &mut Bencher) {
-        b.iter(|| add_two(2));
+    #[test]
+    fn schemeD_sign_and_verify_works() {
+        // test ability to sign/verify a vector of messages
+        let rng = &mut thread_rng();
+
+        let mpk = setupD();
+        let l = 3;
+        let keypair = keygenD(&mpk, l);
+
+        let mut m1 : Vec<Fr> = Vec::new();
+        let mut m2 : Vec<Fr> = Vec::new();
+
+        for i in 0 .. l+1 {
+            m1.push(Fr::random(rng));
+            m2.push(Fr::random(rng));
+        }
+
+        let signature = signD(&mpk, &keypair.sk, &m1);
+        //println!("{}", signature);
+
+        assert!(verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
+        assert!(verifyD_unoptimized(&mpk, &keypair.pk, &m1, &signature) == true);
+        assert!(verifyD(&mpk, &keypair.pk, &m2, &signature) == false);
+
     }
 }
 
