@@ -32,8 +32,6 @@ use bincode::rustc_serialize::{encode, decode};
 use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 use std::collections::HashMap;
-use time::PreciseTime;
-//use rand::{rngs::OsRng, Rng};
 use curve25519_dalek::scalar::Scalar;
 use bulletproofs::ProofTranscript;
 use bulletproofs::RangeProof;
@@ -47,12 +45,7 @@ pub mod commit_scheme;
 pub mod clproto;
 
 const E_MIN: i32 = 1;
-const E_MAX: i32 = 255;
-
-//pub fn hash_string(s: &str) -> String {
-//    let digest = sha256::hash(s.as_bytes());
-//    format!("{:X}", HexSlice::new(&digest))
-//}
+const E_MAX: i32 = 255; // TODO: should be 2^32 - 1
 
 pub fn debug_elem_in_hex(prefix: &str, r: &Fr) {
     let encoded: Vec<u8> = encode(&r, Infinite).unwrap();
@@ -471,7 +464,6 @@ pub mod unidirectional {
             ck_vec.push(ck);
         }
 
-        // TODO: get bidirectional setup
         let w_com = commit_scheme::commit(&cm_pk, &msg.hash(), r);
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
         let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
@@ -501,7 +493,6 @@ pub mod unidirectional {
 /////////////////////////////// Bidirectional ////////////////////////////////
 pub mod bidirectional {
     use std::fmt;
-    use PreciseTime;
     use rand::{rngs::OsRng, Rng};
     use rand_core::RngCore;
     use bn::{Group, Fr, G1, G2, Gt};
@@ -657,10 +648,9 @@ pub mod bidirectional {
     }
 
     pub fn setup(_extra_verify: bool) -> PublicParams {
-        // TODO: provide option for generating CRS parameters
+        // TODO: provide option for using CRS parameters?
         let cl_mpk = clsigs::setup_d();
         let l = 4;
-        // let nizk = "nizk proof system";
         let n = 32; // bitsize: 32-bit (0, 2^32-1)
         let num_rand_values = 1;
         let generators = Generators::new(PedersenGenerators::default(), n, num_rand_values);
@@ -670,8 +660,6 @@ pub mod bidirectional {
     }
 
     pub fn keygen(pp: &PublicParams) -> clsigs::KeyPairD {
-        // TODO: figure out what we need from public params to generate keys
-        println!("Run Keygen...");
         let keypair = clsigs::keygen_d(&pp.cl_mpk, pp.l);
         return keypair;
     }
@@ -1275,7 +1263,7 @@ mod tests {
                                     payment_increment: i32) {
         // let's test the pay protocol
         assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &cust_data.T, &merch_keys.pk, &mut cust_data.csk));
-        let s = PreciseTime::now();
+
         let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &cust_data.T, // channel token
                                                                             &merch_keys.pk, // merchant pub key
                                                                             &cust_data.csk, // wallet
