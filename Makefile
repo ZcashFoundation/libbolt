@@ -15,7 +15,7 @@ bench:
 
 test:
 	# runs the unit test suite
-	cargo +nightly test
+	cargo +nightly test #-- --nocapture
 
 update:
 	# updates local git repos (for forked bn lib)

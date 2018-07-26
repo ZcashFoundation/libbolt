@@ -14,10 +14,6 @@ use bn::{Group, Fr};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 
-//use libbolt::prf;
-//use libbolt::sym;
-//use libbolt::ote;
-//use libbolt::commit_scheme;
 use libbolt::clsigs;
 use libbolt::bidirectional;
 use time::PreciseTime;
@@ -50,10 +46,10 @@ fn main() {
 
     // Test the CL sigs
     // CL sig tests
-    let mpk = clsigs::setupD();
+    let mpk = clsigs::setup_d();
     let l = 3;
-    let c_keypair = clsigs::keygenD(&mpk, l);
-    let m_keypair = clsigs::keygenD(&mpk, l);
+    let c_keypair = clsigs::keygen_d(&mpk, l);
+    let m_keypair = clsigs::keygen_d(&mpk, l);
 
     //println!("{}", keypair.pk);
 
@@ -67,24 +63,24 @@ fn main() {
         m3.push(Fr::random(rng));
     }
 
-    let signature = clsigs::signD(&mpk, &m_keypair.sk, &m1);
+    let signature = clsigs::sign_d(&mpk, &m_keypair.sk, &m1);
     //println!("{}", signature);
 
     println!("Checking CL sig verification...");
 
-    let (res1, verify1) = measure!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &signature));
+    let (res1, verify1) = measure!(clsigs::verify_d(&mpk, &m_keypair.pk, &m1, &signature));
     assert!(res1 == true);
     println!("{} seconds for verifying valid signatures.", verify1);
 
-    let (res2, verify2) = measure!(clsigs::verifyD(&mpk, &m_keypair.pk, &m2, &signature));
+    let (res2, verify2) = measure!(clsigs::verify_d(&mpk, &m_keypair.pk, &m2, &signature));
     assert!(res2 == false);
     println!("{} seconds for verifying invalid signatures.", verify2);
 
-    let (res3, verify3) = measure!(clsigs::verifyD(&mpk, &c_keypair.pk, &m1, &signature));
+    let (res3, verify3) = measure!(clsigs::verify_d(&mpk, &c_keypair.pk, &m1, &signature));
     assert!(res3 == false);
     println!("Invalid sig - verify time 3: {}", verify3);
 
-    let (res4, verify4) = measure!(clsigs::verifyD(&mpk, &m_keypair.pk, &m3, &signature));
+    let (res4, verify4) = measure!(clsigs::verify_d(&mpk, &m_keypair.pk, &m3, &signature));
     assert!(res4 == false);
     println!("Invalid sig - verify time 4: {}", verify4);
 
@@ -163,7 +159,7 @@ fn main() {
 //
 //        println!("Generated signature interactively!");
 //        // int_sig = interactively generated signature
-//        assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &int_sig) == true);
+//        assert!(clsigs::verify_d(&mpk, &m_keypair.pk, &m1, &int_sig) == true);
 //
 //        println!("Verified interactively produced signature!");
 //

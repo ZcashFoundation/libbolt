@@ -301,9 +301,9 @@ mod tests {
     fn efficient_protocols_for_cl_signatures() {
         let rng = &mut rand::thread_rng();
 
-        let mpk = clsigs::setupD();
+        let mpk = clsigs::setup_d();
         let l = 3;
-        let m_keypair = clsigs::keygenD(&mpk, l);
+        let m_keypair = clsigs::keygen_d(&mpk, l);
         let mut m1 : Vec<Fr> = Vec::new();
 
         for i in 0 .. l+1 {
@@ -337,7 +337,7 @@ mod tests {
 
         let int_sig = bs_check_proof_and_gen_signature(&mpk, &m_keypair.sk, &proof);
 
-        assert!(clsigs::verifyD(&mpk, &m_keypair.pk, &m1, &int_sig) == true);
+        assert!(clsigs::verify_d(&mpk, &m_keypair.pk, &m1, &int_sig) == true);
 
         let blind_sigs = prover_generate_blinded_sig(&int_sig);
         let common_params1 = gen_common_params(&mpk, &m_keypair.pk, &int_sig);

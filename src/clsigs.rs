@@ -99,7 +99,7 @@ impl fmt::Display for Signature {
 
 // scheme A - for a single message
 
-pub fn setupA() -> PublicParams {
+pub fn setup_a() -> PublicParams {
     let rng = &mut thread_rng();
     let g1 = G1::random(rng);
     let g2 = G2::random(rng);
@@ -107,7 +107,7 @@ pub fn setupA() -> PublicParams {
     return mpk;
 }
 
-pub fn keygenA(mpk : &PublicParams) -> KeyPair {
+pub fn keygen_a(mpk : &PublicParams) -> KeyPair {
     let rng = &mut thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
@@ -118,7 +118,7 @@ pub fn keygenA(mpk : &PublicParams) -> KeyPair {
     return KeyPair { sk: sk, pk: pk }
 }
 
-pub fn signA(sk: &SecretKey, m: Fr) -> Signature {
+pub fn sign_a(sk: &SecretKey, m: Fr) -> Signature {
     let rng = &mut thread_rng();
     let a = G2::random(rng);
 
@@ -128,7 +128,7 @@ pub fn signA(sk: &SecretKey, m: Fr) -> Signature {
     return sig;
 }
 
-pub fn verifyA(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> bool {
+pub fn verify_a(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> bool {
     let lhs1 = pairing(pk.Y, sig.a);
     let rhs1 = pairing(mpk.g1, sig.b);
     let lhs2 = pairing(pk.X, sig.a) * (pairing(pk.X, sig.b).pow(m));
@@ -197,7 +197,7 @@ impl SignatureD {
     }
 }
 
-pub fn setupD() -> PublicParams {
+pub fn setup_d() -> PublicParams {
     let rng = &mut thread_rng();
     let g1 = G1::random(rng);
     let g2 = G2::random(rng);
@@ -205,7 +205,7 @@ pub fn setupD() -> PublicParams {
     return mpk;
 }
 
-pub fn keygenD(mpk : &PublicParams, l: usize) -> KeyPairD {
+pub fn keygen_d(mpk : &PublicParams, l: usize) -> KeyPairD {
     let rng = &mut thread_rng();
     let x = Fr::random(rng);
     let y = Fr::random(rng);
@@ -234,7 +234,7 @@ pub fn keygenD(mpk : &PublicParams, l: usize) -> KeyPairD {
     return KeyPairD { sk: sk, pk: pk }
 }
 
-pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
+pub fn sign_d(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
     assert!(m.len() <= sk.z.len()+1);
     let l = m.len();
 
@@ -269,7 +269,7 @@ pub fn signD(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
 //    //return Fr::from_str("1234567890").unwrap();
 //}
 
-pub fn verifyD_unoptimized(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
+pub fn verify_d_unoptimized(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
     //assert!(sig.A.len()+1 <= m.len());
     //assert!(sig.B.len()+1 <= m.len());
     let l = m.len();
@@ -306,7 +306,7 @@ pub fn verifyD_unoptimized(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig
 }
 
 // optimized but does not include small exps for security
-pub fn verifyD(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
+pub fn verify_d(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
     let l = m.len();
     let mut Zis = G1::zero();
     let mut Ais = G2::zero();
@@ -357,17 +357,17 @@ mod tests {
         // test ability to sign/verify a single message
         let rng = &mut thread_rng();
 
-        let mpk = setupA();
-        let keypair = keygenA(&mpk);
+        let mpk = setup_a();
+        let keypair = keygen_a(&mpk);
 
         let mut m1 = Fr::random(rng);
         let mut m2 = Fr::random(rng);
 
-        let signature = signA(&keypair.sk, m1);
+        let signature = sign_a(&keypair.sk, m1);
         //println!("{}", signature);
 
-        assert!(verifyA(&mpk, &keypair.pk, m1, &signature) == true);
-        assert!(verifyA(&mpk, &keypair.pk, m2, &signature) == false);
+        assert!(verify_a(&mpk, &keypair.pk, m1, &signature) == true);
+        assert!(verify_a(&mpk, &keypair.pk, m2, &signature) == false);
     }
 
     #[test]
@@ -375,9 +375,9 @@ mod tests {
         // test ability to sign/verify a vector of messages
         let rng = &mut thread_rng();
 
-        let mpk = setupD();
+        let mpk = setup_d();
         let l = 3;
-        let keypair = keygenD(&mpk, l);
+        let keypair = keygen_d(&mpk, l);
 
         let mut m1 : Vec<Fr> = Vec::new();
         let mut m2 : Vec<Fr> = Vec::new();
@@ -387,13 +387,12 @@ mod tests {
             m2.push(Fr::random(rng));
         }
 
-        let signature = signD(&mpk, &keypair.sk, &m1);
+        let signature = sign_d(&mpk, &keypair.sk, &m1);
         //println!("{}", signature);
 
-        assert!(verifyD(&mpk, &keypair.pk, &m1, &signature) == true);
-        assert!(verifyD_unoptimized(&mpk, &keypair.pk, &m1, &signature) == true);
-        assert!(verifyD(&mpk, &keypair.pk, &m2, &signature) == false);
-
+        assert!(verify_d(&mpk, &keypair.pk, &m1, &signature) == true);
+        assert!(verify_d_unoptimized(&mpk, &keypair.pk, &m1, &signature) == true);
+        assert!(verify_d(&mpk, &keypair.pk, &m2, &signature) == false);
     }
 }
 
