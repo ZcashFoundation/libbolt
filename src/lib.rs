@@ -576,7 +576,6 @@ pub mod bidirectional {
         refund_token: Option<clsigs::SignatureD>
     }
 
-    // TODO: add display method to print structure (similar to Commitment)
     pub struct MerchSecretKey {
         sk: clsigs::SecretKeyD, // merchant signing key
         pub balance: i32
@@ -594,8 +593,7 @@ pub mod bidirectional {
         pub bases: Vec<G2>
     }
 
-    // TODO: add method to display contents of the channel state
-    // should include contents of the channel state
+    // part of channel state
     pub struct PubKeyMap {
         wpk: secp256k1::PublicKey,
         revoke_token: Option<secp256k1::Signature>
@@ -690,18 +688,18 @@ pub mod bidirectional {
         let r = Fr::random(rng);
         // retreive the channel id
         let cid = channel.cid.clone();
-
-        let mut x: Vec<Fr> = Vec::new();
-        x.push(r); // set randomness for commitment
-        x.push(cid);
-        x.push(b0);
-        x.push(h_wpk);
-
+        // initial contents of wallet:
+        // commitment, channel id, customer balance, hash of wpk (wallet ver/pub key)
+        let mut x: Vec<Fr> = vec![r, cid, b0, h_wpk];
+        // commitment of wallet values
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
+        // construct channel token
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone() };
+        // construct customer wallet secret key plus other components
         let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: cid, wpk: wpk, wsk: wsk, h_wpk: h_wpk,
                                     r: r, balance: b0_customer, merchant_balance: b0_merchant,
                                     proof: None, signature: None, refund_token: None };
+
         return InitCustomerData { T: t_c, csk: csk_c, bases: cm_csp.pub_bases.clone() };
     }
 
@@ -713,7 +711,7 @@ pub mod bidirectional {
 
     pub fn init_channel(name: String) -> ChannelState {
         let cid = generate_channel_id();
-        let keys = HashMap::new(); // will store wpks/revoke_tokens
+        let keys = HashMap::new(); // to store wpks/revoke_tokens
         return ChannelState { keys: keys, R: 0, name: name, cid: cid, channel_established: false, pay_init: false }
     }
 
@@ -729,14 +727,7 @@ pub mod bidirectional {
         let h_wpk = csk_c.h_wpk;
         let b0 = Fr::from_str(csk_c.balance.to_string().as_str()).unwrap();
         // collect secrets
-        let mut x: Vec<Fr> = Vec::new();
-        x.push(t_c.w_com.r); // set randomness used to generate commitment
-        x.push(csk_c.cid);
-        x.push(b0);
-        x.push(h_wpk);
-        //println!("establish_customer_phase1 - secrets for original wallet");
-        //print_secret_vector(&x);
-
+        let mut x: Vec<Fr> = vec![t_c.w_com.r, csk_c.cid, b0, h_wpk ];
         // generate proof of knowledge for committed values
         let proof_1 = clproto::bs_gen_nizk_proof(&x, &pub_bases, t_c.w_com.c);
         return proof_1;
@@ -755,15 +746,8 @@ pub mod bidirectional {
                                     w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if w.signature.is_none() {
             if pp.extra_verify {
-                let mut x: Vec<Fr> = Vec::new();
-                x.push(w.r.clone());
-                x.push(w.cid.clone());
-                x.push(Fr::from_str(w.balance.to_string().as_str()).unwrap());
-                x.push(w.h_wpk.clone());
-
-                //println!("establish_customer_final - print secrets");
-                //print_secret_vector(&x);
-
+                let bal = Fr::from_str(w.balance.to_string().as_str()).unwrap();
+                let mut x: Vec<Fr> = vec![w.r.clone(), w.cid.clone(), bal, w.h_wpk.clone()];
                 assert!(clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &sig));
             }
             w.signature = Some(sig);
@@ -789,14 +773,7 @@ pub mod bidirectional {
         let old_balance = Fr::from_str(old_w.balance.to_string().as_str()).unwrap();
 
         let old_h_wpk = old_w.h_wpk;
-        // added the blinding factor to list of secrets
-        let mut old_x: Vec<Fr> = Vec::new();
-
-        old_x.push(old_w.r.clone()); // set randomness for commitment
-        old_x.push(cid);
-        old_x.push(old_balance);
-        old_x.push(old_h_wpk);
-
+        let mut old_x: Vec<Fr> = vec![old_w.r.clone(), cid, old_balance, old_h_wpk];
         // retrieve the commitment scheme parameters based on merchant's PK
         let cm_csp = generate_commit_setup(&pp, &pk_m);
 
@@ -853,14 +830,9 @@ pub mod bidirectional {
 
         let updated_balance_pr = Fr::from_str(updated_balance.to_string().as_str()).unwrap();
 
-        let mut new_wallet_sec: Vec<Fr> = Vec::new();
-        new_wallet_sec.push(r_pr); // set randomness for commitment
-        new_wallet_sec.push(cid);
-        new_wallet_sec.push(updated_balance_pr);
-        new_wallet_sec.push(h_wpk);
-
+        let mut new_wallet_sec: Vec<Fr> = vec![r_pr, cid, updated_balance_pr, h_wpk];
+        // commitment of new wallet values
         let w_com = commit_scheme::commit(&cm_csp, &new_wallet_sec, r_pr);
-
         // generate proof of knowledge for committed values
         let proof_cv = clproto::bs_gen_nizk_proof(&new_wallet_sec, &cm_csp.pub_bases, w_com.c);
         let index = new_wallet_sec.len() - 1;
@@ -974,12 +946,10 @@ pub mod bidirectional {
     pub fn pay_by_customer_phase2(pp: &PublicParams, old_w: &CustomerWallet, new_w: &CustomerWallet,
                                   pk_m: &clsigs::PublicKeyD, rt_w: &clsigs::SignatureD) -> RevokeToken {
         // (1) verify the refund token (rt_w) against the new wallet contents
-        let mut x: Vec<Fr> = Vec::new();
-        x.push(new_w.r.clone());
-        x.push(new_w.cid.clone());
-        x.push(Fr::from_str(new_w.balance.to_string().as_str()).unwrap());
-        x.push(hash_pub_key_to_fr(&new_w.wpk));
-        x.push(convert_str_to_fr("refund"));
+        let bal = Fr::from_str(new_w.balance.to_string().as_str()).unwrap();
+        let h_wpk = hash_pub_key_to_fr(&new_w.wpk);
+        let refund = convert_str_to_fr("refund");
+        let mut x: Vec<Fr> = vec![new_w.r.clone(), new_w.cid.clone(), bal, h_wpk, refund];
 
         let is_rt_w_valid = clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &rt_w);
 
@@ -1023,15 +993,9 @@ pub mod bidirectional {
                                      mut new_w: CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if new_w.signature.is_none() {
             if pp.extra_verify {
-                let mut x: Vec<Fr> = Vec::new();
-                x.push(new_w.r.clone());
-                x.push(new_w.cid.clone());
-                x.push(Fr::from_str(new_w.balance.to_string().as_str()).unwrap());
-                x.push(hash_pub_key_to_fr(&new_w.wpk));
-
-                //println!("payment_by_customer_final - print secrets");
-                //print_secret_vector(&x);
-
+                let bal = Fr::from_str(new_w.balance.to_string().as_str()).unwrap();
+                let h_wpk = hash_pub_key_to_fr(&new_w.wpk);
+                let mut x: Vec<Fr> = vec![new_w.r.clone(), new_w.cid.clone(), bal, h_wpk];
                 assert!(clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &sig));
             }
             // update signature in new wallet
@@ -1143,12 +1107,6 @@ pub mod bidirectional {
             return (0, total_balance);
         }
 
-        // TODO: use matching instead
-//        match rc_c.unwrap() {
-//            Some(v) => foo,
-//            _ => return (0, 0);
-//        }
-
         let pk_c = &c.T.pk; // get public key for customer
         let pk_m = &m.T; // get public key for merchant
 
@@ -1167,12 +1125,7 @@ pub mod bidirectional {
             let h_wpk = hash_pub_key_to_fr(&c.csk.wpk);
             // convert balance into Fr
             let balance = Fr::from_str(c.csk.balance.to_string().as_str()).unwrap();
-
-            let mut x: Vec<Fr> = Vec::new();
-            x.push(w_com.r); // Token if decommit is valid
-            x.push(c.csk.cid);
-            x.push(h_wpk);
-            x.push(balance);
+            let mut x: Vec<Fr> = vec![w_com.r, c.csk.cid, h_wpk, balance];
 
             // check that w_com is a valid commitment
             if !commit_scheme::decommit(&cm_csp, &w_com, &x) {
@@ -1283,7 +1236,7 @@ mod tests {
 
     #[test]
     fn bidirectional_payment_basics_work() {
-        let pp = bidirectional::setup(false);
+        let pp = bidirectional::setup(true);
 
         let mut channel = bidirectional::init_channel(String::from("A -> B"));
         let total_owed = 40;
