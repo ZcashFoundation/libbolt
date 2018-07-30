@@ -51,7 +51,7 @@ fn main() {
     let (pp, setup_time1) = measure!(bidirectional::setup(false));
 
     //println!("[1b] libbolt - generate the initial channel state");
-    let mut channel = bidirectional::init_channel(String::from("A -> B"));
+    let mut channel = bidirectional::ChannelState::new(String::from("My New Channel A"), false);
 
     println!("Setup time: {}", setup_time1);
 
