@@ -529,7 +529,6 @@ Compute $(pk, sk) \leftarrow \prod_{\sf sig}.{\sf SigKeygen}(1^\lambda)$. %Note 
 \item Customer generates wallet commitment by sampling random coins $r$.
 \item Compute ephemeral keypair $(wpk, wsk) \leftarrow {\sf KeyGen}({\sf PP})$.
 \item Compute ${\sf wCom} = {\sf Commit}({\sf cID}, wpk, \BC; r)$.
-%\item For $i = 1$ to $\BC$, sample $ck_i \rightarrow {\sf SymKeyGen}(1^\lambda)$ to form the vector $\vec{ck}$. 
 \item Output ${\sf T}_{\sf c} = (pk_c, {\sf wCom})$ and retains secret $csk_{\sf c} = (sk_c, {\sf cID}, wpk, wsk, r, \BC)$.
 \end{enumerate}
 
@@ -584,15 +583,15 @@ In the first phase, the customer does the following:
 \\  \wedge {\sf Verify}(pk_m, (wpk, B), \sigma_w) = 1
 \\ \wedge 0 \leq (B - \epsilon) \leq {\sf val}_{\sf max} \}$
 
-%\begin{itemize}
-%\item Compute $C_1 = g^B \cdot h^{r_1}$
-%\item Compute $C_2 = C_1 / g^\epsilon$
-%\item Compute $C_3 = g_1^{x_1} \cdot g_2^{x_2} \cdot h^{r_3}$
-%\item Compute ${\sf wCom'} = C_2 \cdot C_3$. Keep ${\sf wCom'}$ private.
+\begin{itemize}
+\item Compute $C_1 = g^B \cdot h^{r_1}$
+\item Compute $C_2 = C_1 / g^\epsilon$
+\item Compute $C_3 = g_1^{x_1} \cdot g_2^{x_2} \cdot h^{r_3}$
+\item Compute ${\sf wCom''} = C_2 \cdot C_3$. Keep ${\sf wCom'}$ private.
 %\item Prove commitment ${\sf wCom'}$ in zero knowledge (via {\sf NIZK}).
 %\item Prove knowledge of valid signature $\sigma_w$ on $(x_1, x_2, B)$ in $C_1 \cdot C_3$.
 %\item Prove that $i$ is in the range $0 < i \leq B$.
-%\end{itemize}
+\end{itemize}
 \item Send $(\epsilon, {\sf wCom'}, wpk, \pi_2)$ to the merchant.
 \end{enumerate}
 
@@ -614,7 +613,7 @@ In the second phase, the customer does the following:
 \begin{enumerate}
 \item Check that ${\sf Verify}(pk_m, ({\sf refund}||wpk'||B - \epsilon), rt_{w'}) = 1$
 \item If verification failure or message does not arrive, abort and output $rt_{w'}$.
-\item Otherwise, compute $\sigma_{rev} = {\sf Sign}(wsk, {\sf revoke}||{\sf cID}||wpk)$.
+\item Otherwise, compute $\sigma_{rev} = {\sf Sign}(wsk, {\sf revoke}||wpk)$.
 \item Send $\sigma_{rev}$ to the merchant.
 \end{enumerate}
 
@@ -686,6 +685,11 @@ The customer obtains a new wallet $w_{\sf new} := (B - \epsilon, wpk', wsk', r',
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%% BIDIRECTIONAL SCHEME DESCRIPTION HERE %%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\subsection{Third-Party Payment Support}
+%\label{sec:thirdparty}
+%
+%A common application of the 
+
 
 \chapter{BOLT Usage}
 \label{ch:usage}

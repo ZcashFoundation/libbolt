@@ -24,7 +24,10 @@ pub struct ProofCV {
     pub pub_bases: Vec<G2>
 }
 
-// NIZK for PoK of the opening of a commitment M = g^m0 * Z1^m1 * ... * Zl^ml
+/// NIZK for PoK of the opening of a commitment M = g^m0 * Z1^m1 * ... * Zl^ml
+/// Arg 1 - secret values
+/// Arg 2 - public bases
+/// Arg 3 - challenge to include in the proof
 pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
     let rng = &mut thread_rng();
     let l = x.len(); // number of secrets
@@ -329,7 +332,7 @@ mod tests {
 
         let cm_csp = commit_scheme::setup(b, m_keypair.pk.Z2.clone(), mpk.g2.clone());
         let r = m1[0];
-        let w_com = commit_scheme::commit(&cm_csp, &m1, r);
+        let (w_com, _) = commit_scheme::commit(&cm_csp, &m1, r);
 
         assert!(commit_scheme::decommit(&cm_csp, &w_com, &m1));
 

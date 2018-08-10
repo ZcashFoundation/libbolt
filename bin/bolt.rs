@@ -135,7 +135,7 @@ fn main() {
     let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &init_cust_data.T, // channel token
                                                                         &merch_keypair.pk, // merchant pub key
                                                                         &init_cust_data.csk, // wallet
-                                                                        10); // balance increment
+                                                                        -10); // balance increment
 
     // get the refund token (rt_w)
     let rt_w1 = bidirectional::pay_by_merchant_phase1(&pp, &mut channel, &pay_proof1, &init_merch_data);
@@ -154,8 +154,8 @@ fn main() {
         println!("Updated balances...");
         println!("Customer balance: {}", cust_wallet.balance);
         println!("Merchant balance: {}", merch_wallet.balance);
-        let updated_cust_bal = b0_cust - 15;
-        let updated_merch_bal = b0_merch + 15;
+        let updated_cust_bal = b0_cust + 5;
+        let updated_merch_bal = b0_merch - 5;
         assert_eq!(updated_cust_bal, cust_wallet.balance);
         assert_eq!(updated_merch_bal, merch_wallet.balance);
     }
