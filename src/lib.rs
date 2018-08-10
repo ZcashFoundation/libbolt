@@ -883,7 +883,7 @@ pub mod bidirectional {
                                                    &mut osrng, value, &val_blinding,
                                                    pp.range_proof_bits).unwrap();
         let pg = &pp.range_proof_gens.pedersen_gens;
-        let value_cm = pg.commit(Scalar::from_u64(value), val_blinding);
+        let value_cm = pg.commit(Scalar::from(value), val_blinding);
 
         let proof_rp = ProofVB { range_proof: range_proof, value_commitment: value_cm };
 
