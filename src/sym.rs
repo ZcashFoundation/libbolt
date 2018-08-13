@@ -48,7 +48,6 @@ pub fn encrypt(key: &SymKey, plaintext: &String) -> SymCT {
 pub fn decrypt(key: &SymKey, ciphertext: &SymCT) -> String {
     let nonce = ciphertext.nonce;
     let pt = secretbox::open(&ciphertext.ciphertext, &nonce, &key.key).unwrap();
-    // TODO: investigate better error handling here
     let plaintext = String::from_utf8(pt).expect("Found invalid UTF-8");
     return plaintext;
 }

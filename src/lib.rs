@@ -468,7 +468,7 @@ pub mod unidirectional {
             ck_vec.push(ck);
         }
 
-        let (w_com, _) = commit_scheme::commit(&cm_pk, &msg.hash(), r);
+        let w_com = commit_scheme::commit(&cm_pk, &msg.hash(), r);
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
         let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
         return InitCustomerData { T: t_c, csk: csk_c };
@@ -514,6 +514,7 @@ pub mod bidirectional {
     use hash_pub_key_to_fr;
     use hash_buffer_to_fr;
     use debug_elem_in_hex;
+    use debug_g2_in_hex;
     use debug_gt_in_hex;
     use convert_to_fr;
     use convert_str_to_fr;
@@ -611,6 +612,7 @@ pub mod bidirectional {
     pub struct ChannelState {
         keys: HashMap<String, PubKeyMap>,
         R: i32,
+        tx_fee: i32,
         pub name: String,
         pub cid: Fr,
         pub pay_init: bool,
@@ -623,12 +625,21 @@ pub mod bidirectional {
             ChannelState {
                 keys: HashMap::new(), // store wpks/revoke_tokens
                 R: 0,
+                tx_fee: 0,
                 name: name.to_string(),
                 cid: generate_channel_id(),
                 pay_init: false,
                 channel_established: false,
                 third_party: third_party_support
             }
+        }
+
+        pub fn set_channel_fee(&mut self, fee: i32) {
+            self.tx_fee = fee;
+        }
+
+        pub fn get_channel_fee(&self) -> i32 {
+            return self.tx_fee as i32;
         }
     }
 
@@ -643,22 +654,33 @@ pub mod bidirectional {
     }
 
     // proof of valid balance
+    #[derive(Clone)]
     pub struct ProofVB {
         range_proof: bulletproofs::RangeProof,
         value_commitment: RistrettoPoint
     }
 
+    #[derive(Clone)]
+    pub struct BalanceProof {
+        third_party: bool,
+        balance_increment: i32,
+        w_com_pr_pr: G2,
+        old_bal_com: G2,
+        vcom: Option<commit_scheme::Commitment>,
+        proof_vcom: Option<clproto::ProofCV>,
+        proof_vrange: Option<ProofVB>
+    }
+
+    #[derive(Clone)]
     pub struct PaymentProof {
         proof2a: clproto::ProofCV, // PoK of committed values in new wallet
         proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
         proof2c: clproto::ProofVS, // PoK of old wallet signature (that includes wpk)
         proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
-        w_com_pr_pr: G2,
-        balance_inc: i32, // balance increment
-        old_bal_com: G2,
         old_com_base: G2,
         wpk: secp256k1::PublicKey, // verification key for old wallet
-        wallet_sig: clsigs::SignatureD // blinded signature for old wallet
+        wallet_sig: clsigs::SignatureD, // blinded signature for old wallet
+        pub bal_proof: BalanceProof
     }
 
     pub struct RevokeToken {
@@ -718,7 +740,7 @@ pub mod bidirectional {
         // commitment, channel id, customer balance, hash of wpk (wallet ver/pub key)
         let mut x: Vec<Fr> = vec![r, cid, b0, h_wpk];
         // commitment of wallet values
-        let (w_com, _) = commit_scheme::commit(&cm_csp,  &x, r);
+        let w_com = commit_scheme::commit(&cm_csp,  &x, r);
         // construct channel token
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone(), third_party_pay: channel.third_party };
         // construct customer wallet secret key plus other components
@@ -827,7 +849,7 @@ pub mod bidirectional {
         return true;
     }
 
-    pub fn pay_by_customer_phase1(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
+    pub fn pay_by_customer_phase1(pp: &PublicParams, channel: &ChannelState, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
                                   old_w: &CustomerWallet, balance_increment: i32) -> (ChannelToken, CustomerWallet, PaymentProof) {
         //println!("pay_by_customer_phase1 - generate new wallet commit, PoK of commit values, and PoK of old wallet.");
         // get balance, keypair, commitment randomness and wallet sig
@@ -852,18 +874,18 @@ pub mod bidirectional {
         // retrieve the current payment channel id
         let cid = old_w.cid.clone();
         // convert balance into Fr (B - e)
-        let updated_balance = bal - balance_increment;
+        let updated_balance = bal - balance_increment - channel.tx_fee;
         if updated_balance < 0 {
             panic!("pay_by_customer_phase1 - insufficient funds to make payment!");
         }
         // record the potential to payment
-        let merchant_balance = old_w.merchant_balance + balance_increment;
+        let merchant_balance = old_w.merchant_balance + (balance_increment + channel.tx_fee);
 
         let updated_balance_pr = convert_int_to_fr(updated_balance);
 
         let mut new_wallet_sec: Vec<Fr> = vec![r_pr, cid, updated_balance_pr, h_wpk];
         // commitment of new wallet values
-        let (w_com, com_vec) = commit_scheme::commit(&cm_csp, &new_wallet_sec, r_pr);
+        let w_com = commit_scheme::commit(&cm_csp, &new_wallet_sec, r_pr);
         let w_com_bytes: Vec<u8> = encode(&w_com.c, Infinite).unwrap();
 
         // generate proof of knowledge for committed values in new wallet
@@ -887,8 +909,52 @@ pub mod bidirectional {
 
         let proof_rp = ProofVB { range_proof: range_proof, value_commitment: value_cm };
 
+        let mut bal_proof;
         if T.third_party_pay {
-            // TODO: add check for third-party payment support
+            let r_inc = Fr::random(rng);
+            let bal_inc_fr = -convert_int_to_fr(balance_increment + channel.tx_fee);
+            let inc_vec: Vec<Fr> = vec![r_inc, bal_inc_fr];
+            let mut v_com = commit_scheme::commit(&cm_csp, &inc_vec, r_inc);
+            //let tx_fee = cm_csp.pub_bases[1] * -convert_int_to_fr(channel.tx_fee);
+            //v_com.c = v_com.c + tx_fee;
+            let proof_vcom = clproto::bs_gen_nizk_proof(&inc_vec, &cm_csp.pub_bases, v_com.c);
+
+            // range proof that pay increment < payment max
+            let v_com_bytes: Vec<u8> = encode(&proof_vcom.C, Infinite).unwrap();
+
+            let mut inc_bal;
+            let final_balance_increment = balance_increment + channel.tx_fee;
+            if final_balance_increment < 0 {
+                // negative value => convert to positive value
+                assert!(final_balance_increment >= -E_MAX);
+                inc_bal = -final_balance_increment as u64
+            } else {
+                // positive value
+                inc_bal = final_balance_increment as u64;
+            }
+            let inc_blinding = Scalar::hash_from_bytes::<Sha512>(&v_com_bytes);
+            let mut osrng1 = OsRng::new().unwrap();
+            let mut transcript1 = ProofTranscript::new(b"Range Proof for Balance Increment");
+            let inc_range_proof = RangeProof::prove_single(&pp.range_proof_gens, &mut transcript1,
+                                                       &mut osrng1, inc_bal, &inc_blinding,
+                                                       pp.range_proof_bits).unwrap();
+            let inc_pg = &pp.range_proof_gens.pedersen_gens;
+            let inc_cm = inc_pg.commit(Scalar::from(inc_bal), inc_blinding);
+
+            let proof_vrange = ProofVB { range_proof: inc_range_proof, value_commitment: inc_cm };
+            bal_proof = BalanceProof { third_party: true, vcom: Some(v_com),
+                                       proof_vcom: Some(proof_vcom), proof_vrange: Some(proof_vrange),
+                                       w_com_pr_pr: w_com_pr_pr, balance_increment: 0,
+                                       old_bal_com: wallet_proof.bal_com,
+                                     };
+        } else {
+            //  balance_increment => // epsilon - payment increment/decrement
+            //  wallet_proof.bal_com => // old balance commitment
+            bal_proof = BalanceProof { third_party: false, vcom: None,
+                                       proof_vcom: None, proof_vrange: None,
+                                       w_com_pr_pr: w_com_pr_pr, balance_increment: balance_increment,
+                                       old_bal_com: wallet_proof.bal_com,
+                                     };
         }
 
         // create payment proof which includes params to reveal wpk from old wallet
@@ -897,10 +963,7 @@ pub mod bidirectional {
                                 proof2b: wallet_proof.proof_cv, // PoK of committed values (minus h(wpk))
                                 proof2c: wallet_proof.proof_vs, // PoK of signature on old wallet
                                 proof3: proof_rp, // range proof that the updated_balance is within a public range
-                                // TODO: clean up: balance_inc, old_bal_com, old_com_base, wpk (should be a separate structure?)
-                                w_com_pr_pr: w_com_pr_pr,
-                                balance_inc: balance_increment, // epsilon - payment increment/decrement
-                                old_bal_com: wallet_proof.bal_com, // old balance commitment
+                                bal_proof: bal_proof,
                                 old_com_base: cm_csp.pub_bases[wpk_index], // base Z
                                 wpk: old_w.wpk.clone(), // showing public key for old wallet
                                 wallet_sig: wallet_proof.blind_sig // blinded signature for old wallet
@@ -922,6 +985,7 @@ pub mod bidirectional {
         let proof_cv = &proof.proof2a;
         let proof_old_cv = &proof.proof2b;
         let proof_vs = &proof.proof2c;
+        let bal_proof = &proof.bal_proof;
         // get merchant keypair
         let pk_m = &m_data.T;
         let sk_m = &m_data.csk.sk;
@@ -932,7 +996,7 @@ pub mod bidirectional {
 
         // add specified wpk to make the proof valid
         // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
-        let new_C = proof_old_cv.C + proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
+        let new_C = proof_old_cv.C + bal_proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
         let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
                                          C: new_C,
                                          s: proof_old_cv.s.clone(),
@@ -944,7 +1008,7 @@ pub mod bidirectional {
         }
 
         let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
-        let bal_inc_within_range = proof.balance_inc >= -E_MAX && proof.balance_inc <= E_MAX;
+        let bal_inc_within_range = bal_proof.balance_increment >= -E_MAX && bal_proof.balance_increment <= E_MAX;
         // check the range proof of the updated balance
         let mut osrng = OsRng::new().unwrap();
         let mut transcript = ProofTranscript::new(b"BOLT Range Proof");
@@ -958,7 +1022,7 @@ pub mod bidirectional {
         // check that the proof of valid signature and then
         if proof_vs_old_wallet && !is_existing_wpk && bal_inc_within_range && is_range_proof_valid {
             println!("Proof of knowledge of signature is valid!");
-            if proof.balance_inc < 0 {
+            if bal_proof.balance_increment < 0 {
                 // negative increment
                 state.R = 1;
             } else {
@@ -970,14 +1034,25 @@ pub mod bidirectional {
         }
 
         // now we can verify the proof of knowledge for committed values in new wallet
-        let bal_index = 2;
-        let mut bal_inc_fr;
-        bal_inc_fr = -convert_int_to_fr(proof.balance_inc);
-        // check that the PoK on new wallet commitment is valid and
-        // the updated balance differs by the balance increment from the balance
-        // in previous wallet
-        let w_com_pr = proof.w_com_pr_pr + proof.old_bal_com + (proof_old_cv.pub_bases[bal_index] * bal_inc_fr);
-        if clproto::bs_verify_nizk_proof(&proof_cv) && (proof_cv.C == w_com_pr) {
+        if !proof.bal_proof.third_party {
+            let bal_inc_fr = -convert_int_to_fr(bal_proof.balance_increment);
+            // check that the PoK on new wallet commitment is valid and
+            // the updated balance differs by the balance increment from the balance
+            // in previous wallet
+            let bal_index = 2;
+            let w_com_pr = bal_proof.w_com_pr_pr + bal_proof.old_bal_com + (proof_old_cv.pub_bases[bal_index] * bal_inc_fr);
+            if proof_cv.C != w_com_pr {
+                panic!("pay_by_merchant_phase1 - Old and new balance does not differ by payment amount!");
+            }
+        } else {
+            // in third party case, what we do a PoK for committed payment increment
+            let proof_vcom = proof.bal_proof.proof_vcom.as_ref().unwrap();
+            if !clproto::bs_verify_nizk_proof(&proof_vcom) {
+                panic!("pay_by_merchant_phase1 - Could not verify the NIZK PoK of payment amount");
+            }
+        }
+
+        if clproto::bs_verify_nizk_proof(&proof_cv) {
             // generate refund token on new wallet
             let i = pk_m.Z2.len()-1;
             let c_refund = proof_cv.C + (pk_m.Z2[i] * convert_str_to_fr("refund"));
@@ -992,6 +1067,52 @@ pub mod bidirectional {
         // let's update the merchant's wallet balance now
         panic!("pay_by_merchant_phase1 - NIZK verification failed for new wallet commitment!");
     }
+
+    ///
+    /// Verify third party payment proof from two bi-directional channel payments with intermediary
+    ///
+    pub fn verify_third_party_payment(pp: &PublicParams, fee: i32, proof1: &BalanceProof, proof2: &BalanceProof) -> bool {
+        if proof1.third_party && proof2.third_party {
+            let vcom1 = &proof1.proof_vcom.as_ref().unwrap();
+            let vcom2 = &proof2.proof_vcom.as_ref().unwrap();
+            let rproof1 = &proof1.proof_vrange.as_ref().unwrap();
+            let rproof2 = &proof2.proof_vrange.as_ref().unwrap();
+            let mut osrng1 = OsRng::new().unwrap();
+            let mut transcript1 = ProofTranscript::new(b"Range Proof for Balance Increment");
+            let range_proof1_valid = rproof1.range_proof.verify(&[rproof1.value_commitment],
+                                                                  &pp.range_proof_gens,
+                                                                  &mut transcript1,
+                                                                  &mut osrng1,
+                                                                  pp.range_proof_bits).is_ok();
+
+            let mut osrng2 = OsRng::new().unwrap();
+            let mut transcript2 = ProofTranscript::new(b"Range Proof for Balance Increment");
+            let range_proof2_valid = rproof2.range_proof.verify(&[rproof2.value_commitment],
+                                                                 &pp.range_proof_gens,
+                                                                 &mut transcript2,
+                                                                 &mut osrng2,
+                                                                 pp.range_proof_bits).is_ok();
+
+            let len = vcom1.pub_bases.len();
+            assert!(len >= 2 && vcom1.pub_bases.len() == vcom2.pub_bases.len());
+
+            // g^(e1 + -e2 + fee) * h^(r1 + r2) ==> should be equal to g^(fee) * h^(r1 + r2)
+            // lets add commitments for vcom1 and vcom2 to check
+            let added_commits = vcom1.C + vcom2.C;
+            let tx_fee = vcom1.pub_bases[1] * -convert_int_to_fr(fee);
+            // compute h^r1 + r2
+            let h_r1_r2 = (vcom1.pub_bases[0] * proof1.vcom.unwrap().r) +
+                (vcom2.pub_bases[0] * proof2.vcom.unwrap().r) + tx_fee;
+            
+            let is_pay_plus_fee = added_commits == h_r1_r2;
+            return clproto::bs_verify_nizk_proof(&vcom1) &&
+                clproto::bs_verify_nizk_proof(&vcom2) &&
+                range_proof1_valid && range_proof2_valid &&
+                is_pay_plus_fee;
+        }
+        panic!("verify_third_party_payment - third-party payment not enabled for both proofs");
+    }
+
 
     pub fn pay_by_customer_phase2(pp: &PublicParams, old_w: &CustomerWallet, new_w: &CustomerWallet,
                                   pk_m: &clsigs::PublicKeyD, rt_w: &clsigs::SignatureD) -> RevokeToken {
@@ -1030,7 +1151,7 @@ pub mod bidirectional {
             // update merchant state with (wpk, sigma_rev)
             update_merchant_state(&mut state, &proof.wpk, Some(rv.signature));
             let new_wallet_sig = clproto::bs_compute_blind_signature(&pp.cl_mpk, &sk_m, proof_cv.C, proof_cv.num_secrets);
-            m_data.csk.balance += proof.balance_inc;
+            m_data.csk.balance += proof.bal_proof.balance_increment + state.tx_fee;
             state.R = 2;
             return new_wallet_sig;
         }
@@ -1225,6 +1346,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]    // JAA: REMOVE
     fn unidirectional_payment_basics_work() {
         // TODO: finish me
         assert!(true == true);
@@ -1305,7 +1427,7 @@ mod tests {
         // let's test the pay protocol
         assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &cust_data.T, &merch_keys.pk, &mut cust_data.csk));
 
-        let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &cust_data.T, // channel token
+        let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &channel, &cust_data.T, // channel token
                                                                             &merch_keys.pk, // merchant pub key
                                                                             &cust_data.csk, // wallet
                                                                             payment_increment); // balance increment (FUNC INPUT)
@@ -1416,15 +1538,22 @@ mod tests {
         assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &cust1_data.T, &merch_keys.pk, &mut cust1_data.csk));
         assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &cust2_data.T, &merch_keys.pk, &mut cust2_data.csk));
 
-        let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &cust1_data.T, // channel token
+        println!("Channel 1 fee: {}", channel1.get_channel_fee());
+        let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &channel1,
+                                                                            &cust1_data.T, // channel token
                                                                             &merch_keys.pk, // merchant pub key
                                                                             &cust1_data.csk, // wallet
-                                                                            payment_increment); // balance increment (FUNC INPUT)
-
-        let (t_c2, new_wallet2, pay_proof2) = bidirectional::pay_by_customer_phase1(&pp, &cust2_data.T, // channel token
+                                                                            payment_increment); // balance increment
+        println!("Channel 2 fee: {}", channel2.get_channel_fee());
+        let (t_c2, new_wallet2, pay_proof2) = bidirectional::pay_by_customer_phase1(&pp, &channel2,
+                                                                    &cust2_data.T, // channel token
                                                                     &merch_keys.pk, // merchant pub key
                                                                     &cust2_data.csk, // wallet
-                                                                    -payment_increment); // balance increment (FUNC INPUT)
+                                                                    -payment_increment); // balance decrement
+
+        // validate pay_proof1 and pay_proof2 (and the channel state for the fee paying channel, if fee > 0)
+        let tx_fee = channel1.get_channel_fee() + channel2.get_channel_fee();
+        assert!(bidirectional::verify_third_party_payment(&pp, tx_fee, &pay_proof1.bal_proof, &pay_proof2.bal_proof));
 
         // get the refund token (rt_w)
         let rt_w1 = bidirectional::pay_by_merchant_phase1(&pp, channel1, &pay_proof1, &merch1_data);
@@ -1458,10 +1587,12 @@ mod tests {
         let mut channelA = bidirectional::ChannelState::new(String::from("Channel A -> I"), true);
         let mut channelB = bidirectional::ChannelState::new(String::from("Channel B -> I"), true);
 
-        //
+        let fee = 2;
+        channelA.set_channel_fee(fee);
+
         let total_payment = 20;
-        let b0_alice = 20;
-        let b0_bob = 20;
+        let b0_alice = 30;
+        let b0_bob = 30;
         let b0_merchantA = 40;
         let b0_merchantB = 40;
 

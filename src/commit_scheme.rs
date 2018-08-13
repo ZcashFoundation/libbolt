@@ -155,27 +155,23 @@ pub fn setup_gen_params(len: usize) -> CSParams {
     return CSParams { pub_bases: p };
 }
 
-pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> (Commitment, Vec<G2>) {
+pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> Commitment {
     let rng = &mut thread_rng();
 
     //let r = R.unwrap_or(Fr::random(rng));
-    let mut c_vec: Vec<G2> = Vec::new();
     // c = g1^m1 * ... * gn^mn * h^r
     //println!("(commit) index: 0");
     let mut c = (csp.pub_bases[0] * r);
-    c_vec.push(c);
     for i in 1 .. x.len() {
         //println!("(commit) index: {}", i);
-        let tmp = (csp.pub_bases[i] * x[i]);
-        c_vec.push(tmp);
-        c = c + tmp;
+        c = c + (csp.pub_bases[i] * x[i]);
     }
     // return (c, r) <- r
     let commitment = Commitment { c: c, r: r };
 
     // debugging
     //println!("{}", commitment);
-    return (commitment, c_vec);
+    return commitment;
 }
 
 pub fn decommit(csp: &CSParams, cm: &Commitment, x: &Vec<Fr>) -> bool {
@@ -222,7 +218,7 @@ mod tests {
             m.push(Fr::random(rng));
         }
         let r = m[0];
-        let (c, _) = commit(&csp, &m, r);
+        let c = commit(&csp, &m, r);
 
         assert!(decommit(&csp, &c, &m) == true);
     }

@@ -332,7 +332,7 @@ mod tests {
 
         let cm_csp = commit_scheme::setup(b, m_keypair.pk.Z2.clone(), mpk.g2.clone());
         let r = m1[0];
-        let (w_com, _) = commit_scheme::commit(&cm_csp, &m1, r);
+        let w_com = commit_scheme::commit(&cm_csp, &m1, r);
 
         assert!(commit_scheme::decommit(&cm_csp, &w_com, &m1));
 
