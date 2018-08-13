@@ -1,7 +1,6 @@
 // commit_schemes.rs
 
 use std::fmt;
-//use rand::prelude::*;
 use rand::{thread_rng, Rng};
 use bn::{Group, Fr, G1, G2};
 use clsigs;
@@ -10,9 +9,6 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
 
-// define some structures here
-
-// define some structures here
 #[derive(Copy, Clone)]
 pub struct PublicKey {
     g: G2,
@@ -131,13 +127,6 @@ pub fn setup(len: usize, pub_bases: Vec<G2>, h: G2) -> CSParams {
     let mut p: Vec<G2> = Vec::new();
     p.push(h);
 
-    //if pub_bases.is_none() {
-    //    for i in 1 .. len-1 {
-    //        p.push(G2::random(rng));
-    //    }
-    //    return CSParams { pub_bases: p };
-    //}
-
     let _p = pub_bases;
     for i in 0 .. _p.len() {
         p.push(_p[i]);
@@ -175,9 +164,7 @@ pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> Commitment {
 }
 
 pub fn decommit(csp: &CSParams, cm: &Commitment, x: &Vec<Fr>) -> bool {
-    //let mut dc = (csp.h * cm.r);
     let l = x.len();
-    //assert!(csp.pub_bases.len() == l);
     // pub_base[0] => h, x[0] => r
     // check that cm.r == x[0]
     // assert!(cm.r == x[0]);

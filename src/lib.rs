@@ -900,7 +900,6 @@ pub mod bidirectional {
         let mut transcript = ProofTranscript::new(b"BOLT Range Proof");
         let value = updated_balance as u64;
         let val_blinding = Scalar::hash_from_bytes::<Sha512>(&w_com_bytes);
-        //let val_blinding = Scalar::random(&mut osrng);
         let range_proof = RangeProof::prove_single(&pp.range_proof_gens, &mut transcript,
                                                    &mut osrng, value, &val_blinding,
                                                    pp.range_proof_bits).unwrap();
@@ -915,8 +914,6 @@ pub mod bidirectional {
             let bal_inc_fr = -convert_int_to_fr(balance_increment + channel.tx_fee);
             let inc_vec: Vec<Fr> = vec![r_inc, bal_inc_fr];
             let mut v_com = commit_scheme::commit(&cm_csp, &inc_vec, r_inc);
-            //let tx_fee = cm_csp.pub_bases[1] * -convert_int_to_fr(channel.tx_fee);
-            //v_com.c = v_com.c + tx_fee;
             let proof_vcom = clproto::bs_gen_nizk_proof(&inc_vec, &cm_csp.pub_bases, v_com.c);
 
             // range proof that pay increment < payment max
@@ -1064,7 +1061,6 @@ pub mod bidirectional {
             return rt_w;
         }
 
-        // let's update the merchant's wallet balance now
         panic!("pay_by_merchant_phase1 - NIZK verification failed for new wallet commitment!");
     }
 
@@ -1103,7 +1099,7 @@ pub mod bidirectional {
             // compute h^r1 + r2
             let h_r1_r2 = (vcom1.pub_bases[0] * proof1.vcom.unwrap().r) +
                 (vcom2.pub_bases[0] * proof2.vcom.unwrap().r) + tx_fee;
-            
+
             let is_pay_plus_fee = added_commits == h_r1_r2;
             return clproto::bs_verify_nizk_proof(&vcom1) &&
                 clproto::bs_verify_nizk_proof(&vcom2) &&
