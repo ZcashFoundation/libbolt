@@ -47,7 +47,7 @@ The libbolt library provides APIs for three types of privacy-preserving payment 
 
 * unidirectional payment channels (not done)
 * bidirectional payment channels (done)
-* third-party payments (not done) 
+* third-party payments (done)
 
 # Crypto Design
 

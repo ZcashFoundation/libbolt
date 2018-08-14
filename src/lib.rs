@@ -345,7 +345,7 @@ impl RefundMessage {
     }
 }
 
-//#[derive(Clone)]
+#[derive(Clone)]
 pub struct RevokedMessage {
     pub msgtype: String,
     pub wpk: secp256k1::PublicKey,
@@ -554,6 +554,7 @@ pub mod bidirectional {
         extra_verify: bool // extra verification for certain points in the establish/pay protocol
     }
 
+    #[derive(Clone)]
     pub struct ChannelToken {
         w_com: commit_scheme::Commitment,
         pk: clsigs::PublicKeyD,
@@ -572,6 +573,7 @@ pub mod bidirectional {
         common_params: clproto::CommonParams, // common params for NIZK
     }
 
+    #[derive(Clone)]
     pub struct CustomerWallet {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         cid: Fr, // channel Id
@@ -586,17 +588,20 @@ pub mod bidirectional {
         refund_token: Option<clsigs::SignatureD>
     }
 
+    #[derive(Clone)]
     pub struct MerchSecretKey {
         sk: clsigs::SecretKeyD, // merchant signing key
         pub balance: i32
     }
 
+    #[derive(Clone)]
     pub struct InitCustomerData {
         pub T: ChannelToken,
         pub csk: CustomerWallet,
         pub bases: Vec<G2>,
     }
 
+    #[derive(Clone)]
     pub struct InitMerchantData {
         pub T: clsigs::PublicKeyD,
         pub csk: MerchSecretKey,
@@ -643,11 +648,13 @@ pub mod bidirectional {
         }
     }
 
+    #[derive(Clone)]
     pub struct ChannelclosureC {
         pub message: RefundMessage,
         signature: clsigs::SignatureD
     }
 
+    #[derive(Clone)]
     pub struct ChannelclosureM {
         message: RevokedMessage,
         signature: clsigs::SignatureD
@@ -735,7 +742,7 @@ pub mod bidirectional {
         // randomness for commitment
         let r = Fr::random(rng);
         // retreive the channel id
-        let cid = channel.cid.clone();
+        let cid = channel.cid;
         // initial contents of wallet:
         // commitment, channel id, customer balance, hash of wpk (wallet ver/pub key)
         let mut x: Vec<Fr> = vec![r, cid, b0, h_wpk];
@@ -836,9 +843,6 @@ pub mod bidirectional {
         // generate the common params necessary to execute the two party NIZK protocol
         // for verifying the signature
         let common_params = clproto::gen_common_params(&pp.cl_mpk, &pk_m, &wallet_sig);
-        //println!("payment_by_customer_phase1 - secrets for old wallet");
-        //print_secret_vector(&old_x);
-
         // generate the NIZK proof of valid signature based on the old wallet
         let proof_vs = clproto::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
 
