@@ -6,7 +6,7 @@ BOLT is a system for conducting privacy-preserving off-chain payments between pa
 
 # WARNING
 
-The libbolt library relies on experimental libraries and dependencies at the moment. It should not be deployed in production software yet and has not undergone a security review.
+The libbolt library is a proof of concept implementation that relies on experimental libraries and dependencies at the moment. It is not suitable for production software yet.
 
 # Dependencies
 
@@ -45,7 +45,7 @@ extern crate libbolt;
 
 The libbolt library provides APIs for three types of privacy-preserving payment channels:
 
-* unidirectional payment channels (not done)
+* unidirectional payment channels (*work in progress*)
 * bidirectional payment channels (done)
 * third-party payments (done)
 
