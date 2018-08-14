@@ -23,7 +23,7 @@ update:
 
 doc:
 	# generates the documentation
-	echo "cargo +nightly doc"
+	cargo +nightly doc
 
 clean:
 	cargo +nightly clean
