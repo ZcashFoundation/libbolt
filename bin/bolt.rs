@@ -3,18 +3,12 @@ extern crate rand;
 extern crate rand_core;
 extern crate libbolt;
 extern crate bincode;
-extern crate serde_derive;
-extern crate serde;
 extern crate time;
 extern crate secp256k1;
+//extern crate serde_derive;
+//extern crate serde;
 
-use rand::{Rng, thread_rng};
-use rand_core::RngCore;
-use bn::{Group, Fr};
-use bincode::SizeLimit::Infinite;
-use bincode::rustc_serialize::{encode, decode};
-
-use libbolt::clsigs;
+//use libbolt::unidirectional;
 use libbolt::bidirectional;
 use time::PreciseTime;
 
@@ -42,10 +36,9 @@ macro_rules! measure_ret_mut {
 }
 
 fn main() {
-    let rng = &mut rand::thread_rng();
-
     println!("******************************************");
     // libbolt tests below
+    println!("Testing the channel setup...");
 
     //println!("[1a] libbolt - setup bidirecitonal scheme params");
     let (pp, setup_time1) = measure!(bidirectional::setup(false));
@@ -64,11 +57,11 @@ fn main() {
     // generate long-lived keypair for merchant -- used to identify
     // it to all customers
     //println!("[2] libbolt - generate long-lived key pair for merchant");
-    let (merch_keypair, keygen_time1) = measure!(bidirectional::keygen(&pp));
+    let (merch_keypair, _) = measure!(bidirectional::keygen(&pp));
 
     // customer gnerates an ephemeral keypair for use on a single channel
     println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
-    let (cust_keypair, keygen_time2) = measure!(bidirectional::keygen(&pp));
+    let (cust_keypair, _) = measure!(bidirectional::keygen(&pp));
 
     // each party executes the init algorithm on the agreed initial challence balance
     // in order to derive the channel tokens
@@ -80,6 +73,9 @@ fn main() {
     let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keypair.pk);
     let (mut init_cust_data, initc_time) = measure_ret_mut!(bidirectional::init_customer(&pp, &channel, b0_cust, b0_merch, &cm_csp, &cust_keypair));
     println!(">> TIME for init_customer: {}", initc_time);
+    println!("******************************************");
+    // libbolt tests below
+    println!("Testing the establish protocol...");
 
     println!("[6a] libbolt - entering the establish protocol for the channel");
     let (proof1, est_cust_time1) = measure!(bidirectional::establish_customer_phase1(&pp, &init_cust_data, &init_merch_data));
@@ -97,8 +93,7 @@ fn main() {
     println!("Channel has been established!");
     println!("******************************************");
 
-    println!("******************************************");
-    println!("Testing the pay protocol..");
+    println!("Testing the pay protocol...");
     // let's test the pay protocol
     bidirectional::pay_by_customer_phase1_precompute(&pp, &init_cust_data.T, &merch_keypair.pk, &mut init_cust_data.csk);
     let s = PreciseTime::now();
@@ -174,10 +169,11 @@ fn main() {
         let rc_m = bidirectional::merchant_refute(&pp, &channel_token, &init_merch_data, &mut channel, &rc_c, &rv_w1.signature);
         println!("Merchant has refuted the refund request!");
 
-
         let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&pp, &init_cust_data, &init_merch_data,
-                                                                 Some(rc_c), rc_m, Some(rt_w1));
+                                                                 Some(rc_c), Some(rc_m), Some(rt_w1));
         println!("Resolved! Customer = {}, Merchant = {}", new_b0_cust, new_b0_merch);
-
     }
+
+    // TODO: add tests for customer/merchant cheating scenarios
+    println!("******************************************");
 }

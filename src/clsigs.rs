@@ -259,8 +259,6 @@ pub fn sign_d(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
 }
 
 pub fn verify_d_unoptimized(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
-    //assert!(sig.A.len()+1 <= m.len());
-    //assert!(sig.B.len()+1 <= m.len());
     let l = m.len();
     // lhs2a and rhs2a checks that sig.b was formed correctly
     let lhs2a = pairing(pk.Y, sig.a); // eq2a
@@ -299,7 +297,7 @@ pub fn verify_d(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &Signatur
     let mut _lhs3 = G2::zero();
     for i in 0 .. l-1 {
         // checks that {sig.A}_i was formed correctly
-        let Zis = Zis + pk.Z[i]; // TODO; add small exps
+        let Zis = Zis + pk.Z[i];
         let Ais = Ais + sig.A[i];
         let Bis = Bis + sig.B[i];
         _lhs3 = _lhs3 + (sig.B[i] * m[i+1]);

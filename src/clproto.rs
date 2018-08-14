@@ -141,7 +141,6 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
     return bsig;
 }
 
-// TODO: generate proof for the
 #[derive(Clone)]
 pub struct CommonParams {
     vx: Gt,
