@@ -561,8 +561,6 @@ pub mod bidirectional {
         third_party_pay: bool
     }
 
-    // TODO: add display method to print structure (similar to Commitment)
-
     // proof of wallet signature, blind signature on wallet and common params for NIZK
     #[derive(Clone)]
     pub struct CustomerWalletProof {
@@ -584,7 +582,8 @@ pub mod bidirectional {
         pub balance: i32, // the balance for the user
         merchant_balance: i32,
         signature: Option<clsigs::SignatureD>,
-        proof: Option<CustomerWalletProof>, // proof of knowledge computed after obtaining signature on wallet contents in zero-knowledge
+        // proof of signature on wallet contents in zero-knowledge
+        proof: Option<CustomerWalletProof>,
         refund_token: Option<clsigs::SignatureD>
     }
 
@@ -810,7 +809,7 @@ pub mod bidirectional {
     ///// end of establish channel protocol
 
     ///// begin of pay protocol
-    pub fn pay_by_customer_phase1_precompute(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD, old_w: &mut CustomerWallet) -> bool {
+    pub fn pay_by_customer_phase1_precompute(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD, old_w: &mut CustomerWallet) {
         // generate proof of knowledge of valid signature on previous wallet signature
         let old_wallet_sig = &old_w.signature;
 
@@ -847,10 +846,9 @@ pub mod bidirectional {
         let proof_vs = clproto::vs_gen_nizk_proof(&old_x, &common_params, common_params.vs);
 
         // return the payment proof for the old wallet
-        let proof = CustomerWalletProof { proof_cv: proof_old_cv, proof_vs: proof_vs, bal_com: old_w_bal_com,
-                                          blind_sig: blind_sig, common_params: common_params };
-        old_w.proof = Some(proof);
-        return true;
+        let old_iou_proof = CustomerWalletProof { proof_cv: proof_old_cv, proof_vs: proof_vs,
+            bal_com: old_w_bal_com, blind_sig: blind_sig, common_params: common_params };
+        old_w.proof = Some(old_iou_proof);
     }
 
     pub fn pay_by_customer_phase1(pp: &PublicParams, channel: &ChannelState, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
@@ -1261,11 +1259,11 @@ pub mod bidirectional {
         }
     }
 
-    // on input the customer and merchant channel tokens T_c, T_m
-    // along with closure messages rc_c, rc_m
-    // this will be executed by the network --> using new opcodes (makes sure
-    // only one person is right)
-    pub fn resolve(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData, // cust and merch
+    /// on input the customer and merchant channel tokens T_c, T_m
+    /// along with closure messages rc_c, rc_m
+    /// this will be executed by the network --> using new opcodes (makes sure
+    /// only one person is right)
+    pub fn resolve(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData,
                    rc_c: Option<ChannelclosureC>, rc_m: Option<ChannelclosureM>,
                    rt_w: Option<clsigs::SignatureD>) -> (i32, i32) {
         let total_balance = c.csk.balance + m.csk.balance;
@@ -1274,7 +1272,8 @@ pub mod bidirectional {
         }
 
         if rc_c.is_none() {
-            // customer did not specify channel closure message
+            // could not find customer's channel closure message.
+            // judgement: give merchant everything
             return (0, total_balance);
         }
 
@@ -1317,9 +1316,8 @@ pub mod bidirectional {
             let rc_merch = rc_m.unwrap();
             let refute_valid = clsigs::verify_d(&pp.cl_mpk, &pk_m, &rc_merch.message.hash(), &rc_merch.signature);
             if !refute_valid {
-                // refutation is invalid, so return customer balance and merchant balance - claimed value
-                let claimed_value = 0; // TODO: figure out where this value comes from
-                return (c.csk.balance, m.csk.balance - claimed_value); // TODO: ensure merchant balance > 0
+                // refute token is invalid, so return customer balance and merchant balance
+                return (c.csk.balance, m.csk.balance);
             } else {
                 // if refutation is valid
                 return (0, total_balance);
@@ -1425,7 +1423,7 @@ mod tests {
                                    cust_keys: &clsigs::KeyPairD, cust_data: &mut bidirectional::InitCustomerData,
                                     payment_increment: i32) {
         // let's test the pay protocol
-        assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &cust_data.T, &merch_keys.pk, &mut cust_data.csk));
+        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust_data.T, &merch_keys.pk, &mut cust_data.csk);
 
         let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &channel, &cust_data.T, // channel token
                                                                             &merch_keys.pk, // merchant pub key
@@ -1535,8 +1533,8 @@ mod tests {
                                    cust2_keys: &clsigs::KeyPairD, cust2_data: &mut bidirectional::InitCustomerData,
                                    payment_increment: i32) {
         // let's test the pay protocol
-        assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &cust1_data.T, &merch_keys.pk, &mut cust1_data.csk));
-        assert!(bidirectional::pay_by_customer_phase1_precompute(&pp, &cust2_data.T, &merch_keys.pk, &mut cust2_data.csk));
+        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust1_data.T, &merch_keys.pk, &mut cust1_data.csk);
+        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust2_data.T, &merch_keys.pk, &mut cust2_data.csk);
 
         println!("Channel 1 fee: {}", channel1.get_channel_fee());
         let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &channel1,

@@ -15,7 +15,9 @@ The libbolt library is a proof of concept implementation that relies on experime
 * bn
 * bulletproofs
 
-# Compile and Install
+# Installation
+
+Please ensure you have installed the libsodium library for your platform. See install instructions [here](https://download.libsodium.org/doc/installation/index.html).
 
 To compile the library, run `make` 
 
@@ -49,6 +51,21 @@ The libbolt library provides APIs for three types of privacy-preserving payment 
 * bidirectional payment channels (done)
 * third-party payments (done)
 
-# Crypto Design
+**TODO**
 
-To build the design docs, run `make doc`.
+# Documentation
+
+Build the api documentation by simply running `make doc`. Documentation will be generated in your local `target/doc` directory.
+
+For the libbolt design documentation, see the `docs/bolt_design.pdf`.
+
+# Contributions
+
+To contribute code improvements, please checkout the repository as follows:
+
+	git clone https://github.com/yeletech/libbolt.git
+
+	
+# License
+
+Licensed under MIT (LICENSE-MIT or http://opensource.org/licenses/MIT)

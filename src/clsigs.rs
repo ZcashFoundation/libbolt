@@ -258,17 +258,6 @@ pub fn sign_d(mpk: &PublicParams, sk: &SecretKeyD, m: &Vec<Fr>) -> SignatureD {
     return sig;
 }
 
-//pub fn random_small_exp(bits: usize) -> Fr {
-//    let buf_len = bits / 8;
-//    let mut s0 = vec![0; buf_len];
-//    randombytes::randombytes_into(&mut s0);
-//    return Fr::interpret(s0.as_slice());
-//    //debug_elem_in_hex("")
-//    //let mut buf: [u8; buf_len] = [0; buf_len];
-//    //randombytes::randombytes_into(&mut buf);
-//    //return Fr::from_str("1234567890").unwrap();
-//}
-
 pub fn verify_d_unoptimized(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, sig: &SignatureD) -> bool {
     //assert!(sig.A.len()+1 <= m.len());
     //assert!(sig.B.len()+1 <= m.len());
@@ -298,11 +287,7 @@ pub fn verify_d_unoptimized(mpk: &PublicParams, pk: &PublicKeyD, m: &Vec<Fr>, si
         lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i+1]); // eq3
     }
 
-//    let mut lhs3 = pairing(pk.X, sig.a) * pairing(pk.X, sig.b * m[0]);
-//    for i in 1 .. l {
-//        lhs3 = lhs3 * pairing(pk.X, sig.B[i] * m[i]);
-//    }
-    return (result1 == true) && (lhs2a == rhs2a) && (result2b == true) && (lhs3 == rhs3);
+    return result1 && (lhs2a == rhs2a) && result2b && (lhs3 == rhs3);
 }
 
 // optimized but does not include small exps for security
