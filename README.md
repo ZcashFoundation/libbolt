@@ -15,11 +15,11 @@ The libbolt library is a proof of concept implementation that relies on experime
 * bn
 * bulletproofs
 
-# Installation
+# Build & Install
 
 Please ensure you have installed the libsodium library for your platform. See install instructions [here](https://download.libsodium.org/doc/installation/index.html).
 
-To compile the library, run `make` 
+To build the library, run `make` 
 
 # Tests
 
