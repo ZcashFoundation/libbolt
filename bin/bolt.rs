@@ -40,7 +40,7 @@ fn main() {
     // libbolt tests below
     println!("Testing the channel setup...");
 
-    //println!("[1a] libbolt - setup bidirecitonal scheme params");
+    //println!("[1a] libbolt - setup bidirectional scheme params");
     let (pp, setup_time1) = measure!(bidirectional::setup(false));
 
     //println!("[1b] libbolt - generate the initial channel state");
@@ -59,11 +59,11 @@ fn main() {
     //println!("[2] libbolt - generate long-lived key pair for merchant");
     let (merch_keypair, _) = measure!(bidirectional::keygen(&pp));
 
-    // customer gnerates an ephemeral keypair for use on a single channel
+    // customer generates an ephemeral keypair for use on a single channel
     println!("[3] libbolt - generate ephemeral key pair for customer (use with one channel)");
     let (cust_keypair, _) = measure!(bidirectional::keygen(&pp));
 
-    // each party executes the init algorithm on the agreed initial challence balance
+    // each party executes the init algorithm on the agreed initial challenge balance
     // in order to derive the channel tokens
     println!("[5a] libbolt - initialize on the merchant side with balance {}", b0_merch);
     let (mut init_merch_data, initm_time) = measure_ret_mut!(bidirectional::init_merchant(&pp, b0_merch, &merch_keypair));
