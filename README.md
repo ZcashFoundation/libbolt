@@ -15,7 +15,7 @@ The libbolt library is a proof of concept implementation that relies on experime
 * bn
 * bulletproofs
 
-Note that the above rust dependencies will be compiled and installed as a result of running `make` command.
+Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 
 # Rust Nightly Setup
 
@@ -68,6 +68,12 @@ The libbolt library provides APIs for three types of privacy-preserving payment 
 * unidirectional payment channels (*work in progress*)
 * bidirectional payment channels (done)
 * third-party payments (done)
+
+## Bidirectional Payment Channels
+
+**TODO**
+
+## Third-party Payment Support
 
 **TODO**
 
