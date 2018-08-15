@@ -11,23 +11,41 @@ The libbolt library is a proof of concept implementation that relies on experime
 # Dependencies
 
 * secp256k1
-* libsodium
+* sodiumoxide
 * bn
 * bulletproofs
+
+Note that the above rust dependencies will be compiled and installed as a result of running `make` command.
+
+# Rust Nightly Setup
+
+Please keep in mind we are currently working with nightly Rust for now which gives access to the nightly compiler and experimental features.
+
+	rustup install nightly
+	
+To run a quick test of the nightly toolchain, run the following command:
+
+	rustup run nightly rustc --version
+
+Optionally, to make this the default globally, run the following command:
+
+	rustup default nightly
+
+We will switch to the stable release channel once libbolt (and dependencies) are ready for production use.
 
 # Build & Install
 
 Please ensure you have installed the libsodium library for your platform. See install instructions [here](https://download.libsodium.org/doc/installation/index.html).
 
-To build the library, run `make` 
+To build the library and execute basic tests, run `make` 
 
 # Tests
 
-To run libbolt tests, run `cargo test` or `make test`
+To run libbolt unit tests, run `make test`
 
 # Benchmarks
 
-To run libbolt benchmarks, run `cargo bench` or `make bench`
+To run libbolt benchmarks, run `make bench`
 
 # Usage
 
@@ -57,11 +75,11 @@ The libbolt library provides APIs for three types of privacy-preserving payment 
 
 Build the api documentation by simply running `make doc`. Documentation will be generated in your local `target/doc` directory.
 
-For the libbolt design documentation, see the `docs/bolt_design.pdf`.
+For the libbolt design documentation, see the `docs/bolt_design.pdf` document.
 
 # Contributions
 
-To contribute code improvements, please checkout the repository as follows:
+To contribute code improvements, please checkout the repository, make your changes and submit a pull request.
 
 	git clone https://github.com/yeletech/libbolt.git
 
