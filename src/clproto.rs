@@ -205,11 +205,11 @@ fn part1_verify_proof_vs(proof: &ProofVS) -> bool {
 }
 
 pub fn vs_verify_blind_sig(mpk: &PublicParams, pk: &PublicKeyD, proof: &ProofVS, sig: &SignatureD) -> bool {
-
     let result0 = part1_verify_proof_vs(&proof);
     let mut result1 = true;
     let mut result3 = true;
 
+    // TODO: optimize verification
     // verify second condition
     let lhs2 = pairing(pk.Y, sig.a);
     let rhs2 = pairing(mpk.g1, sig.b);
@@ -279,7 +279,6 @@ mod tests {
         }
 
         // generate sample commitment
-        //let mut m: Vec<Fr> = Vec::new();
         let mut C = mpk.g2 * m1[0];
         for i in 0 .. b {
             //println!("index: {}", i);

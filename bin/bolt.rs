@@ -78,7 +78,7 @@ fn main() {
     println!("Testing the establish protocol...");
 
     println!("[6a] libbolt - entering the establish protocol for the channel");
-    let (proof1, est_cust_time1) = measure!(bidirectional::establish_customer_phase1(&pp, &init_cust_data, &init_merch_data));
+    let (proof1, est_cust_time1) = measure!(bidirectional::establish_customer_phase1(&pp, &init_cust_data, &init_merch_data.bases));
     println!(">> TIME for establish_customer_phase1: {}", est_cust_time1);
 
     println!("[6b] libbolt - obtain the wallet signature from the merchant");
