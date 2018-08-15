@@ -142,7 +142,7 @@ pub fn print(g: &G1) -> String {
 //        let c_id_vec: Vec<u8> = encode(&self.c_id, Infinite).unwrap();
 //        // encode cId in the vector
 //        input_buf.extend(c_id_vec);
-//        // encoee the balance as a hex string
+//        // encode the balance as a hex string
 //        let b = format!("{:x}", self.index);
 //        input_buf.extend_from_slice(b.as_bytes());
 //        // TODO: add the ck vector (l-bit key)
@@ -548,7 +548,7 @@ pub mod bidirectional {
 
     pub struct PublicParams {
         cl_mpk: clsigs::PublicParams,
-        l: usize, // messages for committment
+        l: usize, // messages for commitment
         range_proof_gens: bulletproofs::Generators,
         range_proof_bits: usize,
         extra_verify: bool // extra verification for certain points in the establish/pay protocol
@@ -740,7 +740,7 @@ pub mod bidirectional {
         let b0 = convert_int_to_fr(b0_customer);
         // randomness for commitment
         let r = Fr::random(rng);
-        // retreive the channel id
+        // retrieve the channel id
         let cid = channel.cid;
         // initial contents of wallet:
         // commitment, channel id, customer balance, hash of wpk (wallet ver/pub key)
@@ -836,7 +836,7 @@ pub mod bidirectional {
         // NOTE: the third argument represents the challenge that is included in the final proof structure
         let proof_old_cv = clproto::bs_gen_nizk_proof(&old_x, &cm_csp.pub_bases, old_w_com_pr);
 
-        // generate the blind siganture for the old wallet signature (we do not want to reveal this
+        // generate the blind signature for the old wallet signature (we do not want to reveal this
         // to the merchant)
         let blind_sig = clproto::prover_generate_blinded_sig(&wallet_sig);
         // generate the common params necessary to execute the two party NIZK protocol
@@ -1365,7 +1365,7 @@ mod tests {
         // it to all customers
         let merch_keys = bidirectional::keygen(&pp);
 
-        // customer gnerates an ephemeral keypair for use on a single channel
+        // customer generates an ephemeral keypair for use on a single channel
         let cust_keys = bidirectional::keygen(&pp);
 
         // each party executes the init algorithm on the agreed initial challenge balance
@@ -1389,7 +1389,7 @@ mod tests {
         let b0_cust = init_cust_bal;
         let b0_merch = init_merch_bal;
 
-        // customer gnerates an ephemeral keypair for use on a single channel
+        // customer generates an ephemeral keypair for use on a single channel
         let cust_keys = bidirectional::keygen(&pp);
 
         // each party executes the init algorithm on the agreed initial challenge balance
