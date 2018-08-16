@@ -69,9 +69,118 @@ The libbolt library provides APIs for three types of privacy-preserving payment 
 * bidirectional payment channels (done)
 * third-party payments (done)
 
-## Bidirectional Payment Channels
+## Unidirectional Payment Channels
 
 **TODO**
+
+## Bidirectional Payment Channels
+
+A bidirectional payment channel enables two parties to exchange arbitrary positive and negative amounts. 
+
+### Channel Setup and Key Generation
+
+The first part of setting up bi-directional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
+	
+	use libbolt::bidirectional;
+	
+	// setup bidirectional scheme params
+	let pp = bidirectional::setup(true);
+	
+	// generate the initial channel state 
+	// second argument represents third-party mode
+	let mut channel = bidirectional::ChannelState::new(String::from("My New Channel A"), false);
+
+To generate keys for both parties, call the `bidirectional::keygen()` routine with the public parameters as input.
+	
+	// merchant generates a long-lived key pair
+	let m_keypair = bidirectional::keygen(&pp);
+	
+	// customer generates an ephemeral keypair for use on a single channel
+	let c_keypair = bidirectional::keygen(&pp);
+
+### Initialization
+
+To initialize the channel for both parties, do the following:
+	
+	let b0_merch = 10;
+	let b0_cust = 100;
+	// initialize on the merchant side with balance, b0_merch
+	let mut m_data = bidirectional::init_merchant(&pp, b0_merch, &m_keypair));
+		
+	 // generate the public params for the commitment scheme
+	let cm_csp = bidirectional::generate_commit_setup(&pp, &m_keypair.pk);
+	    
+	// initialize on the customer side with balance, b0_cust    
+	let mut c_data = bidirectional::init_customer(&pp, // public params
+	                                              &channel, // channel state
+	                                              b0_cust, // init customer balance
+	                                              b0_merch, // init merchant balance
+	                                              &cm_csp, // commitment pub params
+	                                              &c_keypair)); // customer keypair
+
+
+### Establish Protocol
+
+When opening a payment channel, execute the establishment protocol API to escrow funds privately as follows:
+
+	// entering the establish protocol for the channel
+	let proof1 = bidirectional::establish_customer_phase1(&pp, &c_data, &m_data.bases);
+	
+	// obtain the wallet signature from the merchant
+	let w_sig = bidirectional::establish_merchant_phase2(&pp, &mut channel, &m_data, &proof1));
+	
+	// complete channel establishment");
+	assert!(bidirectional::establish_customer_final(&pp, &m_keypair.pk, &mut c_data.csk, w_sig));
+		
+	// confirm that the channel state is now established
+	assert!(channel.channel_established);
+	
+### Pay protocol		
+
+To spend on the channel, execute the pay protocol API (can be executed as many times as necessary):
+		
+	// precomputation phase that customer does offline prior to a spend
+	bidirectional::pay_by_customer_phase1_precompute(&pp, &c_data.channel_token, &m_keypair.pk, &mut c_data.csk);
+		
+	// generate new channel token, new wallet and payment proof
+	// send the payment proof to the merchant
+	let (t_c, new_w, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &channel, 
+	                                                                    &c_data.channel_token, // channel token
+	                                                                    &m_keypair.pk, // merchant verification key
+	                                                                    &c_data.csk, // current wallet
+	                                                                    5); // balance increment
+		                                    
+	// get the refund token (rt_w) from the merchant
+	let rt_w = bidirectional::pay_by_merchant_phase1(&pp, &mut channel, &pay_proof, &m_data));
+	
+	// generate the revocation token (rv_w) on the old public key (wpk)
+	let rv_w = bidirectional::pay_by_customer_phase2(&pp, &c_data.csk, &new_w, &m_keypair.pk, &rt_w));
+	
+	// get the signature on the new wallet from merchant
+	let new_w_sig = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof, &mut m_data, &rv_w));
+		
+	// complete the final step of pay protocol - verify merchant signature on wallet 
+	assert!(bidirectional::pay_by_customer_final(&pp, &m_keypair.pk, &mut c_data, t_c, new_w, new_w_sig));
+
+### Channel Closure Algorithms
+
+To close a channel, the customer must executes the `bidirectional::customer_refund()` routine as follows:
+
+	let cust_wallet = &c_data.csk;
+	let rc_c = bidirectional::customer_refund(&pp, &channel, &m_keypair.pk, &cust_wallet);
+	
+The merchant can dispute a customer's claim by executing the `bidirectional::merchant_retute()` routine follows:
+
+	let channel_token = &c_data.channel_token;
+	let rc_m = bidirectional::merchant_refute(&pp, &mut channel, &channel_token, &m_data, &rc_c, &rv_w.signature);
+
+	
+To resolve a dispute between a customer and a merchant, the following routine is executed by the network:
+	
+	let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&pp, &c_data, &m_data,
+	                                                         Some(rc_c), Some(rc_m), Some(rt_w));
+	                                                         
+`new_b0_cust` and `new_b0_merch` represent the new balances for the customer and merchant (respectively).
 
 ## Third-party Payment Support
 
@@ -89,6 +198,15 @@ To contribute code improvements, please checkout the repository, make your chang
 
 	git clone https://github.com/yeletech/libbolt.git
 
+# TODOs
+
+Here are some TODOs (not in any particular order):
+
+* Serialization support for libbolt structures such as `CustomerWallet`, `PaymentProof`, and so on.
+* Support for other curves (e.g., pairing library from Zcash)
+* Finish unidirectional channel construction
+* Fix warnings
+* Add more unit tests for other dispute resolution scenarios and pay protocol (to ensure appopriate aborts), third-party test cases, etc.
 	
 # License
 

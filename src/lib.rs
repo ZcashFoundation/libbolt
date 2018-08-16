@@ -427,12 +427,12 @@ pub mod unidirectional {
     }
 
     pub struct InitCustomerData {
-        T: ChannelToken,
+        channel_token: ChannelToken,
         csk: CustSecretKey
     }
 
     pub struct InitMerchantData {
-        T: clsigs::PublicKey,
+        channel_token: clsigs::PublicKey,
         csk: MerchSecretKey
     }
 
@@ -471,12 +471,12 @@ pub mod unidirectional {
         let w_com = commit_scheme::commit(&cm_pk, &msg.hash(), r);
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk };
         let csk_c = CustSecretKey { sk: keypair.sk, k1: k1, k2: k2, r: r, balance: b0_customer, ck_vec: ck_vec };
-        return InitCustomerData { T: t_c, csk: csk_c };
+        return InitCustomerData { channel_token: t_c, csk: csk_c };
     }
 
     pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPair) -> InitMerchantData {
         let csk_m = MerchSecretKey { sk: keypair.sk, balance: b0_merchant };
-        return InitMerchantData { T: keypair.pk, csk: csk_m };
+        return InitMerchantData { channel_token: keypair.pk, csk: csk_m };
     }
 
 //    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
@@ -595,14 +595,14 @@ pub mod bidirectional {
 
     #[derive(Clone)]
     pub struct InitCustomerData {
-        pub T: ChannelToken,
+        pub channel_token: ChannelToken,
         pub csk: CustomerWallet,
         pub bases: Vec<G2>,
     }
 
     #[derive(Clone)]
     pub struct InitMerchantData {
-        pub T: clsigs::PublicKeyD,
+        pub channel_token: clsigs::PublicKeyD,
         pub csk: MerchSecretKey,
         pub bases: Vec<G2>
     }
@@ -759,7 +759,7 @@ pub mod bidirectional {
                                     r: r, balance: b0_customer, merchant_balance: b0_merchant,
                                     proof: None, signature: None, refund_token: None };
 
-        return InitCustomerData { T: t_c, csk: csk_c, bases: cm_csp.pub_bases.clone() };
+        return InitCustomerData { channel_token: t_c, csk: csk_c, bases: cm_csp.pub_bases.clone() };
     }
 
     ///
@@ -770,7 +770,7 @@ pub mod bidirectional {
         assert!(b0_merchant >= 0);
         let cm_csp = generate_commit_setup(&pp, &keypair.pk);
         let csk_m = MerchSecretKey { sk: keypair.sk.clone(), balance: b0_merchant };
-        return InitMerchantData { T: keypair.pk.clone(), csk: csk_m, bases: cm_csp.pub_bases };
+        return InitMerchantData { channel_token: keypair.pk.clone(), csk: csk_m, bases: cm_csp.pub_bases };
     }
 
     ///
@@ -781,7 +781,7 @@ pub mod bidirectional {
     pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData,
                                      pub_bases: &Vec<G2>) -> clproto::ProofCV {
         // obtain customer init data
-        let t_c = &c_data.T;
+        let t_c = &c_data.channel_token;
         let csk_c = &c_data.csk;
         //let pub_bases = &m_data.bases;
 
@@ -834,7 +834,7 @@ pub mod bidirectional {
     /// pay_by_customer_phase1_precompute - takes as input the public params, channel token,
     /// merchant verification key, old customer wallet. Generates PoK of signature on previous wallet.
     ///
-    pub fn pay_by_customer_phase1_precompute(pp: &PublicParams, T: &ChannelToken, pk_m: &clsigs::PublicKeyD, old_w: &mut CustomerWallet) {
+    pub fn pay_by_customer_phase1_precompute(pp: &PublicParams, t: &ChannelToken, pk_m: &clsigs::PublicKeyD, old_w: &mut CustomerWallet) {
         // generate proof of knowledge of valid signature on previous wallet
         let old_wallet_sig = &old_w.signature;
 
@@ -857,7 +857,7 @@ pub mod bidirectional {
         // proof of committed values not including the old wpk since we are revealing it
         // to the merchant
         let index = 3;
-        let old_w_com_pr = T.w_com.c - old_w_bal_com - (cm_csp.pub_bases[index] * old_h_wpk);
+        let old_w_com_pr = t.w_com.c - old_w_bal_com - (cm_csp.pub_bases[index] * old_h_wpk);
         // NOTE: the third argument represents the challenge that is included in the final proof structure
         let proof_old_cv = clproto::bs_gen_nizk_proof(&old_x, &cm_csp.pub_bases, old_w_com_pr);
 
@@ -883,7 +883,7 @@ pub mod bidirectional {
     /// PoK of the committed values in new wallet and PoK of old wallet. Return new channel token,
     /// new wallet (minus blind signature and refund token) and payment proof.
     ///
-    pub fn pay_by_customer_phase1(pp: &PublicParams, channel: &ChannelState, T: &ChannelToken, pk_m: &clsigs::PublicKeyD,
+    pub fn pay_by_customer_phase1(pp: &PublicParams, channel: &ChannelState, t: &ChannelToken, pk_m: &clsigs::PublicKeyD,
                                   old_w: &CustomerWallet, balance_increment: i32) -> (ChannelToken, CustomerWallet, PaymentProof) {
         // get balance, keypair, commitment randomness and wallet sig
         let mut rng = &mut rand::thread_rng();
@@ -942,7 +942,7 @@ pub mod bidirectional {
         let proof_rp = ProofVB { range_proof: range_proof, value_commitment: value_cm };
 
         let mut bal_proof;
-        if T.third_party_pay {
+        if t.third_party_pay {
             let r_inc = Fr::random(rng);
             let bal_inc_fr = -convert_int_to_fr(balance_increment + channel.tx_fee);
             let inc_vec: Vec<Fr> = vec![r_inc, bal_inc_fr];
@@ -999,7 +999,7 @@ pub mod bidirectional {
                                 wallet_sig: wallet_proof.blind_sig // blinded signature for old wallet
                             };
         // create new wallet structure (w/o signature or refund token)
-        let t_c = ChannelToken { w_com: w_com, pk: T.pk.clone(), third_party_pay: T.third_party_pay };
+        let t_c = ChannelToken { w_com: w_com, pk: t.pk.clone(), third_party_pay: t.third_party_pay };
         let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk, h_wpk: h_wpk,
                             r: r_pr, balance: updated_balance, merchant_balance: merchant_balance,
                             proof: None, signature: None, refund_token: None };
@@ -1020,7 +1020,7 @@ pub mod bidirectional {
         let bal_proof = &proof.bal_proof;
         let blinded_sig = &proof.wallet_sig;
         // get merchant keypair
-        let pk_m = &m_data.T;
+        let pk_m = &m_data.channel_token;
         let sk_m = &m_data.csk.sk;
 
         // let's first confirm that proof of knowledge of signature on old wallet is valid
@@ -1219,7 +1219,7 @@ pub mod bidirectional {
             // update csk in new wallet
             c_data.csk = new_w;
             // update the channel token
-            c_data.T = new_t;
+            c_data.channel_token = new_t;
             return true;
         }
         // must be an old wallet
@@ -1290,11 +1290,11 @@ pub mod bidirectional {
     /// channels tate, channel closure from customer, and revocation token.
     /// Generates a channel closure message for merchant and updated merchant internal state.
     ///
-    pub fn merchant_refute(pp: &PublicParams, T_c: &ChannelToken, m_data: &InitMerchantData,
-                  state: &mut ChannelState, rc_c: &ChannelclosureC, rv_token: &secp256k1::Signature)  -> ChannelclosureM {
+    pub fn merchant_refute(pp: &PublicParams, state: &mut ChannelState, t_c: &ChannelToken, m_data: &InitMerchantData,
+                           rc_c: &ChannelclosureC, rv_token: &secp256k1::Signature)  -> ChannelclosureM {
         // for merchant => on input the merchant's current state S_old and a customer channel closure message,
         // outputs a merchant channel closure message rc_m and updated merchant state S_new
-        let is_valid = clsigs::verify_d(&pp.cl_mpk, &T_c.pk, &rc_c.message.hash(), &rc_c.signature);
+        let is_valid = clsigs::verify_d(&pp.cl_mpk, &t_c.pk, &rc_c.message.hash(), &rc_c.signature);
         if is_valid {
             let wpk = rc_c.message.wpk;
             let balance = rc_c.message.balance;
@@ -1333,8 +1333,8 @@ pub mod bidirectional {
             return (0, total_balance);
         }
 
-        let pk_c = &c.T.pk; // get public key for customer
-        let pk_m = &m.T; // get public key for merchant
+        let pk_c = &c.channel_token.pk; // get public key for customer
+        let pk_m = &m.channel_token; // get public key for merchant
 
         let rc_cust = rc_c.unwrap();
         let rcc_valid = clsigs::verify_d(&pp.cl_mpk, &pk_c, &rc_cust.message.hash(), &rc_cust.signature);
@@ -1342,7 +1342,7 @@ pub mod bidirectional {
             panic!("resolve2 - rc_c signature is invalid!");
         }
         let msg = &rc_cust.message;
-        let w_com = &c.T.w_com;
+        let w_com = &c.channel_token.w_com;
 
         if msg.msgtype == "refundUnsigned" {
             // assert the validity of the w_com
@@ -1485,9 +1485,9 @@ mod tests {
                                    cust_keys: &clsigs::KeyPairD, cust_data: &mut bidirectional::InitCustomerData,
                                     payment_increment: i32) {
         // let's test the pay protocol
-        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust_data.T, &merch_keys.pk, &mut cust_data.csk);
+        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust_data.channel_token, &merch_keys.pk, &mut cust_data.csk);
 
-        let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &channel, &cust_data.T, // channel token
+        let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &channel, &cust_data.channel_token, // channel token
                                                                             &merch_keys.pk, // merchant pub key
                                                                             &cust_data.csk, // wallet
                                                                             payment_increment); // balance increment (FUNC INPUT)
@@ -1595,18 +1595,18 @@ mod tests {
                                    cust2_keys: &clsigs::KeyPairD, cust2_data: &mut bidirectional::InitCustomerData,
                                    payment_increment: i32) {
         // let's test the pay protocol
-        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust1_data.T, &merch_keys.pk, &mut cust1_data.csk);
-        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust2_data.T, &merch_keys.pk, &mut cust2_data.csk);
+        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust1_data.channel_token, &merch_keys.pk, &mut cust1_data.csk);
+        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust2_data.channel_token, &merch_keys.pk, &mut cust2_data.csk);
 
         println!("Channel 1 fee: {}", channel1.get_channel_fee());
         let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &channel1,
-                                                                            &cust1_data.T, // channel token
+                                                                            &cust1_data.channel_token, // channel token
                                                                             &merch_keys.pk, // merchant pub key
                                                                             &cust1_data.csk, // wallet
                                                                             payment_increment); // balance increment
         println!("Channel 2 fee: {}", channel2.get_channel_fee());
         let (t_c2, new_wallet2, pay_proof2) = bidirectional::pay_by_customer_phase1(&pp, &channel2,
-                                                                    &cust2_data.T, // channel token
+                                                                    &cust2_data.channel_token, // channel token
                                                                     &merch_keys.pk, // merchant pub key
                                                                     &cust2_data.csk, // wallet
                                                                     -payment_increment); // balance decrement
