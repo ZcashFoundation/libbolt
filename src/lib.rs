@@ -1028,9 +1028,9 @@ pub mod bidirectional {
 
         // add specified wpk to make the proof valid
         // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
-        let new_C = proof_old_cv.C + bal_proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
+        let new_c = proof_old_cv.C + bal_proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
         let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
-                                         C: new_C,
+                                         C: new_c,
                                          s: proof_old_cv.s.clone(),
                                          pub_bases: proof_old_cv.pub_bases.clone(),
                                          num_secrets: proof_old_cv.num_secrets };
@@ -1644,41 +1644,41 @@ mod tests {
         let pp = bidirectional::setup(true);
 
         // third party -- so indicate so in the channel state
-        let mut channelA = bidirectional::ChannelState::new(String::from("Channel A -> I"), true);
-        let mut channelB = bidirectional::ChannelState::new(String::from("Channel B -> I"), true);
+        let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A -> I"), true);
+        let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B -> I"), true);
 
         let fee = 2;
-        channelA.set_channel_fee(fee);
+        channel_a.set_channel_fee(fee);
 
         let total_payment = 20;
         let b0_alice = 30;
         let b0_bob = 30;
-        let b0_merchantA = 40;
-        let b0_merchantB = 40;
+        let b0_merchant_a = 40;
+        let b0_merchant_b = 40;
 
-        let (merch_keys, mut merch_data_A, alice_keys, mut alice_data) = setup_new_channel_helper(&pp, &mut channelA, b0_alice, b0_merchantA);
+        let (merch_keys, mut merch_data_a, alice_keys, mut alice_data) = setup_new_channel_helper(&pp, &mut channel_a, b0_alice, b0_merchant_a);
 
-        let (mut merch_data_B, bob_keys, mut bob_data) =
-            setup_new_channel_existing_merchant_helper(&pp, &mut channelB, b0_bob, b0_merchantB, &merch_keys);
+        let (mut merch_data_b, bob_keys, mut bob_data) =
+            setup_new_channel_existing_merchant_helper(&pp, &mut channel_b, b0_bob, b0_merchant_b, &merch_keys);
 
         // run establish protocol for alice and merchant channel
-        execute_establish_protocol_helper(&pp, &mut channelA, &merch_keys, &mut merch_data_A, &alice_keys, &mut alice_data);
+        execute_establish_protocol_helper(&pp, &mut channel_a, &merch_keys, &mut merch_data_a, &alice_keys, &mut alice_data);
 
         // run establish protocol for bob and merchant channel
-        execute_establish_protocol_helper(&pp, &mut channelB, &merch_keys, &mut merch_data_B, &bob_keys, &mut bob_data);
+        execute_establish_protocol_helper(&pp, &mut channel_b, &merch_keys, &mut merch_data_b, &bob_keys, &mut bob_data);
 
-        assert!(channelA.channel_established);
-        assert!(channelB.channel_established);
+        assert!(channel_a.channel_established);
+        assert!(channel_b.channel_established);
 
         // alice can pay bob through the merchant
-        execute_third_party_pay_protocol_helper(&pp, &mut channelA, &mut channelB,
-                                                &merch_keys, &mut merch_data_A, &mut merch_data_B,
+        execute_third_party_pay_protocol_helper(&pp, &mut channel_a, &mut channel_b,
+                                                &merch_keys, &mut merch_data_a, &mut merch_data_b,
                                                 &alice_keys, &mut alice_data, &bob_keys, &mut bob_data, total_payment);
 
         println!("Customer alice balance: {}", alice_data.csk.balance);
-        println!("Merchant channel balance with alice: {}", merch_data_A.csk.balance);
+        println!("Merchant channel balance with alice: {}", merch_data_a.csk.balance);
         println!("Customer bob balance: {}", bob_data.csk.balance);
-        println!("Merchant channel balance with bob: {}", merch_data_B.csk.balance);
+        println!("Merchant channel balance with bob: {}", merch_data_b.csk.balance);
     }
 
 }

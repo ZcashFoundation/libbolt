@@ -2,7 +2,7 @@
 
 A pure-Rust library implementation of BOLT: Blind Off-chain Lightweight Transactions.
 
-BOLT is a system for conducting privacy-preserving off-chain payments between pairs of individual parties. BOLT is designed to provide a Layer 2 payment protocol for privacy-preserving cryptocurrencies such as Zcash, by allowing individuals to establish and use payment channels for instantaneous payments that do not require an on-chain transaction.
+BOLT is a system for conducting **privacy-preserving off-chain payments** between pairs of individual parties. BOLT is designed to provide a Layer 2 payment protocol for privacy-preserving cryptocurrencies such as Zcash, by allowing individuals to establish and use payment channels for instantaneous payments that do not require an on-chain transaction.
 
 # WARNING
 
@@ -63,11 +63,11 @@ extern crate libbolt;
 
 # API
 
-The libbolt library provides APIs for three types of privacy-preserving payment channels:
+The libbolt library provides APIs for three types of payment channels:
 
 * unidirectional payment channels (*work in progress*)
-* bidirectional payment channels (done)
-* third-party payments (done)
+* bidirectional payment channels
+* third-party payments
 
 ## Unidirectional Payment Channels
 
@@ -164,12 +164,12 @@ To spend on the channel, execute the pay protocol API (can be executed as many t
 
 ### Channel Closure Algorithms
 
-To close a channel, the customer must executes the `bidirectional::customer_refund()` routine as follows:
+To close a channel, the customer must execute the `bidirectional::customer_refund()` routine as follows:
 
 	let cust_wallet = &c_data.csk;
 	let rc_c = bidirectional::customer_refund(&pp, &channel, &m_keypair.pk, &cust_wallet);
 	
-The merchant can dispute a customer's claim by executing the `bidirectional::merchant_retute()` routine follows:
+The merchant can dispute a customer's claim by executing the `bidirectional::merchant_retute()` routine as follows:
 
 	let channel_token = &c_data.channel_token;
 	let rc_m = bidirectional::merchant_refute(&pp, &mut channel, &channel_token, &m_data, &rc_c, &rv_w.signature);
@@ -184,7 +184,46 @@ To resolve a dispute between a customer and a merchant, the following routine is
 
 ## Third-party Payment Support
 
-**TODO**
+The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With BOLT, the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users. 
+
+To enable third-party payment support, initialize each payment channel as follows:
+		
+		
+	let pp = bidirectional::setup(true);
+	
+	// create the channel state for each channel and indicate third-party support 
+	let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A -> I"), true);
+	let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B -> I"), true);
+	
+Moreover, the intermediary can set a channel fee as follows:
+	
+	channel_a.set_channel_fee(5);
+
+The channel establishment still works as described before and the pay protocol includes an additional step to verify that the payments on both channels cancel out or include a channel fee (if specified).
+
+	
+	...
+	
+	let payment_amount = 20;
+	// get payment proof on first channel with party A (and I)
+	let (t_c1, new_w1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &channel_a,
+	                                                                    &c1_data.channel_token, // channel token
+	                                                                    &merch_keys.pk, // merchant pub key
+	                                                                    &c1_data.csk, // wallet
+	                                                                    payment_amount); // bal inc
+	// get payment proof on second channel with party B (and I)
+	let (t_c2, new_w2, pay_proof2) = bidirectional::pay_by_customer_phase1(&pp, &channel2,
+                                                                           &c2_data.channel_token, // channel token
+	                                                                       &m_keys.pk, // merchant pub key
+	                                                                       &c2_data.csk, // wallet
+                                                                          -payment_amount); // bal dec
+                                                               
+	// verify that the payment proof is valid and cancels out or results in a fee
+	let tx_fee = channel_a.get_channel_fee() + channel_b.get_channel_fee();
+	assert!(bidirectional::verify_third_party_payment(&pp, tx_fee, &pay_proof1.bal_proof, &pay_proof2.bal_proof));
+	
+	...
+
 
 # Documentation
 
