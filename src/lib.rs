@@ -550,6 +550,7 @@ pub mod unidirectional {
         unimplemented!();
     }
 
+    // TODO: add pay protocol api, channel disput algs, etc
 }
 
 /////////////////////////////// Unidirectional ////////////////////////////////
@@ -903,8 +904,7 @@ pub mod bidirectional {
     ///
     pub fn pay_by_customer_phase1_precompute(pp: &PublicParams, t: &ChannelToken, pk_m: &clsigs::PublicKeyD, old_w: &mut CustomerWallet) {
         // generate proof of knowledge of valid signature on previous wallet
-        let old_wallet_sig = &old_w.signature;
-
+        // get channel id, balance, commitment randomness and wallet sig
         let cid = old_w.cid.clone();
         let old_r = &old_w.r;
         let old_wallet_sig = &old_w.signature;
@@ -952,7 +952,6 @@ pub mod bidirectional {
     ///
     pub fn pay_by_customer_phase1(pp: &PublicParams, channel: &ChannelState, t: &ChannelToken, pk_m: &clsigs::PublicKeyD,
                                   old_w: &CustomerWallet, balance_increment: i32) -> (ChannelToken, CustomerWallet, PaymentProof) {
-        // get balance, keypair, commitment randomness and wallet sig
         let mut rng = &mut rand::thread_rng();
 
         if old_w.proof.is_none() {
@@ -1488,7 +1487,7 @@ mod tests {
         let b0_merch = init_merch_bal;
 
         // generate long-lived keypair for merchant -- used to identify
-        // it to all customers
+        // merchant to all customers
         let merch_keys = bidirectional::keygen(&pp);
 
         // customer generates an ephemeral keypair for use on a single channel
@@ -1620,7 +1619,7 @@ mod tests {
         let pp = bidirectional::setup(true);
 
         // just bidirectional case (w/o third party)
-        let mut channel = bidirectional::ChannelState::new(String::from("Channel A -> B"), false);
+        let mut channel = bidirectional::ChannelState::new(String::from("Channel A <-> B"), false);
         let total_owed = -20;
         let b0_customer = 90;
         let b0_merchant = 30;
@@ -1711,8 +1710,8 @@ mod tests {
         let pp = bidirectional::setup(true);
 
         // third party -- so indicate so in the channel state
-        let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A -> I"), true);
-        let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B -> I"), true);
+        let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A <-> I"), true);
+        let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B <-> I"), true);
 
         let fee = 2;
         channel_a.set_channel_fee(fee);

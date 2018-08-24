@@ -71,11 +71,11 @@ The libbolt library provides APIs for three types of payment channels:
 
 ## Unidirectional Payment Channels
 
-**TODO**
+A unidirectional payment channel enables payments from a customer to a merchant and only supports transfer of fixed-sized values in one direction.
 
 ### Channel Setup and Key Generation
 
-The first part of setting up uni-directional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
+The first part of setting up unidirectional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
 	
 	use libbolt::unidirectional;
 	
