@@ -12,9 +12,9 @@ pub struct PRFKey {
 }
 
 // initialize the PRF with a seed and an optional generator
-pub fn initPRF(s: Fr, G: Option<G1>) -> PRFKey {
+pub fn init_prf(s: Fr, gen: Option<G1>) -> PRFKey {
     let rng = &mut rand::thread_rng();
-    let g = G.unwrap_or(G1::random(rng));
+    let g = gen.unwrap_or(G1::random(rng));
     return PRFKey { s: s, g: g };
 }
 
@@ -34,7 +34,7 @@ mod tests {
     fn prf_works() {
         let rng = &mut rand::thread_rng();
         let s = Fr::random(rng);
-        let key = initPRF(s, None);
+        let key = init_prf(s, None);
 
         let x = Fr::random(rng);
         let y = compute(&key, x);

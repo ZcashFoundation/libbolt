@@ -347,7 +347,6 @@ mod tests {
         let mut m2 = Fr::random(rng);
 
         let signature = sign_a(&keypair.sk, m1);
-        //println!("{}", signature);
 
         assert!(verify_a(&mpk, &keypair.pk, m1, &signature) == true);
         assert!(verify_a(&mpk, &keypair.pk, m2, &signature) == false);
@@ -371,7 +370,6 @@ mod tests {
         }
 
         let signature = sign_d(&mpk, &keypair.sk, &m1);
-        //println!("{}", signature);
 
         assert!(verify_d(&mpk, &keypair.pk, &m1, &signature) == true);
         assert!(verify_d_unoptimized(&mpk, &keypair.pk, &m1, &signature) == true);

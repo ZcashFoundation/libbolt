@@ -79,7 +79,7 @@ pub fn bs_verify_nizk_proof(proof: &ProofCV) -> bool {
 }
 
 // internal function
-pub fn bs_compute_blind_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2, num_secrets: usize) -> SignatureD {
+pub fn bs_compute_blind_signature(mpk: &PublicParams, sk: &SecretKeyD, m: G2, num_secrets: usize) -> SignatureD {
     let rng = &mut thread_rng();
     let alpha = Fr::random(rng);
     let a = mpk.g2 * alpha;
@@ -97,7 +97,7 @@ pub fn bs_compute_blind_signature(mpk: &PublicParams, sk: &SecretKeyD, M: G2, nu
     }
 
     let b = a * sk.y;
-    let c = (a * sk.x) + (M * (alpha * sk.x * sk.y));
+    let c = (a * sk.x) + (m * (alpha * sk.x * sk.y));
     let sig = SignatureD { a: a, A: A, b: b, B: B, c: c };
     return sig;
 }
@@ -155,7 +155,7 @@ pub fn gen_common_params(mpk: &PublicParams, pk: &PublicKeyD, sig: &SignatureD) 
     return CommonParams { vx: vx, vxy: vxy, vxyi: vxyi, vs: vs };
 }
 
-pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
+pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, a: Gt) -> ProofVS {
     let rng = &mut thread_rng();
     let l = x.len() + 1;
     let mut t: Vec<Fr> = Vec::new();
@@ -188,7 +188,7 @@ pub fn vs_gen_nizk_proof(x: &Vec<Fr>, cp: &CommonParams, A: Gt) -> ProofVS {
         s.push(_s);
     }
 
-    return ProofVS { T: T, A: A, s: s, pub_bases: pub_bases };
+    return ProofVS { T: T, A: a, s: s, pub_bases: pub_bases };
 }
 
 fn part1_verify_proof_vs(proof: &ProofVS) -> bool {

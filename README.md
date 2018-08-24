@@ -73,6 +73,59 @@ The libbolt library provides APIs for three types of payment channels:
 
 **TODO**
 
+### Channel Setup and Key Generation
+
+The first part of setting up uni-directional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
+	
+	use libbolt::unidirectional;
+	
+	// setup unidirectional scheme params
+	let pp = unidirectional::setup(true);
+	
+	// generate the initial channel state
+	let mut channel = unidirectional::ChannelState::new(String::from("My New Channel A -> B"));
+
+To generate keys for both parties, call the `unidirectional::keygen()` routine with the public parameters as input.
+	
+	// merchant generates a long-lived key pair
+	let m_keypair = unidirectional::keygen(&pp);
+	
+	// customer generates an ephemeral keypair for use on a single channel
+	let c_keypair = unidirectional::keygen(&pp);
+
+### Initialization
+
+To initialize the channel for both parties, do the following:
+	
+	let b0_merch = 50;
+	let b0_cust = 50;
+	// initialize on the merchant side with balance, b0_merch
+	let mut m_data = unidirectional::init_merchant(&pp, b0_merch, &m_keypair));
+		
+	 // generate the public params for the commitment scheme
+	let cm_csp = unidirectional::generate_commit_setup(&pp, &m_keypair.pk);
+	    
+	// initialize on the customer side with balance, b0_cust    
+	let mut c_data = unidirectional::init_customer(&pp, // public params
+	                                              &channel, // channel state
+	                                              b0_cust, // init customer balance
+	                                              b0_merch, // init merchant balance
+	                                              &cm_csp, // commitment pub params
+	                                              &c_keypair)); // customer keypair
+
+
+### Establish Protocol
+
+**TODO**
+
+### Pay protocol
+
+**TODO**
+
+### Channel Closure Algorithms		
+
+**TODO**
+
 ## Bidirectional Payment Channels
 
 A bidirectional payment channel enables two parties to exchange arbitrary positive and negative amounts. 
@@ -88,7 +141,7 @@ The first part of setting up bi-directional payment channels involve generating 
 	
 	// generate the initial channel state 
 	// second argument represents third-party mode
-	let mut channel = bidirectional::ChannelState::new(String::from("My New Channel A"), false);
+	let mut channel = bidirectional::ChannelState::new(String::from("My New Channel A <-> B"), false);
 
 To generate keys for both parties, call the `bidirectional::keygen()` routine with the public parameters as input.
 	
@@ -182,7 +235,7 @@ To resolve a dispute between a customer and a merchant, the following routine is
 	                                                         
 `new_b0_cust` and `new_b0_merch` represent the new balances for the customer and merchant (respectively).
 
-## Third-party Payment Support
+## Third-party Payments
 
 The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With BOLT, the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users. 
 
@@ -192,8 +245,8 @@ To enable third-party payment support, initialize each payment channel as follow
 	let pp = bidirectional::setup(true);
 	
 	// create the channel state for each channel and indicate third-party support 
-	let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A -> I"), true);
-	let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B -> I"), true);
+	let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A <-> I"), true);
+	let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B <-> I"), true);
 	
 Moreover, the intermediary can set a channel fee as follows:
 	
@@ -224,6 +277,7 @@ The channel establishment still works as described before and the pay protocol i
 	
 	...
 
+See the `third_party_payment_basics_work()` unit test in `src/lib.rs` for more details.
 
 # Documentation
 

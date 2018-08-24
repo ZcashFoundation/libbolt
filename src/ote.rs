@@ -32,9 +32,9 @@ pub fn otenc(k: G1, m: &OTMessage) -> OTCiphertext {
 }
 
 pub fn otdec(k: G1, c: &OTCiphertext) -> OTMessage {
-    let X = c.c1 - k;
-    let Y = c.c2 - k;
-    return OTMessage { m1: X, m2: Y};
+    let x = c.c1 - k;
+    let y = c.c2 - k;
+    return OTMessage { m1: x, m2: y};
 }
 
 #[cfg(test)]
@@ -49,9 +49,9 @@ mod tests {
 
         // Test the OTE scheme
         let k = keygen();
-        let X = G1::random(rng);
-        let Y = G1::random(rng);
-        let m = OTMessage { m1: X, m2: Y };
+        let x = G1::random(rng);
+        let y = G1::random(rng);
+        let m = OTMessage { m1: x, m2: y };
         let c = otenc(k, &m);
         let orig_m = otdec(k, &c);
 

@@ -393,14 +393,24 @@ impl RevokedMessage {
 
 pub mod unidirectional {
     use std::fmt;
+    use std::collections::HashMap;
     use rand::{Rng, thread_rng};
     use rand_core::RngCore;
-    use bn::{Group, Fr};
+    use bn::{Group, Fr, G2};
     use sym;
     use commit_scheme;
     use clsigs;
+    use clproto;
     use Message;
     use sodiumoxide::randombytes;
+
+    #[derive(Clone)]
+    pub struct CustomerWallet {
+        sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
+        cid: Fr, // channel Id
+        wpk: secp256k1::PublicKey, // signature verification key
+        wsk: secp256k1::SecretKey // signature signing key
+    }
 
     pub struct PublicParams {
         cl_mpk: clsigs::PublicParams,
@@ -436,10 +446,25 @@ pub mod unidirectional {
         csk: MerchSecretKey
     }
 
+    pub struct PubKeyMap {
+        wpk: secp256k1::PublicKey,
+        revoke_token: Option<secp256k1::Signature>
+    }
+
+    pub struct ChannelState {
+        keys: HashMap<String, PubKeyMap>,
+        R: i32,
+        tx_fee: i32,
+        pub name: String,
+        pub cid: Fr,
+        pub pay_init: bool,
+        pub channel_established: bool,
+        pub third_party: bool
+    }
+
     pub fn setup() -> PublicParams {
         let cl_mpk = clsigs::setup_d();
         let l = 4;
-        // let nizk = "nizk proof system";
         let pp = PublicParams { cl_mpk: cl_mpk, l: l };
         return pp;
     }
@@ -449,6 +474,11 @@ pub mod unidirectional {
         return keypair;
     }
 
+    ///
+    /// init_customer - takes as input the public params, channel state, commitment params, keypair,
+    /// and initial balance for customer and merchant. Generate initial customer channel token,
+    /// and wallet commitment.
+    ///
     pub fn init_customer(pp: &PublicParams, cm_pk: commit_scheme::CSParams,
                          b0_customer: i32, b0_merchant: i32,
                          keypair: &clsigs::KeyPair) -> InitCustomerData {
@@ -474,13 +504,23 @@ pub mod unidirectional {
         return InitCustomerData { channel_token: t_c, csk: csk_c };
     }
 
+    ///
+    /// init_merchant - takes as input the public params, merchant balance and keypair.
+    /// Generates merchant data which consists of channel token and merchant wallet.
+    ///
     pub fn init_merchant(pp: &PublicParams, b0_merchant: i32, keypair: &clsigs::KeyPair) -> InitMerchantData {
         let csk_m = MerchSecretKey { sk: keypair.sk, balance: b0_merchant };
         return InitMerchantData { channel_token: keypair.pk, csk: csk_m };
     }
 
-//    pub fn establish_customer(pp: &PublicParams, t_m: &clsigs::PublicKey, csk_c: &CustSecretKey) {
-//        println ! ("Run establish_customer algorithm...");
+    ///
+    /// establish_customer_phase1 - takes as input the public params, customer wallet and
+    /// common public bases from merchant. Generates a PoK of the committed values in the
+    /// new wallet.
+    ///
+    pub fn establish_customer_phase1(pp: &PublicParams, c_data: &InitCustomerData,
+                                     pub_bases: &Vec<G2>) -> clproto::ProofCV {
+        unimplemented!();
 //        // set sk_0 to random bytes of length l
 //        // let sk_0 = random_bytes(pp.l);
 //        let buf_len: usize = pp.l_bits as usize;
@@ -488,7 +528,28 @@ pub mod unidirectional {
 //        randombytes::randombytes_into(&mut sk0);
 //
 //        let pi1 = create_nizk_proof_one(csk_c.sk, csk_c.k1, csk_c.k2, );
-//    }
+    }
+
+    ///
+    /// establish_merchant_phase2 - takes as input the public params, channel state, initial
+    /// merchant wallet and PoK of committed values from the customer. Generates a blinded
+    /// signature over the contents of the customer's wallet.
+    ///
+    pub fn establish_merchant_phase2(pp: &PublicParams, state: &mut ChannelState, m_data: &InitMerchantData,
+                                     proof: &clproto::ProofCV) -> clsigs::SignatureD {
+        unimplemented!();
+    }
+
+    ///
+    /// establish_customer_final - takes as input the public params, merchant's verification key,
+    /// customer wallet and blinded signature obtained from merchant. Add the returned
+    /// blinded signature to the wallet.
+    ///
+    pub fn establish_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
+                                    w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
+        unimplemented!();
+    }
+
 }
 
 /////////////////////////////// Unidirectional ////////////////////////////////
@@ -698,6 +759,9 @@ pub mod bidirectional {
         sodiumoxide::init();
     }
 
+    ///
+    /// setup - generate public parameters for bidirectional payment channels
+    ///
     pub fn setup(_extra_verify: bool) -> PublicParams {
         let cl_mpk = clsigs::setup_d();
         let l = 4;
@@ -709,6 +773,9 @@ pub mod bidirectional {
         return pp;
     }
 
+    ///
+    /// keygen - takes as input public parameters and generates a digital signature keypair
+    ///
     pub fn keygen(pp: &PublicParams) -> clsigs::KeyPairD {
         let keypair = clsigs::keygen_d(&pp.cl_mpk, pp.l);
         return keypair;
