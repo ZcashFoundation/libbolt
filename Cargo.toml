@@ -12,14 +12,14 @@ license = "MIT License"
 [dependencies]
 rand = "0.5.0-pre.2"
 rand_core = "0.2.1"
-bn = { git = "https://github.com/yeletech/bn", branch = "master" }
+bn = { git = "https://github.com/ZcashFoundation/bn", branch = "master" }
 bincode = "0.6.1"
 sodiumoxide = "0.0.16"
 serde = "1.0"
 serde_derive = "1.0"
 time = "*"
 rustc-serialize = "0.3"
-secp256k1 = { git = "https://github.com/yeletech/rust-secp256k1", branch = "master", features = ["rand"] }
+secp256k1 = { git = "https://github.com/ZcashFoundation/rust-secp256k1", branch = "master", features = ["rand"] }
 curve25519-dalek = "^0.19"
 bulletproofs = { git = "https://github.com/dalek-cryptography/bulletproofs", branch = "main" }
 sha2 = "0.7.1"
