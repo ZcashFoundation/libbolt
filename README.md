@@ -289,7 +289,7 @@ For the libbolt design documentation, see the `docs/bolt_design.pdf` document.
 
 To contribute code improvements, please checkout the repository, make your changes and submit a pull request.
 
-	git clone https://github.com/yeletech/libbolt.git
+	git clone https://github.com/ZcashFoundation/libbolt.git
 
 # TODOs
 
