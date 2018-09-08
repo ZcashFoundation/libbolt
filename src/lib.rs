@@ -33,7 +33,7 @@ use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 use std::collections::HashMap;
 use curve25519_dalek::scalar::Scalar;
-use bulletproofs::ProofTranscript;
+use bulletproofs::Transcript;
 use bulletproofs::RangeProof;
 use bulletproofs::{Generators, PedersenGenerators};
 
@@ -588,7 +588,7 @@ pub mod bidirectional {
     use sha2::Sha512;
     use curve25519_dalek::scalar::Scalar;
     use curve25519_dalek::ristretto::RistrettoPoint;
-    use bulletproofs::ProofTranscript;
+    use bulletproofs::Transcript;
     use bulletproofs::RangeProof;
     use bulletproofs::{Generators, PedersenGenerators};
     use bincode::rustc_serialize::encode;
@@ -996,7 +996,7 @@ pub mod bidirectional {
 
         // bullet proof integration here to generate the range proof
         let mut osrng = OsRng::new().unwrap();
-        let mut transcript = ProofTranscript::new(b"BOLT Range Proof");
+        let mut transcript = Transcript::new(b"BOLT Range Proof");
         let value = updated_balance as u64;
         let val_blinding = Scalar::hash_from_bytes::<Sha512>(&w_com_bytes);
         let range_proof = RangeProof::prove_single(&pp.range_proof_gens, &mut transcript,
@@ -1030,7 +1030,7 @@ pub mod bidirectional {
             }
             let inc_blinding = Scalar::hash_from_bytes::<Sha512>(&v_com_bytes);
             let mut osrng1 = OsRng::new().unwrap();
-            let mut transcript1 = ProofTranscript::new(b"Range Proof for Balance Increment");
+            let mut transcript1 = Transcript::new(b"Range Proof for Balance Increment");
             let inc_range_proof = RangeProof::prove_single(&pp.range_proof_gens, &mut transcript1,
                                                        &mut osrng1, inc_bal, &inc_blinding,
                                                        pp.range_proof_bits).unwrap();
@@ -1109,7 +1109,7 @@ pub mod bidirectional {
         let bal_inc_within_range = bal_proof.balance_increment >= -E_MAX && bal_proof.balance_increment <= E_MAX;
         // check the range proof of the updated balance
         let mut osrng = OsRng::new().unwrap();
-        let mut transcript = ProofTranscript::new(b"BOLT Range Proof");
+        let mut transcript = Transcript::new(b"BOLT Range Proof");
         let is_range_proof_valid = proof.proof3.range_proof.verify(&[proof.proof3.value_commitment],
                                                                    &pp.range_proof_gens,
                                                                    &mut transcript,
@@ -1175,7 +1175,7 @@ pub mod bidirectional {
             let rproof1 = &proof1.proof_vrange.as_ref().unwrap();
             let rproof2 = &proof2.proof_vrange.as_ref().unwrap();
             let mut osrng1 = OsRng::new().unwrap();
-            let mut transcript1 = ProofTranscript::new(b"Range Proof for Balance Increment");
+            let mut transcript1 = Transcript::new(b"Range Proof for Balance Increment");
             let range_proof1_valid = rproof1.range_proof.verify(&[rproof1.value_commitment],
                                                                   &pp.range_proof_gens,
                                                                   &mut transcript1,
@@ -1183,7 +1183,7 @@ pub mod bidirectional {
                                                                   pp.range_proof_bits).is_ok();
 
             let mut osrng2 = OsRng::new().unwrap();
-            let mut transcript2 = ProofTranscript::new(b"Range Proof for Balance Increment");
+            let mut transcript2 = Transcript::new(b"Range Proof for Balance Increment");
             let range_proof2_valid = rproof2.range_proof.verify(&[rproof2.value_commitment],
                                                                  &pp.range_proof_gens,
                                                                  &mut transcript2,
