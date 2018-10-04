@@ -20,6 +20,7 @@ extern crate sodiumoxide;
 extern crate rustc_serialize;
 extern crate secp256k1;
 extern crate time;
+extern crate merlin;
 extern crate bulletproofs;
 extern crate curve25519_dalek;
 extern crate sha2;
@@ -33,9 +34,8 @@ use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 use std::collections::HashMap;
 use curve25519_dalek::scalar::Scalar;
-use bulletproofs::Transcript;
-use bulletproofs::RangeProof;
-use bulletproofs::{Generators, PedersenGenerators};
+use merlin::Transcript;
+use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 
 pub mod prf;
 pub mod sym;
@@ -584,13 +584,13 @@ pub mod bidirectional {
     use compute_pub_key_fingerprint;
     use E_MIN;
     use E_MAX;
+    use merlin;
     use bulletproofs;
     use sha2::Sha512;
     use curve25519_dalek::scalar::Scalar;
     use curve25519_dalek::ristretto::RistrettoPoint;
-    use bulletproofs::Transcript;
-    use bulletproofs::RangeProof;
-    use bulletproofs::{Generators, PedersenGenerators};
+    use merlin::Transcript;
+    use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
     use bincode::rustc_serialize::encode;
     use bincode::SizeLimit::Infinite;
 
@@ -611,7 +611,7 @@ pub mod bidirectional {
     pub struct PublicParams {
         cl_mpk: clsigs::PublicParams,
         l: usize, // messages for commitment
-        range_proof_gens: bulletproofs::Generators,
+        bp_gens: bulletproofs::BulletproofGens,
         range_proof_bits: usize,
         extra_verify: bool // extra verification for certain points in the establish/pay protocol
     }
@@ -724,7 +724,7 @@ pub mod bidirectional {
     // proof of valid balance
     #[derive(Clone)]
     pub struct ProofVB {
-        range_proof: bulletproofs::RangeProof,
+        range_proof: (bulletproofs::RangeProof, curve25519_dalek::ristretto::CompressedRistretto),
         value_commitment: RistrettoPoint
     }
 
@@ -768,9 +768,9 @@ pub mod bidirectional {
         let l = 4;
         let n = 32; // bitsize: 32-bit (0, 2^32-1)
         let num_rand_values = 1;
-        let generators = Generators::new(PedersenGenerators::default(), n, num_rand_values);
+        let generators = BulletproofGens::new(n, num_rand_values);
 
-        let pp = PublicParams { cl_mpk: cl_mpk, l: l, range_proof_gens: generators, range_proof_bits: n, extra_verify: _extra_verify };
+        let pp = PublicParams { cl_mpk: cl_mpk, l: l, bp_gens: generators, range_proof_bits: n, extra_verify: _extra_verify };
         return pp;
     }
 
@@ -995,15 +995,15 @@ pub mod bidirectional {
         let wpk_index = new_wallet_sec.len() - 1;
 
         // bullet proof integration here to generate the range proof
-        let mut osrng = OsRng::new().unwrap();
         let mut transcript = Transcript::new(b"BOLT Range Proof");
         let value = updated_balance as u64;
         let val_blinding = Scalar::hash_from_bytes::<Sha512>(&w_com_bytes);
-        let range_proof = RangeProof::prove_single(&pp.range_proof_gens, &mut transcript,
-                                                   &mut osrng, value, &val_blinding,
+        let pc_gens = PedersenGens::default();
+        let range_proof = RangeProof::prove_single(&pp.bp_gens, &pc_gens, &mut transcript,
+                                                   value, &val_blinding,
                                                    pp.range_proof_bits).unwrap();
-        let pg = &pp.range_proof_gens.pedersen_gens;
-        let value_cm = pg.commit(Scalar::from(value), val_blinding);
+        //let pg = &pp.range_proof_gens.pedersen_gens;
+        let value_cm = pc_gens.commit(Scalar::from(value), val_blinding);
 
         let proof_rp = ProofVB { range_proof: range_proof, value_commitment: value_cm };
 
@@ -1029,13 +1029,13 @@ pub mod bidirectional {
                 inc_bal = final_balance_increment as u64;
             }
             let inc_blinding = Scalar::hash_from_bytes::<Sha512>(&v_com_bytes);
-            let mut osrng1 = OsRng::new().unwrap();
             let mut transcript1 = Transcript::new(b"Range Proof for Balance Increment");
-            let inc_range_proof = RangeProof::prove_single(&pp.range_proof_gens, &mut transcript1,
-                                                       &mut osrng1, inc_bal, &inc_blinding,
+            let pc_gens = PedersenGens::default();
+            let inc_range_proof = RangeProof::prove_single(&pp.bp_gens, &pc_gens, &mut transcript1,
+                                                       inc_bal, &inc_blinding,
                                                        pp.range_proof_bits).unwrap();
-            let inc_pg = &pp.range_proof_gens.pedersen_gens;
-            let inc_cm = inc_pg.commit(Scalar::from(inc_bal), inc_blinding);
+            //let inc_pg = &pp.range_proof_gens.pedersen_gens;
+            let inc_cm = pc_gens.commit(Scalar::from(inc_bal), inc_blinding);
 
             let proof_vrange = ProofVB { range_proof: inc_range_proof, value_commitment: inc_cm };
             bal_proof = BalanceProof { third_party: true, vcom: Some(v_com),
@@ -1108,12 +1108,10 @@ pub mod bidirectional {
         let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
         let bal_inc_within_range = bal_proof.balance_increment >= -E_MAX && bal_proof.balance_increment <= E_MAX;
         // check the range proof of the updated balance
-        let mut osrng = OsRng::new().unwrap();
         let mut transcript = Transcript::new(b"BOLT Range Proof");
-        let is_range_proof_valid = proof.proof3.range_proof.verify(&[proof.proof3.value_commitment],
-                                                                   &pp.range_proof_gens,
-                                                                   &mut transcript,
-                                                                   &mut osrng,
+        let pc_gens = PedersenGens::default();
+        let is_range_proof_valid = proof.proof3.range_proof.0.verify_single(&pp.bp_gens, &pc_gens,
+                                                                   &mut transcript, &proof.proof3.range_proof.1,
                                                                    pp.range_proof_bits).is_ok();
 
         // if above is is_wpk_valid_reveal => true, then we can proceed to
@@ -1174,20 +1172,18 @@ pub mod bidirectional {
             let vcom2 = &proof2.proof_vcom.as_ref().unwrap();
             let rproof1 = &proof1.proof_vrange.as_ref().unwrap();
             let rproof2 = &proof2.proof_vrange.as_ref().unwrap();
-            let mut osrng1 = OsRng::new().unwrap();
+            let pc_gens1 = PedersenGens::default();
+            let pc_gens2 = PedersenGens::default();
             let mut transcript1 = Transcript::new(b"Range Proof for Balance Increment");
-            let range_proof1_valid = rproof1.range_proof.verify(&[rproof1.value_commitment],
-                                                                  &pp.range_proof_gens,
+            let range_proof1_valid = rproof1.range_proof.0.verify_single(&pp.bp_gens, &pc_gens1,
                                                                   &mut transcript1,
-                                                                  &mut osrng1,
+                                                                  &rproof1.range_proof.1,
                                                                   pp.range_proof_bits).is_ok();
 
-            let mut osrng2 = OsRng::new().unwrap();
             let mut transcript2 = Transcript::new(b"Range Proof for Balance Increment");
-            let range_proof2_valid = rproof2.range_proof.verify(&[rproof2.value_commitment],
-                                                                 &pp.range_proof_gens,
+            let range_proof2_valid = rproof2.range_proof.0.verify_single(&pp.bp_gens, &pc_gens2,
                                                                  &mut transcript2,
-                                                                 &mut osrng2,
+                                                                 &rproof2.range_proof.1,
                                                                  pp.range_proof_bits).is_ok();
 
             let len = vcom1.pub_bases.len();

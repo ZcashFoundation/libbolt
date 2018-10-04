@@ -13,6 +13,8 @@ The libbolt library is a proof of concept implementation that relies on experime
 * secp256k1
 * sodiumoxide
 * bn
+* curve25519_dalek
+* merlin
 * bulletproofs
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
