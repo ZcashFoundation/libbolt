@@ -10,6 +10,10 @@ debug:
 	cargo +nightly build
 	cargo +nightly run
 
+release:
+	cargo +nightly build --release
+	cargo +nightly run --release
+
 bench:
 	cargo +nightly bench
 
