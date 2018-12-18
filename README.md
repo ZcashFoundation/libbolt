@@ -39,7 +39,7 @@ We will switch to the stable release channel once libbolt (and dependencies) are
 
 Please ensure you have installed the libsodium library for your platform. See install instructions [here](https://download.libsodium.org/doc/installation/index.html).
 
-To build the library and execute basic tests, run `make` 
+To build the library and execute basic examples, run `make` 
 
 # Tests
 
@@ -55,12 +55,12 @@ To use the libbolt library, add the `libbolt` crate to your dependency file in `
 
 ```toml
 [dependencies]
-libbolt = "0.1.0"
+bolt = "0.1.0"
 ```
 
 Then add an extern declaration at the root of your crate as follows:
 ```rust
-extern crate libbolt;
+extern crate bolt;
 ```
 
 # API
