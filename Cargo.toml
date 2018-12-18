@@ -1,5 +1,5 @@
 [package]
-name = "libbolt"
+name = "bolt"
 version = "0.1.0"
 authors = ["J. Ayo Akinyele <ayo@yeletech.org>"]
 description = "library for Blind Off-chain Lightweight Transactions (BOLT)"
@@ -30,7 +30,6 @@ version = "~0.6.0"
 default-features = false
 features = ["rustc-serialize"]
 
-[[bin]]
-name = "bolt"
-path = "bin/bolt.rs"
+[lib]
+crate-type = ["lib", "cdylib"]
 
