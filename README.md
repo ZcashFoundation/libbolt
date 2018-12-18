@@ -79,7 +79,7 @@ A unidirectional payment channel enables payments from a customer to a merchant 
 
 The first part of setting up unidirectional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
 	
-	use libbolt::unidirectional;
+	use bolt::unidirectional;
 	
 	// setup unidirectional scheme params
 	let pp = unidirectional::setup(true);
@@ -136,7 +136,7 @@ A bidirectional payment channel enables two parties to exchange arbitrary positi
 
 The first part of setting up bi-directional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
 	
-	use libbolt::bidirectional;
+	use bolt::bidirectional;
 	
 	// setup bidirectional scheme params
 	let pp = bidirectional::setup(true);
