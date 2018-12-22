@@ -20,10 +20,10 @@ serde_derive = "1.0"
 time = "*"
 rustc-serialize = "0.3"
 secp256k1 = { git = "https://github.com/ZcashFoundation/rust-secp256k1", branch = "master", features = ["rand"] }
-curve25519-dalek = { version = "0.21", features = ["serde"] }
-merlin = "0.4"
+curve25519-dalek = "1.0.0-pre.0"
+merlin = "1.0.0"
 bulletproofs = { git = "https://github.com/dalek-cryptography/bulletproofs", branch = "main" }
-sha2 = "0.7.1"
+sha2 = { version = "0.8", default-features = false }
 
 [dev-dependencies.bincode]
 version = "~0.6.0"

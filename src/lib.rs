@@ -32,7 +32,9 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
+use sha2::Sha512;
 use std::collections::HashMap;
+use curve25519_dalek::digest::*;
 use curve25519_dalek::scalar::Scalar;
 use merlin::Transcript;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
@@ -561,30 +563,25 @@ pub mod bidirectional {
     use rand::{rngs::OsRng, Rng};
     use rand_core::RngCore;
     use bn::{Group, Fr, G1, G2, Gt};
-    use sym;
     use commit_scheme;
     use clsigs;
     use clproto;
-    use Message;
     use sodiumoxide;
-    use sodiumoxide::randombytes;
     use secp256k1;
-    use secp256k1::*;
     use RefundMessage;
     use RevokedMessage;
     use HashMap;
     use hash_pub_key_to_fr;
-    use hash_buffer_to_fr;
     use debug_elem_in_hex;
-    use debug_g2_in_hex;
     use debug_gt_in_hex;
-    use convert_to_fr;
     use convert_str_to_fr;
     use convert_int_to_fr;
     use compute_pub_key_fingerprint;
     use E_MIN;
     use E_MAX;
-    use merlin;
+    //use hash_buffer_to_fr;
+    //use debug_g2_in_hex;
+    //use convert_to_fr;
     use bulletproofs;
     use sha2::Sha512;
     use curve25519_dalek::scalar::Scalar;
@@ -768,7 +765,7 @@ pub mod bidirectional {
         let l = 4;
         let n = 32; // bitsize: 32-bit (0, 2^32-1)
         let num_rand_values = 1;
-        let generators = BulletproofGens::new(n, num_rand_values);
+        let generators = BulletproofGens::new(64, num_rand_values); // bitsize
 
         let pp = PublicParams { cl_mpk: cl_mpk, l: l, bp_gens: generators, range_proof_bits: n, extra_verify: _extra_verify };
         return pp;
