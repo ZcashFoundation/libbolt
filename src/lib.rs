@@ -1361,8 +1361,7 @@ pub mod bidirectional {
                 // update state to include the user's wallet key
                 assert!(update_merchant_state(state, &wpk, Some(*rv_token)));
             }
-            let mut s = secp256k1::Secp256k1::new();
-            let ser_rv_token = rv_token.serialize_compact(&s);
+            let ser_rv_token = rv_token.serialize_compact();
             let rm = RevokedMessage::new(String::from("revoked"), wpk, Some(ser_rv_token));
             // sign the revoked message
             let signature = clsigs::sign_d(&pp.cl_mpk, &m_data.csk.sk, &rm.hash());
