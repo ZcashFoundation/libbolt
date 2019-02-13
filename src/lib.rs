@@ -1498,7 +1498,7 @@ mod tests {
         // retrieve commitment setup params (using merchant long lived pk params)
         let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keys.pk);
         // initialize on the customer side with balance: b0_cust
-        let cust_data = bidirectional::init_customer(&pp, &channel,
+        let cust_data = bidirectional::init_customer(&pp, channel,
                                                      b0_cust, b0_merch,
                                                      &cm_csp, &cust_keys);
         return (merch_keys, merch_data, cust_keys, cust_data);
@@ -1522,7 +1522,7 @@ mod tests {
         // retrieve commitment setup params (using merchant long lived pk params)
         let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keys.pk);
         // initialize on the customer side with balance: b0_cust
-        let cust_data = bidirectional::init_customer(&pp, &channel,
+        let cust_data = bidirectional::init_customer(&pp, channel,
                                                      b0_cust, b0_merch,
                                                      &cm_csp, &cust_keys);
         return (merch_data, cust_keys, cust_data);
