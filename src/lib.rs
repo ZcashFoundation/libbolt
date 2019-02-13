@@ -583,6 +583,7 @@ pub mod bidirectional {
     //use debug_g2_in_hex;
     //use convert_to_fr;
     use bulletproofs;
+    use sodiumoxide::crypto::hash::sha512;
     use sha2::Sha512;
     use curve25519_dalek::scalar::Scalar;
     use curve25519_dalek::ristretto::RistrettoPoint;
@@ -690,11 +691,20 @@ pub mod bidirectional {
                 R: 0,
                 tx_fee: 0,
                 name: name.to_string(),
-                cid: generate_channel_id(),
+                cid: Fr::from_str("0").unwrap(),
                 pay_init: false,
                 channel_established: false,
                 third_party: third_party_support
             }
+        }
+
+        pub fn generate_channel_id(&mut self, pk: &clsigs::PublicKeyD) {
+            let pk_bytes = pk.encode();
+            let sha2_digest = sha512::hash(&pk_bytes.as_slice());
+
+            let mut hash_buf: [u8; 64] = [0; 64];
+            hash_buf.copy_from_slice(&sha2_digest[0..64]);
+            self.cid = Fr::interpret(&hash_buf);
         }
 
         pub fn set_channel_fee(&mut self, fee: i32) {
@@ -779,11 +789,6 @@ pub mod bidirectional {
         return keypair;
     }
 
-    fn generate_channel_id() -> Fr {
-        let rng = &mut rand::thread_rng();
-        return Fr::random(rng);
-    }
-
     pub fn generate_commit_setup(pp: &PublicParams, pk: &clsigs::PublicKeyD) -> commit_scheme::CSParams {
         let g2 = pp.cl_mpk.g2.clone();
         let bases = pk.Z2.clone();
@@ -796,7 +801,7 @@ pub mod bidirectional {
     /// and initial balance for customer and merchant. Generate initial customer channel token,
     /// and wallet commitment.
     ///
-    pub fn init_customer(pp: &PublicParams, channel: &ChannelState, b0_customer: i32, b0_merchant: i32,
+    pub fn init_customer(pp: &PublicParams, channel: &mut ChannelState, b0_customer: i32, b0_merchant: i32,
                          cm_csp: &commit_scheme::CSParams, keypair: &clsigs::KeyPairD) -> InitCustomerData {
         assert!(b0_customer >= 0);
         assert!(b0_merchant >= 0);
@@ -811,6 +816,7 @@ pub mod bidirectional {
         // randomness for commitment
         let r = Fr::random(rng);
         // retrieve the channel id
+        channel.generate_channel_id(&keypair.pk);
         let cid = channel.cid;
         // initial contents of wallet:
         // commitment, channel id, customer balance, hash of wpk (wallet ver/pub key)
@@ -848,7 +854,6 @@ pub mod bidirectional {
         // obtain customer init data
         let t_c = &c_data.channel_token;
         let csk_c = &c_data.csk;
-        //let pub_bases = &m_data.bases;
 
         let h_wpk = csk_c.h_wpk;
         let b0 = convert_int_to_fr(csk_c.balance);

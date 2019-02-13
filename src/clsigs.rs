@@ -25,6 +25,18 @@ pub struct PublicKey {
     Y: G1
 }
 
+impl PublicKey {
+    pub fn encode(&self) -> Vec<u8> {
+        let mut output_buf = Vec::new();
+        let x_vec: Vec<u8> = encode(&self.X, Infinite).unwrap();
+        let y_vec: Vec<u8> = encode(&self.Y, Infinite).unwrap();
+        output_buf.extend(x_vec);
+        output_buf.extend(y_vec);
+        return output_buf;
+    }
+}
+
+
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let x_vec: Vec<u8> = encode(&self.X, Infinite).unwrap();
@@ -145,6 +157,27 @@ pub struct PublicKeyD {
     pub Z2: Vec<G2>,
     pub W: Vec<G1>
 }
+
+impl PublicKeyD {
+    pub fn encode(&self) -> Vec<u8> {
+        let mut output_buf = Vec::new();
+        let x_vec: Vec<u8> = encode(&self.X, Infinite).unwrap();
+        let y_vec: Vec<u8> = encode(&self.Y, Infinite).unwrap();
+
+        output_buf.extend(x_vec);
+        output_buf.extend(y_vec);
+        for i in 0 .. self.Z.len() {
+            let zi_vec: Vec<u8> = encode(&self.Z[i], Infinite).unwrap();
+            output_buf.extend(zi_vec);
+            let z2i_vec: Vec<u8> = encode(&self.Z2[i], Infinite).unwrap();
+            output_buf.extend(z2i_vec);
+            let w_vec: Vec<u8> = encode(&self.W[i], Infinite).unwrap();
+            output_buf.extend(w_vec);
+        }
+        return output_buf;
+    }
+}
+
 
 #[derive(Clone)]
 pub struct SecretKeyD {
