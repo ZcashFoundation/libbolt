@@ -749,7 +749,7 @@ pub mod bidirectional {
     #[derive(Clone)]
     pub struct PaymentProof {
         proof2a: clproto::ProofCV, // PoK of committed values in new wallet
-        proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
+        //proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
         proof2c: clproto::ProofVS, // PoK of old wallet signature (that includes wpk)
         proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
         old_com_base: G2,
@@ -1059,7 +1059,7 @@ pub mod bidirectional {
         // create payment proof which includes params to reveal wpk from old wallet
         let payment_proof = PaymentProof {
                                 proof2a: proof_cv, // (1) PoK for committed values, wCom' (in new wallet)
-                                proof2b: wallet_proof.proof_cv, // PoK of committed values (minus h(wpk))
+                                //proof2b: wallet_proof.proof_cv, // PoK of committed values (minus h(wpk))
                                 proof2c: wallet_proof.proof_vs, // PoK of signature on old wallet
                                 proof3: proof_rp, // range proof that the updated_balance is within a public range
                                 bal_proof: bal_proof,
@@ -1083,7 +1083,7 @@ pub mod bidirectional {
     pub fn pay_by_merchant_phase1(pp: &PublicParams, mut state: &mut ChannelState, proof: &PaymentProof,
                                   m_data: &InitMerchantData) -> clsigs::SignatureD {
         let proof_cv = &proof.proof2a;
-        let proof_old_cv = &proof.proof2b;
+        //let proof_old_cv = &proof.proof2b;
         let proof_vs = &proof.proof2c;
         let bal_proof = &proof.bal_proof;
         let blinded_sig = &proof.wallet_sig;
@@ -1094,18 +1094,18 @@ pub mod bidirectional {
         // let's first confirm that proof of knowledge of signature on old wallet is valid
         let proof_vs_old_wallet = clproto::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blinded_sig);
 
-        // add specified wpk to make the proof valid
-        // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
-        let new_c = proof_old_cv.C + bal_proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
-        let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
-                                         C: new_c,
-                                         s: proof_old_cv.s.clone(),
-                                         pub_bases: proof_old_cv.pub_bases.clone(),
-                                         num_secrets: proof_old_cv.num_secrets };
-        let is_wpk_valid_reveal = clproto::bs_verify_nizk_proof(&new_proof_old_cv);
-        if !is_wpk_valid_reveal {
-            panic!("pay_by_merchant_phase1 - failed to verify NIZK PoK of committed values that reveals wpk!");
-        }
+//        // add specified wpk to make the proof valid
+//        // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
+//        let new_c = proof_old_cv.C + bal_proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
+//        let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
+//                                         C: new_c,
+//                                         s: proof_old_cv.s.clone(),
+//                                         pub_bases: proof_old_cv.pub_bases.clone(),
+//                                         num_secrets: proof_old_cv.num_secrets };
+//        let is_wpk_valid_reveal = clproto::bs_verify_nizk_proof(&new_proof_old_cv);
+//        if !is_wpk_valid_reveal {
+//            panic!("pay_by_merchant_phase1 - failed to verify NIZK PoK of committed values that reveals wpk!");
+//        }
 
         let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
         let bal_inc_within_range = bal_proof.balance_increment >= -E_MAX && bal_proof.balance_increment <= E_MAX;
@@ -1138,7 +1138,7 @@ pub mod bidirectional {
             // the updated balance differs by the balance increment from the balance
             // in previous wallet
             let bal_index = 2;
-            let w_com_pr = bal_proof.w_com_pr_pr + bal_proof.old_bal_com + (proof_old_cv.pub_bases[bal_index] * bal_inc_fr);
+            let w_com_pr = bal_proof.w_com_pr_pr + bal_proof.old_bal_com + (proof_cv.pub_bases[bal_index] * bal_inc_fr);
             if proof_cv.C != w_com_pr {
                 panic!("pay_by_merchant_phase1 - Old and new balance does not differ by payment amount!");
             }
