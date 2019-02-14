@@ -854,7 +854,6 @@ pub mod bidirectional {
         // obtain customer init data
         let t_c = &c_data.channel_token;
         let csk_c = &c_data.csk;
-
         let h_wpk = csk_c.h_wpk;
         let b0 = convert_int_to_fr(csk_c.balance);
         // collect secrets
@@ -871,7 +870,7 @@ pub mod bidirectional {
     ///
     pub fn establish_merchant_phase2(pp: &PublicParams, state: &mut ChannelState, m_data: &InitMerchantData,
                                      proof: &clproto::ProofCV) -> clsigs::SignatureD {
-        // verifies proof and produces
+        // verifies proof (\pi_1) and produces signature on the committed values in the initial wallet
         let wallet_sig = clproto::bs_check_proof_and_gen_signature(&pp.cl_mpk, &m_data.csk.sk, &proof);
         state.channel_established = true;
         return wallet_sig;
@@ -886,6 +885,8 @@ pub mod bidirectional {
                                     w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if w.signature.is_none() {
             if pp.extra_verify {
+                // customer can verify that merchant generated a correct signature on
+                // the expected committed values
                 let bal = convert_int_to_fr(w.balance);
                 let mut x: Vec<Fr> = vec![w.r.clone(), w.cid.clone(), bal, w.h_wpk.clone()];
                 assert!(clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &sig));
@@ -1081,7 +1082,6 @@ pub mod bidirectional {
     ///
     pub fn pay_by_merchant_phase1(pp: &PublicParams, mut state: &mut ChannelState, proof: &PaymentProof,
                                   m_data: &InitMerchantData) -> clsigs::SignatureD {
-        let blind_sigs = &proof.wallet_sig;
         let proof_cv = &proof.proof2a;
         let proof_old_cv = &proof.proof2b;
         let proof_vs = &proof.proof2c;
@@ -1649,7 +1649,6 @@ mod tests {
         }
     }
 
-
     fn execute_third_party_pay_protocol_helper(pp: &bidirectional::PublicParams,
                                    channel1: &mut bidirectional::ChannelState, channel2: &mut bidirectional::ChannelState,
                                    merch_keys: &clsigs::KeyPairD, merch1_data: &mut bidirectional::InitMerchantData,
@@ -1700,7 +1699,6 @@ mod tests {
 
         assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust2_data, t_c2, new_wallet2, new_wallet_sig2));
     }
-
 
     #[test]
     fn third_party_payment_basics_work() {
