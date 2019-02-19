@@ -55,7 +55,7 @@ To use the libbolt library, add the `libbolt` crate to your dependency file in `
 
 ```toml
 [dependencies]
-bolt = "0.1.0"
+bolt = "0.2.0"
 ```
 
 Then add an extern declaration at the root of your crate as follows:

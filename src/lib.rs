@@ -592,6 +592,7 @@ pub mod bidirectional {
     //use debug_g2_in_hex;
     //use convert_to_fr;
     use bulletproofs;
+    use sodiumoxide::crypto::hash::sha512;
     use sha2::Sha512;
     use curve25519_dalek::scalar::Scalar;
     use curve25519_dalek::ristretto::RistrettoPoint;
@@ -722,11 +723,20 @@ pub mod bidirectional {
                 R: 0,
                 tx_fee: 0,
                 name: name.to_string(),
-                cid: generate_channel_id(),
+                cid: Fr::from_str("0").unwrap(),
                 pay_init: false,
                 channel_established: false,
                 third_party: third_party_support
             }
+        }
+
+        pub fn generate_channel_id(&mut self, pk: &clsigs::PublicKeyD) {
+            let pk_bytes = pk.encode();
+            let sha2_digest = sha512::hash(&pk_bytes.as_slice());
+
+            let mut hash_buf: [u8; 64] = [0; 64];
+            hash_buf.copy_from_slice(&sha2_digest[0..64]);
+            self.cid = Fr::interpret(&hash_buf);
         }
 
         pub fn set_channel_fee(&mut self, fee: i32) {
@@ -771,7 +781,7 @@ pub mod bidirectional {
     #[derive(Clone)]
     pub struct PaymentProof {
         proof2a: clproto::ProofCV, // PoK of committed values in new wallet
-        proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
+        //proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
         proof2c: clproto::ProofVS, // PoK of old wallet signature (that includes wpk)
         proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
         old_com_base: G2,
@@ -811,11 +821,6 @@ pub mod bidirectional {
         return keypair;
     }
 
-    fn generate_channel_id() -> Fr {
-        let rng = &mut rand::thread_rng();
-        return Fr::random(rng);
-    }
-
     pub fn generate_commit_setup(pp: &PublicParams, pk: &clsigs::PublicKeyD) -> commit_scheme::CSParams {
         let g2 = pp.cl_mpk.g2.clone();
         let bases = pk.Z2.clone();
@@ -828,7 +833,7 @@ pub mod bidirectional {
     /// and initial balance for customer and merchant. Generate initial customer channel token,
     /// and wallet commitment.
     ///
-    pub fn init_customer(pp: &PublicParams, channel: &ChannelState, b0_customer: i32, b0_merchant: i32,
+    pub fn init_customer(pp: &PublicParams, channel: &mut ChannelState, b0_customer: i32, b0_merchant: i32,
                          cm_csp: &commit_scheme::CSParams, keypair: &clsigs::KeyPairD) -> InitCustomerData {
         assert!(b0_customer >= 0);
         assert!(b0_merchant >= 0);
@@ -843,6 +848,7 @@ pub mod bidirectional {
         // randomness for commitment
         let r = Fr::random(rng);
         // retrieve the channel id
+        channel.generate_channel_id(&keypair.pk);
         let cid = channel.cid;
         // initial contents of wallet:
         // commitment, channel id, customer balance, hash of wpk (wallet ver/pub key)
@@ -880,8 +886,6 @@ pub mod bidirectional {
         // obtain customer init data
         let t_c = &c_data.channel_token;
         let csk_c = &c_data.csk;
-        //let pub_bases = &m_data.bases;
-
         let h_wpk = csk_c.h_wpk;
         let b0 = convert_int_to_fr(csk_c.balance);
         // collect secrets
@@ -898,7 +902,7 @@ pub mod bidirectional {
     ///
     pub fn establish_merchant_phase2(pp: &PublicParams, state: &mut ChannelState, m_data: &InitMerchantData,
                                      proof: &clproto::ProofCV) -> clsigs::SignatureD {
-        // verifies proof and produces
+        // verifies proof (\pi_1) and produces signature on the committed values in the initial wallet
         let wallet_sig = clproto::bs_check_proof_and_gen_signature(&pp.cl_mpk, &m_data.csk.sk, &proof);
         state.channel_established = true;
         return wallet_sig;
@@ -913,6 +917,8 @@ pub mod bidirectional {
                                     w: &mut CustomerWallet, sig: clsigs::SignatureD) -> bool {
         if w.signature.is_none() {
             if pp.extra_verify {
+                // customer can verify that merchant generated a correct signature on
+                // the expected committed values
                 let bal = convert_int_to_fr(w.balance);
                 let mut x: Vec<Fr> = vec![w.r.clone(), w.cid.clone(), bal, w.h_wpk.clone()];
                 assert!(clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &sig));
@@ -1085,7 +1091,7 @@ pub mod bidirectional {
         // create payment proof which includes params to reveal wpk from old wallet
         let payment_proof = PaymentProof {
                                 proof2a: proof_cv, // (1) PoK for committed values, wCom' (in new wallet)
-                                proof2b: wallet_proof.proof_cv, // PoK of committed values (minus h(wpk))
+                                //proof2b: wallet_proof.proof_cv, // PoK of committed values (minus h(wpk))
                                 proof2c: wallet_proof.proof_vs, // PoK of signature on old wallet
                                 proof3: proof_rp, // range proof that the updated_balance is within a public range
                                 bal_proof: bal_proof,
@@ -1108,9 +1114,8 @@ pub mod bidirectional {
     ///
     pub fn pay_by_merchant_phase1(pp: &PublicParams, mut state: &mut ChannelState, proof: &PaymentProof,
                                   m_data: &InitMerchantData) -> clsigs::SignatureD {
-        let blind_sigs = &proof.wallet_sig;
         let proof_cv = &proof.proof2a;
-        let proof_old_cv = &proof.proof2b;
+        //let proof_old_cv = &proof.proof2b;
         let proof_vs = &proof.proof2c;
         let bal_proof = &proof.bal_proof;
         let blinded_sig = &proof.wallet_sig;
@@ -1121,18 +1126,18 @@ pub mod bidirectional {
         // let's first confirm that proof of knowledge of signature on old wallet is valid
         let proof_vs_old_wallet = clproto::vs_verify_blind_sig(&pp.cl_mpk, &pk_m, &proof_vs, &blinded_sig);
 
-        // add specified wpk to make the proof valid
-        // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
-        let new_c = proof_old_cv.C + bal_proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
-        let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
-                                         C: new_c,
-                                         s: proof_old_cv.s.clone(),
-                                         pub_bases: proof_old_cv.pub_bases.clone(),
-                                         num_secrets: proof_old_cv.num_secrets };
-        let is_wpk_valid_reveal = clproto::bs_verify_nizk_proof(&new_proof_old_cv);
-        if !is_wpk_valid_reveal {
-            panic!("pay_by_merchant_phase1 - failed to verify NIZK PoK of committed values that reveals wpk!");
-        }
+//        // add specified wpk to make the proof valid
+//        // NOTE: if valid, then wpk is indeed the wallet public key for the wallet
+//        let new_c = proof_old_cv.C + bal_proof.old_bal_com + (proof.old_com_base * hash_pub_key_to_fr(&proof.wpk));
+//        let new_proof_old_cv = clproto::ProofCV { T: proof_old_cv.T,
+//                                         C: new_c,
+//                                         s: proof_old_cv.s.clone(),
+//                                         pub_bases: proof_old_cv.pub_bases.clone(),
+//                                         num_secrets: proof_old_cv.num_secrets };
+//        let is_wpk_valid_reveal = clproto::bs_verify_nizk_proof(&new_proof_old_cv);
+//        if !is_wpk_valid_reveal {
+//            panic!("pay_by_merchant_phase1 - failed to verify NIZK PoK of committed values that reveals wpk!");
+//        }
 
         let is_existing_wpk = exist_in_merchant_state(&state, &proof.wpk, None);
         let bal_inc_within_range = bal_proof.balance_increment >= -E_MAX && bal_proof.balance_increment <= E_MAX;
@@ -1165,7 +1170,7 @@ pub mod bidirectional {
             // the updated balance differs by the balance increment from the balance
             // in previous wallet
             let bal_index = 2;
-            let w_com_pr = bal_proof.w_com_pr_pr + bal_proof.old_bal_com + (proof_old_cv.pub_bases[bal_index] * bal_inc_fr);
+            let w_com_pr = bal_proof.w_com_pr_pr + bal_proof.old_bal_com + (proof_cv.pub_bases[bal_index] * bal_inc_fr);
             if proof_cv.C != w_com_pr {
                 panic!("pay_by_merchant_phase1 - Old and new balance does not differ by payment amount!");
             }
@@ -1393,7 +1398,6 @@ pub mod bidirectional {
                 // update state to include the user's wallet key
                 assert!(update_merchant_state(state, &wpk, Some(*rv_token)));
             }
-            let mut s = secp256k1::Secp256k1::new();
             let ser_rv_token = rv_token.serialize_compact();
             let rm = RevokedMessage::new(String::from("revoked"), wpk, Some(ser_rv_token));
             // sign the revoked message
@@ -1496,15 +1500,6 @@ pub mod ffishim {
     use std::ffi::{CStr, CString};
     use std::str;
     use std::mem;
-
-    // fn deserialer_helper<T>(serialized: *mut c_char) -> T 
-    // where
-    //     T: Deserialize,
-    // {
-    //     let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
-    //     let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-    //     serde_json::from_str(&name).unwrap()
-    // }
 
     #[no_mangle]
     pub extern fn ffishim_bidirectional_setup(extra_verify: u32) -> *mut c_char {
@@ -1615,10 +1610,6 @@ pub mod ffishim {
         cser.into_raw()
     }
 
-
-    // let (mut cust_data, initc_time) = measure_ret_mut!(bidirectional::init_customer(&pp, &channel, b0_cust, b0_merch, &cm_csp, &cust_keypair));
-
-
     #[no_mangle]
     pub extern fn ffishim_bidirectional_init_customer(serialized_pp: *mut c_char, serializd_channel: *mut c_char, balance_customer: i32,  balance_merchant: i32, serialized_commitment_setup: *mut c_char, serialized_customer_keypair: *mut c_char) -> *mut c_char {
         // Deserialize the pp
@@ -1629,7 +1620,7 @@ pub mod ffishim {
         // Deserialize the channel token
         let bytes_channel = unsafe { CStr::from_ptr(serializd_channel).to_bytes() };
         let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
-        let deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap();
+        let mut deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap();
 
 
         // Deserialize the commitment setup
@@ -1642,7 +1633,7 @@ pub mod ffishim {
         let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
         let deserialized_customer_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
 
-        let cust_data = bidirectional::init_customer(&deserialized_pp, &deserialized_channel_state, balance_customer, balance_merchant, &deserialized_ccommitment_setup, &deserialized_customer_keypair);
+        let cust_data = bidirectional::init_customer(&deserialized_pp, &mut deserialized_channel_state, balance_customer, balance_merchant, &deserialized_ccommitment_setup, &deserialized_customer_keypair);
         let ser = serde_json::to_string(&cust_data).unwrap();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -1671,8 +1662,6 @@ pub mod ffishim {
         cser.into_raw()
     }
 
-        // let (wallet_sig, est_merch_time2) = measure!(bidirectional::establish_merchant_phase2(&pp, &mut channel, &merch_data, &proof1));
-
     #[no_mangle]
     pub extern fn ffishim_bidirectional_establish_merchant_phase2(serialized_pp: *mut c_char, serializd_channel: *mut c_char, serialized_merchant_data: *mut c_char, serialized_proof1: *mut c_char) -> *mut c_char {
         // Deserialize the pp
@@ -1700,8 +1689,6 @@ pub mod ffishim {
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
-
-        // assert!(bidirectional::establish_customer_final(&pp, &merch_keypair.pk, &mut cust_data.csk, wallet_sig));
 
     #[no_mangle]
     pub extern fn ffishim_bidirectional_establish_customer_final(serialized_pp: *mut c_char, serialized_merchant_keypair: *mut c_char, serialized_customer_data: *mut c_char, serialized_wallet_sig: *mut c_char) -> bool {
@@ -1774,7 +1761,7 @@ mod tests {
         // retrieve commitment setup params (using merchant long lived pk params)
         let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keys.pk);
         // initialize on the customer side with balance: b0_cust
-        let cust_data = bidirectional::init_customer(&pp, &channel,
+        let cust_data = bidirectional::init_customer(&pp, channel,
                                                      b0_cust, b0_merch,
                                                      &cm_csp, &cust_keys);
         return (merch_keys, merch_data, cust_keys, cust_data);
@@ -1798,7 +1785,7 @@ mod tests {
         // retrieve commitment setup params (using merchant long lived pk params)
         let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keys.pk);
         // initialize on the customer side with balance: b0_cust
-        let cust_data = bidirectional::init_customer(&pp, &channel,
+        let cust_data = bidirectional::init_customer(&pp, channel,
                                                      b0_cust, b0_merch,
                                                      &cm_csp, &cust_keys);
         return (merch_data, cust_keys, cust_data);
@@ -1925,7 +1912,6 @@ mod tests {
         }
     }
 
-
     fn execute_third_party_pay_protocol_helper(pp: &bidirectional::PublicParams,
                                    channel1: &mut bidirectional::ChannelState, channel2: &mut bidirectional::ChannelState,
                                    merch_keys: &clsigs::KeyPairD, merch1_data: &mut bidirectional::InitMerchantData,
@@ -1976,7 +1962,6 @@ mod tests {
 
         assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust2_data, t_c2, new_wallet2, new_wallet_sig2));
     }
-
 
     #[test]
     fn third_party_payment_basics_work() {

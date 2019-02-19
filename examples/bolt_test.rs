@@ -71,7 +71,7 @@ fn main() {
 
     println!("[5b] libbolt - initialize on the customer side with balance {}", b0_cust);
     let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keypair.pk);
-    let (mut cust_data, initc_time) = measure_ret_mut!(bidirectional::init_customer(&pp, &channel, b0_cust, b0_merch, &cm_csp, &cust_keypair));
+    let (mut cust_data, initc_time) = measure_ret_mut!(bidirectional::init_customer(&pp, &mut channel, b0_cust, b0_merch, &cm_csp, &cust_keypair));
     println!(">> TIME for init_customer: {}", initc_time);
     println!("******************************************");
     // libbolt tests below
