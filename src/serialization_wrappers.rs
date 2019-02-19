@@ -71,6 +71,33 @@ impl<'de> Visitor<'de> for GTwoVisitor {
     }
 }
 
+struct GTargetVisitor;
+
+impl<'de> Visitor<'de> for GTargetVisitor {
+    type Value = Gt;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of bytes representing an element of Gt")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> 
+    {
+        let mut bytes = Vec::new();
+
+        loop {
+            let tmp = seq.next_element::<u8>();
+            if let Ok(Some(b)) = tmp {
+                // println!("Byte = {:?}", b);
+                bytes.push(b)
+            } else {
+                break;
+            }
+        } 
+
+        Ok(decode(&bytes[..]).unwrap())
+    }
+}
+
 struct FieldVisitor;
 
 impl<'de> Visitor<'de> for FieldVisitor {
@@ -112,6 +139,15 @@ where
     D: Deserializer<'de>
 {
     let a = deserializer.deserialize_seq(GTwoVisitor);
+
+    Ok(a.unwrap())
+}
+
+pub fn deserialize_g_t<'de, D>(deserializer: D) -> Result<Gt, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_seq(GTargetVisitor);
 
     Ok(a.unwrap())
 }
@@ -200,6 +236,35 @@ impl<'de> Visitor<'de> for G2VecVisitor {
     }
 }
 
+struct GTargetVecVisitor;
+
+impl<'de> Visitor<'de> for GTargetVecVisitor {
+    type Value = Vec<Gt>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of byte encodings of G2")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+
+        // println!("Hi G2VecVisitor");
+
+        let mut vec = Vec::new();
+
+        loop {
+            let tmp = seq.next_element::<Vec<u8>>();
+            if let Ok(Some(b)) = tmp {
+                // println!("Byte = {:?}", b);
+                vec.push(decode(&b[..]).unwrap());
+            } else {
+                break;
+            }
+        } 
+
+        Ok(vec)
+    }
+}
+
 struct FrVecVisitor;
 
 impl<'de> Visitor<'de> for FrVecVisitor {
@@ -245,6 +310,15 @@ where
     D: Deserializer<'de>
 {
     let a = deserializer.deserialize_seq(G2VecVisitor);
+
+    Ok(a.unwrap())
+}
+
+pub fn deserialize_g_t_vec<'de, D>(deserializer: D) -> Result<Vec<Gt>, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_seq(GTargetVecVisitor);
 
     Ok(a.unwrap())
 }

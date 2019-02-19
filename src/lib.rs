@@ -635,7 +635,7 @@ pub mod bidirectional {
         extra_verify: bool // extra verification for certain points in the establish/pay protocol
     }
 
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct ChannelToken {
         w_com: commit_scheme::Commitment,
         pk: clsigs::PublicKeyD,
@@ -643,60 +643,55 @@ pub mod bidirectional {
     }
 
     // proof of wallet signature, blind signature on wallet and common params for NIZK
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct CustomerWalletProof {
         proof_cv: clproto::ProofCV, // proof of knowledge of committed values
         proof_vs: clproto::ProofVS, // proof of knowledge of valid signature
 
-        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
         bal_com: G2, // old balance commitment
         blind_sig: clsigs::SignatureD, // a blind signature
         common_params: clproto::CommonParams, // common params for NIZK
     }
 
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct CustomerWallet {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
-        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
         cid: Fr, // channel Id
         wpk: secp256k1::PublicKey, // signature verification key
-        // #[serde(serialize_with = "serialization_wrappers::serialize_secp256k1_secret_key")]
-        #[serde(skip)]
         wsk: secp256k1::SecretKey, // signature signing key
-        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
         h_wpk: Fr,
-        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
         r: Fr, // random coins for commitment scheme
         pub balance: i32, // the balance for the user
         merchant_balance: i32,
-        #[serde(skip)]
         signature: Option<clsigs::SignatureD>,
         // proof of signature on wallet contents in zero-knowledge
-        #[serde(skip)]
         proof: Option<CustomerWalletProof>,
-        #[serde(skip)]
         refund_token: Option<clsigs::SignatureD>
     }
 
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct MerchSecretKey {
         sk: clsigs::SecretKeyD, // merchant signing key
         pub balance: i32
     }
 
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct InitCustomerData {
         pub channel_token: ChannelToken,
         pub csk: CustomerWallet,
-        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
         pub bases: Vec<G2>,
     }
 
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct InitMerchantData {
         pub channel_token: clsigs::PublicKeyD,
         pub csk: MerchSecretKey,
-        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
         pub bases: Vec<G2>
     }
 
@@ -1493,6 +1488,7 @@ pub mod ffishim {
     use bidirectional;
     use clsigs;
     use commit_scheme;
+    use clproto;
 
     use serde::{Serialize};
 
@@ -1524,14 +1520,16 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_channelstate_new(channel_name: String, third_party_support: u32) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_channelstate_new(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
     
-        println!("channel_name = {:?}", channel_name);
+        let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
+        let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+        println!("channel_name = {:?}", name);
         let mut tps = false;
         if third_party_support > 1 {
             tps = true;
         }
-        let channel = bidirectional::ChannelState::new(channel_name, tps);
+        let channel = bidirectional::ChannelState::new(name.to_string(), tps);
         let ser = serde_json::to_string(&channel).unwrap();
         println!("ser = {:?}", ser);
         let cser = CString::new(ser).unwrap();
@@ -1650,20 +1648,85 @@ pub mod ffishim {
         cser.into_raw()
     }
 
-    // #[no_mangle]
-    // pub extern fn ffishim_bidirectional_establish_customer_phase1(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, &merch_data.bases) -> *mut c_char {
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_establish_customer_phase1(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char) -> *mut c_char {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
 
-    // }
+        // Deserialize the custdata
+        let bytes_customer_data = unsafe { CStr::from_ptr(serialized_customer_data).to_bytes() };
+        let name_customer_data: &str = str::from_utf8(bytes_customer_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_customer_data: bidirectional::InitCustomerData = serde_json::from_str(&name_customer_data).unwrap();
 
-    // #[no_mangle]
-    // pub extern fn ffishim_bidirectional_establish_merchant_phase2(serialized_pp: *mut c_char, serializd_channel: *mut c_char, &merch_data, &proof1) -> *mut c_char {
+        // Deserialize the merchant data
+        let bytes_merchant_data = unsafe { CStr::from_ptr(serialized_merchant_data).to_bytes() };
+        let name_merchant_data: &str = str::from_utf8(bytes_merchant_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap();
 
-    // }
+        let proof1 = bidirectional::establish_customer_phase1(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data.bases);
+        let ser = serde_json::to_string(&proof1).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
 
-    // #[no_mangle]
-    // pub extern fn ffishim_bidirectional_establish_customer_final(serialized_pp: *mut c_char, &merch_keypair.pk, &mut cust_data.csk, serialized_wallet_sig: *mut c_char) -> *mut c_char {
+        // let (wallet_sig, est_merch_time2) = measure!(bidirectional::establish_merchant_phase2(&pp, &mut channel, &merch_data, &proof1));
 
-    // }
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_establish_merchant_phase2(serialized_pp: *mut c_char, serializd_channel: *mut c_char, serialized_merchant_data: *mut c_char, serialized_proof1: *mut c_char) -> *mut c_char {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the channel token
+        let bytes_channel = unsafe { CStr::from_ptr(serializd_channel).to_bytes() };
+        let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap();
+
+        // Deserialize the merchant data
+        let bytes_merchant_data = unsafe { CStr::from_ptr(serialized_merchant_data).to_bytes() };
+        let name_merchant_data: &str = str::from_utf8(bytes_merchant_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap(); 
+
+        // Deserialize the first proof
+        let bytes_proof_1 = unsafe { CStr::from_ptr(serialized_proof1).to_bytes() };
+        let name_proof_1: &str = str::from_utf8(bytes_proof_1).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_proof_1: clproto::ProofCV = serde_json::from_str(&name_proof_1).unwrap(); 
+
+        let wallet_sig = bidirectional::establish_merchant_phase2(&deserialized_pp, &mut deserialized_channel_state, &deserialized_merchant_data, &deserialized_proof_1);
+        let ser = serde_json::to_string(&wallet_sig).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+        // assert!(bidirectional::establish_customer_final(&pp, &merch_keypair.pk, &mut cust_data.csk, wallet_sig));
+
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_establish_customer_final(serialized_pp: *mut c_char, serialized_merchant_keypair: *mut c_char, serialized_customer_data: *mut c_char, serialized_wallet_sig: *mut c_char) -> bool {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the merchant keypair 
+        let bytes_kp = unsafe { CStr::from_ptr(serialized_merchant_keypair).to_bytes() };
+        let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
+
+        // Deserialize the custdata
+        let bytes_customer_data = unsafe { CStr::from_ptr(serialized_customer_data).to_bytes() };
+        let name_customer_data: &str = str::from_utf8(bytes_customer_data).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_customer_data: bidirectional::InitCustomerData = serde_json::from_str(&name_customer_data).unwrap();
+
+        // Deserialize the wallet_sig
+        let bytes_wallet_sig = unsafe { CStr::from_ptr(serialized_wallet_sig).to_bytes() };
+        let name_wallet_sig: &str = str::from_utf8(bytes_wallet_sig).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_wallet_sig: clsigs::SignatureD = serde_json::from_str(&name_wallet_sig).unwrap();
+
+        bidirectional::establish_customer_final(&deserialized_pp, &deserialized_merchant_keypair.pk, &mut deserialized_customer_data.csk, deserialized_wallet_sig)
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]

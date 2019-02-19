@@ -17,18 +17,18 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use clsigs::{PublicParams, SignatureD, PublicKeyD, SecretKeyD, hash_g2_to_fr, hash_gt_to_fr};
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ProofCV {
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     pub T: G2,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     pub C: G2,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_fr_vec")]
     pub s: Vec<Fr>,
     pub num_secrets: usize,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
     pub pub_bases: Vec<G2>
 }
 
@@ -133,27 +133,27 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
     return bsig;
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CommonParams {
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_t")]
     vx: Gt,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_t")]
     vxy: Gt,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_t_vec")]
     vxyi: Vec<Gt>,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_t")]
     pub vs: Gt
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ProofVS {
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_t")]
     T: Gt,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_t")]
     A: Gt,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_fr_vec")]
     s: Vec<Fr>,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_t_vec")]
     pub_bases: Vec<Gt>
 }
 
