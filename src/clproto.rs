@@ -1,5 +1,7 @@
 // clproto.rs
+extern crate serde;
 
+use serialization_wrappers;
 use std::fmt;
 use std::str;
 use rand::{thread_rng, Rng};
@@ -15,12 +17,18 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use clsigs::{PublicParams, SignatureD, PublicKeyD, SecretKeyD, hash_g2_to_fr, hash_gt_to_fr};
 
-#[derive(Clone)]
+use serde::Serialize;
+
+#[derive(Clone, Serialize)]
 pub struct ProofCV {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     pub T: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     pub C: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
     pub s: Vec<Fr>,
     pub num_secrets: usize,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
     pub pub_bases: Vec<G2>
 }
 
@@ -125,19 +133,27 @@ pub fn prover_generate_blinded_sig(sig: &SignatureD) -> SignatureD {
     return bsig;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct CommonParams {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     vx: Gt,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     vxy: Gt,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
     vxyi: Vec<Gt>,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     pub vs: Gt
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct ProofVS {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     T: Gt,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     A: Gt,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
     s: Vec<Fr>,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
     pub_bases: Vec<Gt>
 }
 

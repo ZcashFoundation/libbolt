@@ -1,5 +1,7 @@
 // commit_schemes.rs
+extern crate serde;
 
+use serialization_wrappers;
 use std::fmt;
 use rand::{thread_rng, Rng};
 use bn::{Group, Fr, G1, G2};
@@ -9,20 +11,27 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
 
-#[derive(Copy, Clone)]
+use serde::{Serialize};
+
+#[derive(Copy, Clone, Serialize)]
 pub struct PublicKey {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     g: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     h: G2
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize)]
 pub struct Commitment {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     pub c: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     pub r: Fr
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct CSParams {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
     pub pub_bases: Vec<G2>
 }
 
@@ -43,7 +52,6 @@ impl fmt::Display for PublicKey {
         write!(f, "PK : (g=0x{}, h=0x{})", g_s, h_s)
     }
 }
-
 
 impl fmt::Display for Commitment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

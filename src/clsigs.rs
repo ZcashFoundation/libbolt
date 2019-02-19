@@ -1,4 +1,5 @@
 // clsigs.rs
+extern crate serde;
 
 use std::fmt;
 use std::str;
@@ -13,15 +14,24 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
 use sodiumoxide::randombytes;
+use serialization_wrappers;
+use serde_with;
 
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct PublicParams {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_one")]
     pub g1: G1,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     pub g2: G2
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_one")]
     X: G1,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_one")]
     Y: G1
 }
 
@@ -43,9 +53,11 @@ impl fmt::Display for PublicKey {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize)]
 pub struct SecretKey {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
     x: Fr,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
     y: Fr
 }
 
@@ -60,16 +72,19 @@ impl SecretKey {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct KeyPair {
     pub sk: SecretKey,
     pub pk: PublicKey
 }
 
-
+#[derive(Serialize)]
 pub struct Signature {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     a: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     b: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
     c: G2
 }
 
@@ -137,34 +152,47 @@ pub fn verify_a(mpk: &PublicParams, pk: &PublicKey, m: Fr, sig: &Signature) -> b
 }
 
 // scheme D - for a vector of messages
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PublicKeyD {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_one")]
     pub X: G1,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_one")]
     pub Y: G1,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_one_vec")]
     pub Z: Vec<G1>,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
     pub Z2: Vec<G2>,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_one_vec")]
     pub W: Vec<G1>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SecretKeyD {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
     pub x: Fr,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
     pub y: Fr,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_fr_vec")]
     pub z: Vec<Fr>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KeyPairD {
     pub sk: SecretKeyD,
     pub pk: PublicKeyD
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SignatureD {
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     pub a: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
     pub A: Vec<G2>,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     pub b: G2,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
     pub B: Vec<G2>,
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     pub c: G2
 }
 
