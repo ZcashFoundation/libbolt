@@ -11,27 +11,27 @@ use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
 
-use serde::{Serialize};
+use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Serialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     g: G2,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     h: G2
 }
 
-#[derive(Copy, Clone, Serialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Commitment {
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
     pub c: G2,
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
     pub r: Fr
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CSParams {
-    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec")]
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
     pub pub_bases: Vec<G2>
 }
 

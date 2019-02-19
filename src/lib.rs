@@ -701,7 +701,7 @@ pub mod bidirectional {
     }
 
     // part of channel state
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct PubKeyMap {
         wpk: secp256k1::PublicKey,
         revoke_token: Option<secp256k1::Signature>
@@ -1492,6 +1492,8 @@ pub mod ffishim {
 
     use bidirectional;
     use clsigs;
+    use commit_scheme;
+
     use serde::{Serialize};
 
     use libc::{c_char};
@@ -1620,7 +1622,7 @@ pub mod ffishim {
 
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_init_customer(serialized_pp: *mut c_char, serializd_channel: *mut c_char, balance_customer: u32,  balance_merchant: u32, serialized_commitment_setup: *mut c_char, serialized_customer_keypair: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_init_customer(serialized_pp: *mut c_char, serializd_channel: *mut c_char, balance_customer: i32,  balance_merchant: i32, serialized_commitment_setup: *mut c_char, serialized_customer_keypair: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
         let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
