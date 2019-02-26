@@ -15,7 +15,7 @@ else:
     ext = 'so'
 
 
-libbolt = cdll.LoadLibrary('target/debug/{}libboltlib.{}'.format(prefix, ext))
+libbolt = cdll.LoadLibrary('target/debug/{}bolt.{}'.format(prefix, ext))
 
 libbolt.ffishim_bidirectional_setup.argtypes = (c_uint8, )
 libbolt.ffishim_bidirectional_setup.restype = c_void_p
@@ -55,32 +55,55 @@ bidirectional_establish_customer_phase1  =  libbolt.ffishim_bidirectional_establ
 bidirectional_establish_merchant_phase2  =  libbolt.ffishim_bidirectional_establish_merchant_phase2
 bidirectional_establish_customer_final  =  libbolt.ffishim_bidirectional_establish_customer_final
 
-b0_cust = 50;
-b0_merch = 50;
 
-pp = bidirectional_setup(0)
+# # libbolt.ffishim_bidirectional_teststruct.argtypes = (c_uint8, )
+libbolt.ffishim_bidirectional_teststruct.restype = c_void_p
 
-merch_keys = bidirectional_keygen(pp)
-print(" After merch_keys") 
-cust_keys = bidirectional_keygen(pp)
-print(" After cust_keys")
-channel = bidirectional_channelstate_new("My New Channel A", 0)
-print(" After channel")
-merch_data = bidirectional_init_merchant(pp, b0_cust, merch_keys)
-print(" After merch_data")
-cm_csp = bidirectional_generate_commit_setup(pp, merch_keys)
-print(" After cm_csp")
-cust_data = bidirectional_init_customer(pp, channel, b0_cust, b0_merch, cm_csp, cust_keys)
-print(" After cust_data")
-proof1 = bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
-print(" After proof1")
-wallet_sig = bidirectional_establish_merchant_phase2(pp, channel, merch_data, proof1)
-print(" After wallet_sig")
-setup = bidirectional_establish_customer_final(pp, merch_keys, cust_data, wallet_sig)
-print(" After setup")
+libbolt.ffishim_bidirectional_teststruct_in.argtypes = (c_void_p, )
+libbolt.ffishim_bidirectional_teststruct_in.restype = c_uint8
 
-print(setup)
-print(ctypes.cast(pp, ctypes.c_char_p).value.decode('utf-8'))
-print(ctypes.cast(keys, ctypes.c_char_p).value.decode('utf-8'))
-print(ctypes.cast(channel_token, ctypes.c_char_p).value.decode('utf-8'))
-print(ctypes.cast(commit_setup, ctypes.c_char_p).value.decode('utf-8'))
+bidirectional_teststruct = libbolt.ffishim_bidirectional_teststruct
+bidirectional_teststruct_in = libbolt.ffishim_bidirectional_teststruct_in
+
+a = bidirectional_teststruct()
+
+print(a)
+
+b = bidirectional_teststruct_in(a)
+
+print(a)
+print(b)
+
+print(ctypes.cast(a, ctypes.c_char_p).value.decode('utf-8'))
+print(ctypes.cast(b, ctypes.c_char_p).value.decode('utf-8'))
+
+
+# b0_cust = 50;
+# b0_merch = 50;
+
+# pp = bidirectional_setup(0)
+
+# merch_keys = bidirectional_keygen(pp)
+# print(" After merch_keys") 
+# cust_keys = bidirectional_keygen(pp)
+# print(" After cust_keys")
+# channel = bidirectional_channelstate_new("My New Channel A", 0)
+# print(" After channel")
+# merch_data = bidirectional_init_merchant(pp, b0_cust, merch_keys)
+# print(" After merch_data")
+# cm_csp = bidirectional_generate_commit_setup(pp, merch_keys)
+# print(" After cm_csp")
+# cust_data = bidirectional_init_customer(pp, channel, b0_cust, b0_merch, cm_csp, cust_keys)
+# print(" After cust_data")
+# proof1 = bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
+# print(" After proof1")
+# wallet_sig = bidirectional_establish_merchant_phase2(pp, channel, merch_data, proof1)
+# print(" After wallet_sig")
+# setup = bidirectional_establish_customer_final(pp, merch_keys, cust_data, wallet_sig)
+# print(" After setup")
+
+# print(setup)
+# print(ctypes.cast(pp, ctypes.c_char_p).value.decode('utf-8'))
+# print(ctypes.cast(keys, ctypes.c_char_p).value.decode('utf-8'))
+# print(ctypes.cast(channel_token, ctypes.c_char_p).value.decode('utf-8'))
+# print(ctypes.cast(commit_setup, ctypes.c_char_p).value.decode('utf-8'))

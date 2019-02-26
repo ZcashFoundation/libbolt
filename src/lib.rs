@@ -308,11 +308,12 @@ fn convert_int_to_fr(value: i32) -> Fr {
 }
 
 // refund message
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RefundMessage {
     pub msgtype: String, // purpose type of message
     pub wpk: secp256k1::PublicKey,
     pub balance: usize, // the balance
+    #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_option", deserialize_with = "serialization_wrappers::deserialize_optional_fr")]
     pub r: Option<Fr>, // randomness from customer wallet
     pub rt: Option<clsigs::SignatureD> // refund token
 }
@@ -356,10 +357,11 @@ impl RefundMessage {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RevokedMessage {
     pub msgtype: String,
     pub wpk: secp256k1::PublicKey,
+    #[serde(serialize_with = "serialization_wrappers::serialize_fixed_byte_array_option", deserialize_with = "serialization_wrappers::deserialize_optional_fixed_64_byte_array")]
     pub sig: Option<[u8; 64]> // represents revocation token serialized compact bytes
 }
 
@@ -619,6 +621,7 @@ pub mod bidirectional {
         }
     }
 
+    // TODO DELETE THHIS TEST STRUCT
     #[derive(Serialize, Deserialize)]
     pub struct TestPublicParams {
         pub cl_mpk: clsigs::PublicParams,
@@ -748,48 +751,52 @@ pub mod bidirectional {
         }
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct ChannelclosureC {
         pub message: RefundMessage,
         signature: clsigs::SignatureD
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct ChannelclosureM {
         message: RevokedMessage,
         signature: clsigs::SignatureD
     }
 
     // proof of valid balance
-    #[derive(Clone)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct ProofVB {
         range_proof: (bulletproofs::RangeProof, curve25519_dalek::ristretto::CompressedRistretto),
         value_commitment: RistrettoPoint
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct BalanceProof {
         third_party: bool,
         balance_increment: i32,
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
         w_com_pr_pr: G2,
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
         old_bal_com: G2,
         vcom: Option<commit_scheme::Commitment>,
         proof_vcom: Option<clproto::ProofCV>,
         proof_vrange: Option<ProofVB>
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct PaymentProof {
         proof2a: clproto::ProofCV, // PoK of committed values in new wallet
         //proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
         proof2c: clproto::ProofVS, // PoK of old wallet signature (that includes wpk)
         proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
+        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
         old_com_base: G2,
         wpk: secp256k1::PublicKey, // verification key for old wallet
         wallet_sig: clsigs::SignatureD, // blinded signature for old wallet
         pub bal_proof: BalanceProof
     }
 
+    #[derive(Serialize, Deserialize)]
     pub struct RevokeToken {
         message: RevokedMessage,
         pub signature: secp256k1::Signature
@@ -1502,6 +1509,14 @@ pub mod ffishim {
     use std::mem;
 
     #[no_mangle]
+    pub extern fn ffishim_free_string(pointer: *mut c_char) {
+        unsafe{ 
+            if pointer.is_null() { return }
+            CString::from_raw(pointer) 
+        };
+    }
+
+    #[no_mangle]
     pub extern fn ffishim_bidirectional_setup(extra_verify: u32) -> *mut c_char {
         let mut ev = false;
         if extra_verify > 1 {
@@ -1509,7 +1524,6 @@ pub mod ffishim {
         }
         let pp = bidirectional::setup(ev);
         let ser = serde_json::to_string(&pp).unwrap();
-        // println!("ser = {:?}", ser);
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1519,17 +1533,18 @@ pub mod ffishim {
     
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-        println!("channel_name = {:?}", name);
+
         let mut tps = false;
         if third_party_support > 1 {
             tps = true;
         }
         let channel = bidirectional::ChannelState::new(name.to_string(), tps);
         let ser = serde_json::to_string(&channel).unwrap();
-        println!("ser = {:?}", ser);
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
+
+    // TODO GET RID OF THESE TEST THINGS
 
     #[no_mangle]
     pub extern fn ffishim_bidirectional_teststruct() -> *mut c_char {
@@ -1542,17 +1557,26 @@ pub mod ffishim {
         };
 
         let ser = serde_json::to_string(&test).unwrap();
-        // println!("ser = {:?}", ser);
         let cser = CString::new(ser).unwrap();
+
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_teststruct_in(serialized_pp: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_teststruct_in(mut serialized_pp: *mut c_char) -> usize {
         let bytes = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-        let object: bidirectional::TestPublicParams = serde_json::from_str(&name).unwrap();
-        serialized_pp
+        let mut object: bidirectional::TestPublicParams = serde_json::from_str(&name).unwrap();
+
+        let test = bidirectional::TestPublicParams {
+            cl_mpk: clsigs::setup_d(),
+            range_proof_bits: 3
+        };
+
+        let ser = serde_json::to_string(&test).unwrap();
+        let cser = CString::new(ser).unwrap();
+        unsafe { serialized_pp = cser.into_raw(); }
+        5
     }
 
     #[no_mangle]
@@ -1560,15 +1584,12 @@ pub mod ffishim {
 
         let bytes = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-        // println!("ser_in = {:?}", &name);
 
         let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name).unwrap();
 
         let keypair = bidirectional::keygen(&deserialized_pp);
         let ser = serde_json::to_string(&keypair).unwrap();
-        // println!("ser = {:?}", &ser);
         let cser = CString::new(ser).unwrap();
-        // println!("ser = {:?}", &cser);
         cser.into_raw()
     }
 
@@ -1611,14 +1632,14 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_init_customer(serialized_pp: *mut c_char, serializd_channel: *mut c_char, balance_customer: i32,  balance_merchant: i32, serialized_commitment_setup: *mut c_char, serialized_customer_keypair: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_init_customer(serialized_pp: *mut c_char, serialized_channel: *mut c_char, balance_customer: i32,  balance_merchant: i32, serialized_commitment_setup: *mut c_char, serialized_customer_keypair: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
         let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
         let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
 
-        // Deserialize the channel token
-        let bytes_channel = unsafe { CStr::from_ptr(serializd_channel).to_bytes() };
+        // Deserialize the channel state
+        let bytes_channel = unsafe { CStr::from_ptr(serialized_channel).to_bytes() };
         let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
         let mut deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap();
 
@@ -1663,14 +1684,14 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_phase2(serialized_pp: *mut c_char, serializd_channel: *mut c_char, serialized_merchant_data: *mut c_char, serialized_proof1: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_phase2(serialized_pp: *mut c_char, serialized_channel: *mut c_char, serialized_merchant_data: *mut c_char, serialized_proof1: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
         let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
         let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
 
-        // Deserialize the channel token
-        let bytes_channel = unsafe { CStr::from_ptr(serializd_channel).to_bytes() };
+        // Deserialize the channel state
+        let bytes_channel = unsafe { CStr::from_ptr(serialized_channel).to_bytes() };
         let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
         let mut deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap();
 
@@ -1714,6 +1735,298 @@ pub mod ffishim {
 
         bidirectional::establish_customer_final(&deserialized_pp, &deserialized_merchant_keypair.pk, &mut deserialized_customer_data.csk, deserialized_wallet_sig)
     }
+
+
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_pay_by_customer_phase1_precompute(serialized_pp: *mut c_char,  serialized_customer_data: /* Needs to be mut */ *mut c_char, serialized_merchant_keypair: *mut c_char) -> bool {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the custdata
+        let bytes_customer_data = unsafe { CStr::from_ptr(serialized_customer_data).to_bytes() };
+        let name_customer_data: &str = str::from_utf8(bytes_customer_data).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_customer_data: bidirectional::InitCustomerData = serde_json::from_str(&name_customer_data).unwrap();
+
+        // Deserialize the merchant keypair 
+        let bytes_kp = unsafe { CStr::from_ptr(serialized_merchant_keypair).to_bytes() };
+        let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
+
+        // TODO this is going to do literally nothing...
+        bidirectional::pay_by_customer_phase1_precompute(&deserialized_pp, &deserialized_customer_data.channel_token, &deserialized_merchant_keypair.pk, &mut deserialized_customer_data.csk);
+
+        true
+    }
+
+    //TODO Two return values
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_pay_by_customer_phase1(serialized_pp: *mut c_char, serialized_channel: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_keypair: *mut c_char, balance_increment: i32) -> *mut c_char  {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the channel state
+        let bytes_channel = unsafe { CStr::from_ptr(serialized_channel).to_bytes() };
+        let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap();  
+
+        // Deserialize the custdata
+        let bytes_customer_data = unsafe { CStr::from_ptr(serialized_customer_data).to_bytes() };
+        let name_customer_data: &str = str::from_utf8(bytes_customer_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_customer_data: bidirectional::InitCustomerData = serde_json::from_str(&name_customer_data).unwrap();
+
+        // Deserialize the merchant keypair 
+        let bytes_kp = unsafe { CStr::from_ptr(serialized_merchant_keypair).to_bytes() };
+        let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
+
+        // TODO: Dictionary these bad boys: ChannelToken, CustomerWallet, PaymentProof
+        let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&deserialized_pp, &deserialized_channel_state, &deserialized_customer_data.channel_token,  &deserialized_merchant_keypair.pk,  &deserialized_customer_data.csk, balance_increment);
+        let ser = serde_json::to_string(&pay_proof).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_pay_by_merchant_phase1(serialized_pp: *mut c_char, serialized_channel: /*make mut*/ *mut c_char, serialized_pay_proof: *mut c_char, serialized_merchant_data: *mut c_char) -> *mut c_char  {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the channel state
+        let bytes_channel = unsafe { CStr::from_ptr(serialized_channel).to_bytes() };
+        let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap(); 
+
+        // Deserialize the pay proof
+        let bytes_pay_proof = unsafe { CStr::from_ptr(serialized_pay_proof).to_bytes() };
+        let name_pay_proof: &str = str::from_utf8(bytes_pay_proof).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pay_proof: bidirectional::PaymentProof = serde_json::from_str(&name_pay_proof).unwrap(); 
+
+        // Deserialize the merchant data
+        let bytes_merchant_data = unsafe { CStr::from_ptr(serialized_merchant_data).to_bytes() };
+        let name_merchant_data: &str = str::from_utf8(bytes_merchant_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap(); 
+
+        let rt_w = bidirectional::pay_by_merchant_phase1(&deserialized_pp, &mut deserialized_channel_state, &deserialized_pay_proof, &deserialized_merchant_data);
+        let ser = serde_json::to_string(&rt_w).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_pay_by_customer_phase2(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_new_wallet: *mut c_char, serialized_merchant_keypair: *mut c_char, serialized_rt_w: *mut c_char) -> *mut c_char  {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the custdata
+        let bytes_customer_data = unsafe { CStr::from_ptr(serialized_customer_data).to_bytes() };
+        let name_customer_data: &str = str::from_utf8(bytes_customer_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_customer_data: bidirectional::InitCustomerData = serde_json::from_str(&name_customer_data).unwrap();
+
+        // Deserialize the new wallet
+        let bytes_new_wallet = unsafe { CStr::from_ptr(serialized_new_wallet).to_bytes() };
+        let name_new_wallet: &str = str::from_utf8(bytes_new_wallet).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_new_wallet: bidirectional::CustomerWallet = serde_json::from_str(&name_new_wallet).unwrap();
+
+        // Deserialize the merchant keypair 
+        let bytes_kp = unsafe { CStr::from_ptr(serialized_merchant_keypair).to_bytes() };
+        let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
+
+        // Deserialize the rt_w
+        let bytes_rt_w = unsafe { CStr::from_ptr(serialized_rt_w).to_bytes() };
+        let name_rt_w: &str = str::from_utf8(bytes_rt_w).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_rt_w: clsigs::SignatureD = serde_json::from_str(&name_rt_w).unwrap();
+
+        // RevokeToken
+        let rv_w = bidirectional::pay_by_customer_phase2(&deserialized_pp, &deserialized_customer_data.csk, &deserialized_new_wallet, &deserialized_merchant_keypair.pk, &deserialized_rt_w);
+        let ser = serde_json::to_string(&rv_w).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_pay_by_merchant_phase2(serialized_pp: *mut c_char, serialized_channel: /*make mut*/ *mut c_char, serialized_pay_proof: *mut c_char, serialized_merchant_data:  /*make mut*/ *mut c_char, serialized_revoke_token: *mut c_char ) -> *mut c_char  {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the channel state
+        let bytes_channel = unsafe { CStr::from_ptr(serialized_channel).to_bytes() };
+        let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap(); 
+
+        // Deserialize the pay proof
+        let bytes_pay_proof = unsafe { CStr::from_ptr(serialized_pay_proof).to_bytes() };
+        let name_pay_proof: &str = str::from_utf8(bytes_pay_proof).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pay_proof: bidirectional::PaymentProof = serde_json::from_str(&name_pay_proof).unwrap(); 
+
+        // Deserialize the merchant data
+        let bytes_merchant_data = unsafe { CStr::from_ptr(serialized_merchant_data).to_bytes() };
+        let name_merchant_data: &str = str::from_utf8(bytes_merchant_data).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap(); 
+
+        // Deserialize the merchant revoke token
+        let bytes_revoke_token = unsafe { CStr::from_ptr(serialized_revoke_token).to_bytes() };
+        let name_revoke_token: &str = str::from_utf8(bytes_revoke_token).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_revoke_token: bidirectional::RevokeToken = serde_json::from_str(&name_revoke_token).unwrap(); 
+
+        let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&deserialized_pp, &mut deserialized_channel_state, &deserialized_pay_proof, &mut deserialized_merchant_data, &deserialized_revoke_token);
+        let ser = serde_json::to_string(&new_wallet_sig).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_pay_by_customer_final(serialized_pp: *mut c_char, serialized_merchant_keypair: *mut c_char, serialized_customer_data: /* make mut */ *mut c_char, serialized_channel_token: *mut c_char, serialized_new_wallet: *mut c_char, serialized_new_wallet_sig: *mut c_char) -> bool {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the merchant keypair 
+        let bytes_kp = unsafe { CStr::from_ptr(serialized_merchant_keypair).to_bytes() };
+        let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
+
+        // Deserialize the custdata
+        let bytes_customer_data = unsafe { CStr::from_ptr(serialized_customer_data).to_bytes() };
+        let name_customer_data: &str = str::from_utf8(bytes_customer_data).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_customer_data: bidirectional::InitCustomerData = serde_json::from_str(&name_customer_data).unwrap();
+
+        // Deserialize the channel token
+        let bytes_channel_token = unsafe { CStr::from_ptr(serialized_channel_token).to_bytes() };
+        let name_channel_token: &str = str::from_utf8(bytes_channel_token).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_channel_token: bidirectional::ChannelToken = serde_json::from_str(&name_channel_token).unwrap();
+
+        // Deserialize the new wallet
+        let bytes_new_wallet = unsafe { CStr::from_ptr(serialized_new_wallet).to_bytes() };
+        let name_new_wallet: &str = str::from_utf8(bytes_new_wallet).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_new_wallet: bidirectional::CustomerWallet = serde_json::from_str(&name_new_wallet).unwrap();
+
+        // Deserialize the new wallet sig
+        let bytes_new_wallet_sig = unsafe { CStr::from_ptr(serialized_new_wallet_sig).to_bytes() };
+        let name_new_wallet_sig: &str = str::from_utf8(bytes_new_wallet_sig).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_new_wallet_sig: clsigs::SignatureD = serde_json::from_str(&name_new_wallet_sig).unwrap();
+
+        bidirectional::pay_by_customer_final(&deserialized_pp, &deserialized_merchant_keypair.pk, &mut deserialized_customer_data, deserialized_channel_token, deserialized_new_wallet, deserialized_new_wallet_sig);
+        true
+    }
+
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_customer_refund(serialized_pp: *mut c_char, serialized_channel: *mut c_char, serialized_merchant_keypair: *mut c_char,  serialized_wallet: *mut c_char) -> *mut c_char {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the channel state
+        let bytes_channel = unsafe { CStr::from_ptr(serialized_channel).to_bytes() };
+        let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap(); 
+
+        // Deserialize the merchant keypair 
+        let bytes_kp = unsafe { CStr::from_ptr(serialized_merchant_keypair).to_bytes() };
+        let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
+
+        // Deserialize the new wallet
+        let bytes_wallet = unsafe { CStr::from_ptr(serialized_wallet).to_bytes() };
+        let name_wallet: &str = str::from_utf8(bytes_wallet).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_wallet: bidirectional::CustomerWallet = serde_json::from_str(&name_wallet).unwrap();
+
+        let rc_c = bidirectional::customer_refund(&deserialized_pp, &deserialized_channel_state, &deserialized_merchant_keypair.pk, &deserialized_wallet);
+        let ser = serde_json::to_string(&rc_c).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+
+    #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_merchant_refund(serialized_pp: *mut c_char, serialized_channel: *mut c_char, serialized_channel_token: *mut c_char, serialized_merchant_data: *mut c_char,  serialized_channel_closure: *mut c_char, serialized_revoke_token: *mut c_char) -> *mut c_char {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the channel state
+        let bytes_channel = unsafe { CStr::from_ptr(serialized_channel).to_bytes() };
+        let name_channel: &str = str::from_utf8(bytes_channel).unwrap(); // make sure the bytes are UTF-8
+        let mut deserialized_channel_state: bidirectional::ChannelState = serde_json::from_str(&name_channel).unwrap(); 
+
+        // Deserialize the channel token
+        let bytes_channel_token = unsafe { CStr::from_ptr(serialized_channel_token).to_bytes() };
+        let name_channel_token: &str = str::from_utf8(bytes_channel_token).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_channel_token: bidirectional::ChannelToken = serde_json::from_str(&name_channel_token).unwrap();
+
+        // Deserialize the merchant data
+        let bytes_merchant_data = unsafe { CStr::from_ptr(serialized_merchant_data).to_bytes() };
+        let name_merchant_data: &str = str::from_utf8(bytes_merchant_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap();
+
+        // Deserialize the closure
+        let bytes_channel_closure = unsafe { CStr::from_ptr(serialized_channel_closure).to_bytes() };
+        let name_channel_closure: &str = str::from_utf8(bytes_channel_closure).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_channel_closure: bidirectional::ChannelclosureC = serde_json::from_str(&name_channel_closure).unwrap();
+
+        // Deserialize the revoke_token
+        let bytes_revoke_token = unsafe { CStr::from_ptr(serialized_revoke_token).to_bytes() };
+        let name_revoke_token: &str = str::from_utf8(bytes_revoke_token).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_revoke_token: secp256k1::Signature = serde_json::from_str(&name_revoke_token).unwrap();
+        
+        let rc_m = bidirectional::merchant_refute(&deserialized_pp, &mut deserialized_channel_state, &deserialized_channel_token, &deserialized_merchant_data, &deserialized_channel_closure, &deserialized_revoke_token);
+        let ser = serde_json::to_string(&rc_m).unwrap();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+ 
+     #[no_mangle]                        
+    pub extern fn ffishim_bidirectional_resolve(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char, serialized_closure_customer: *mut c_char,  serialized_closure_merchant: *mut c_char, serialized_revoke_token: *mut c_char) -> i32 {
+        // Deserialize the pp
+        let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
+        let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
+
+        // Deserialize the custdata
+        let bytes_customer_data = unsafe { CStr::from_ptr(serialized_customer_data).to_bytes() };
+        let name_customer_data: &str = str::from_utf8(bytes_customer_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_customer_data: bidirectional::InitCustomerData = serde_json::from_str(&name_customer_data).unwrap();
+
+        // Deserialize the merchant data
+        let bytes_merchant_data = unsafe { CStr::from_ptr(serialized_merchant_data).to_bytes() };
+        let name_merchant_data: &str = str::from_utf8(bytes_merchant_data).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap();
+
+        //TODO handle none()
+
+        // Deserialize the client closure
+        let bytes_closure_customer = unsafe { CStr::from_ptr(serialized_closure_customer).to_bytes() };
+        let name_closure_customer: &str = str::from_utf8(bytes_closure_customer).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_closure_customer: bidirectional::ChannelclosureC = serde_json::from_str(&name_closure_customer).unwrap();
+
+        // Deserialize the merchant closure
+        let bytes_closure_merchant = unsafe { CStr::from_ptr(serialized_closure_merchant).to_bytes() };
+        let name_closure_merchant: &str = str::from_utf8(bytes_closure_merchant).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_closure_merchant: bidirectional::ChannelclosureM = serde_json::from_str(&name_closure_merchant).unwrap();
+
+        // Deserialize the revoke_token
+        let bytes_revoke_token = unsafe { CStr::from_ptr(serialized_revoke_token).to_bytes() };
+        let name_revoke_token: &str = str::from_utf8(bytes_revoke_token).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_revoke_token: clsigs::SignatureD = serde_json::from_str(&name_revoke_token).unwrap();
+
+        // TODO multiple returns
+        let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data, Some(deserialized_closure_customer), Some(deserialized_closure_merchant), Some(deserialized_revoke_token));
+        new_b0_cust
+    }
+
 }
 
 #[cfg(all(test, feature = "unstable"))]

@@ -17,6 +17,30 @@ where
     serializer.serialize_bytes(&v)
 }
 
+
+pub fn serialize_generic_encodable_option<T, S>(optional_object: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    T: rustc_serialize::Encodable,
+    S: Serializer,
+{
+    if let Some(object) = optional_object {
+        let v = encode(&object, Infinite).unwrap();
+        return serializer.serialize_bytes(&v);
+    }
+    serializer.serialize_none()
+}
+
+pub fn serialize_fixed_byte_array_option<S>(optional_object: &Option<[u8; 64]>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    if let Some(object) = optional_object {
+        return serializer.serialize_bytes(&object[..]);
+    }
+    serializer.serialize_none()
+}
+
+
 struct GOneVisitor;
 
 impl<'de> Visitor<'de> for GOneVisitor {
@@ -125,6 +149,68 @@ impl<'de> Visitor<'de> for FieldVisitor {
     }
 }
 
+struct OptionalFieldVisitor;
+
+impl<'de> Visitor<'de> for OptionalFieldVisitor {
+    type Value = Option<Fr>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of bytes representing an element of G2")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> 
+    {
+        let mut bytes = Vec::new();
+
+        loop {
+            let tmp = seq.next_element::<u8>();
+            if let Ok(Some(b)) = tmp {
+                // println!("Byte = {:?}", b);
+                bytes.push(b)
+            } else {
+                break;
+            }
+        } 
+
+        Ok(Some(decode(&bytes[..]).unwrap()))
+    }
+    
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(None)
+    }
+}
+
+struct OptionalByteArrayVisitor;
+
+impl<'de> Visitor<'de> for OptionalByteArrayVisitor {
+    type Value = Option<[u8; 64]>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of bytes or nothing")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> 
+    {
+        let mut array: [u8; 64] = [00; 64];
+
+        for i in 0..64 {
+            let tmp = seq.next_element::<u8>();
+        } 
+
+        Ok(Some(array))
+    }
+    
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(None)
+    }
+}
+
 pub fn deserialize_g_one<'de, D>(deserializer: D) -> Result<G1, D::Error> 
 where 
     D: Deserializer<'de>
@@ -157,6 +243,24 @@ where
     D: Deserializer<'de>
 {
     let a = deserializer.deserialize_seq(FieldVisitor);
+
+    Ok(a.unwrap())
+}
+
+pub fn deserialize_optional_fr<'de, D>(deserializer: D) -> Result<Option<Fr>, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_any(OptionalFieldVisitor);
+
+    Ok(a.unwrap())
+}
+
+pub fn deserialize_optional_fixed_64_byte_array<'de, D>(deserializer: D) -> Result<Option<[u8; 64]>, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_any(OptionalByteArrayVisitor);
 
     Ok(a.unwrap())
 }
