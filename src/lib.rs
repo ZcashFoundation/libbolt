@@ -1523,7 +1523,7 @@ pub mod ffishim {
             ev = true;
         }
         let pp = bidirectional::setup(ev);
-        let ser = serde_json::to_string(&pp).unwrap();
+        let ser = ["{\'pp\':\'",serde_json::to_string(&pp).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1539,7 +1539,7 @@ pub mod ffishim {
             tps = true;
         }
         let channel = bidirectional::ChannelState::new(name.to_string(), tps);
-        let ser = serde_json::to_string(&channel).unwrap();
+        let ser = ["{\'state\':\'",serde_json::to_string(&channel).unwrap().as_str(), "\'}"].concat();;
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1556,7 +1556,15 @@ pub mod ffishim {
             range_proof_bits: 52
         };
 
-        let ser = serde_json::to_string(&test).unwrap();
+        let cl_mpk_instance_two = clsigs::setup_d();
+
+        let test_two = bidirectional::TestPublicParams {
+            cl_mpk: cl_mpk_instance_two,
+            range_proof_bits: 21
+        };
+
+        // let ser = ["{\'a\' : \'" , "serde_jsonto_string(test).unwrap().as_str()", "\' ,\'b\' : \'", "serde_jsonto_string(test_two).unwrap().as_str()", "\'}"].concat();
+        let ser = ["{\'a\' : \'" , serde_json::to_string(&test).unwrap().as_str(), "\' ,\'b\' : \'", serde_json::to_string(&test_two).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
 
         cser.into_raw()
@@ -1576,7 +1584,7 @@ pub mod ffishim {
         let ser = serde_json::to_string(&test).unwrap();
         let cser = CString::new(ser).unwrap();
         unsafe { serialized_pp = cser.into_raw(); }
-        5
+        object.range_proof_bits
     }
 
     #[no_mangle]
@@ -1588,7 +1596,7 @@ pub mod ffishim {
         let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name).unwrap();
 
         let keypair = bidirectional::keygen(&deserialized_pp);
-        let ser = serde_json::to_string(&keypair).unwrap();
+        let ser = ["{\'keypair\':\'",serde_json::to_string(&keypair).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1607,26 +1615,25 @@ pub mod ffishim {
         let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
 
         let init_merchant_data = bidirectional::init_merchant(&deserialized_pp, balance_merchant, &deserialized_merchant_keypair);
-        let ser = serde_json::to_string(&init_merchant_data).unwrap();
+        let ser = ["{\'merchant_data\':\'", serde_json::to_string(&init_merchant_data).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
-    // TODO DOCUMENT CHANGE --> PUBLIC KEY TO THE FULL KEY PAIR
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_generate_commit_setup(serialized_pp: *mut c_char, serialized_merchant_keypair: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_generate_commit_setup(serialized_pp: *mut c_char, serialized_merchant_public_key: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
         let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
         let deserialized_pp: bidirectional::PublicParams = serde_json::from_str(&name_pp).unwrap();
 
         // Deserialize the merchant keypair 
-        let bytes_kp = unsafe { CStr::from_ptr(serialized_merchant_keypair).to_bytes() };
-        let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
-        let deserialized_merchant_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
+        let bytes_pk = unsafe { CStr::from_ptr(serialized_merchant_public_key).to_bytes() };
+        let name_pk: &str = str::from_utf8(bytes_pk).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_merchant_public_key: clsigs::PublicKeyD = serde_json::from_str(&name_pk).unwrap();
 
-        let cm_csp = bidirectional::generate_commit_setup(&deserialized_pp, &deserialized_merchant_keypair.pk);
-        let ser = serde_json::to_string(&cm_csp).unwrap();
+        let cm_csp = bidirectional::generate_commit_setup(&deserialized_pp, &deserialized_merchant_public_key);
+        let ser = ["{\'commit_setup\':\'", serde_json::to_string(&cm_csp).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1654,8 +1661,9 @@ pub mod ffishim {
         let name_kp: &str = str::from_utf8(bytes_kp).unwrap(); // make sure the bytes are UTF-8
         let deserialized_customer_keypair: clsigs::KeyPairD = serde_json::from_str(&name_kp).unwrap();
 
+        // We change the channel state
         let cust_data = bidirectional::init_customer(&deserialized_pp, &mut deserialized_channel_state, balance_customer, balance_merchant, &deserialized_ccommitment_setup, &deserialized_customer_keypair);
-        let ser = serde_json::to_string(&cust_data).unwrap();
+        let ser = ["{\'customer_data\':\'", serde_json::to_string(&cust_data).unwrap().as_str(), "\', \'state\':\'", serde_json::to_string(&deserialized_channel_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1678,7 +1686,7 @@ pub mod ffishim {
         let deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap();
 
         let proof1 = bidirectional::establish_customer_phase1(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data.bases);
-        let ser = serde_json::to_string(&proof1).unwrap();
+        let ser = ["{\'proof\':\'", serde_json::to_string(&proof1).unwrap().as_str(), "\'}"].concat();;
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
