@@ -35,7 +35,7 @@ pub struct ProofCV {
 /// NIZK for PoK of the opening of a commitment M = g^m0 * Z1^m1 * ... * Zl^ml
 /// Arg 1 - secret values
 /// Arg 2 - public bases
-/// Arg 3 - challenge to include in the proof
+/// Arg 3 - commitment to include in the proof
 pub fn bs_gen_nizk_proof(x: &Vec<Fr>, pub_bases: &Vec<G2>, C: G2) -> ProofCV {
     let rng = &mut thread_rng();
     let l = x.len(); // number of secrets

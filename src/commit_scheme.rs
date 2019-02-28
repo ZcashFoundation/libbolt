@@ -66,7 +66,7 @@ impl fmt::Display for Commitment {
         for x in d_vec.iter() {
             d_s = format!("{}{:x}", d_s, x);
         }
-        write!(f, "Commitment : (c=0x{}, d=0x{})", c_s, d_s)
+        write!(f, "Commitment : (c=0x{}, r=0x{})", c_s, d_s)
     }
 }
 
