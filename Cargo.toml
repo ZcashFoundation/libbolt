@@ -23,7 +23,7 @@ time = "*"
 rustc-serialize = "0.3"
 # secp256k1 = { git = "https://github.com/ZcashFoundation/rust-secp256k1", branch = "master", features = ["rand"] }
 secp256k1 = { git = "https://github.com/ZcashFoundation/rust-secp256k1", branch = "master", features = ["rand", "serde"] }
-curve25519-dalek = "1.0.0-pre.0"
+curve25519-dalek = { version = "1", features = ["serde"] }
 merlin = "1.0.0"
 bulletproofs = { git = "https://github.com/dalek-cryptography/bulletproofs", branch = "main" }
 sha2 = { version = "0.8", default-features = false }

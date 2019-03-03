@@ -8,18 +8,8 @@ import ast
 import json
 
 class Libbolt(object):
-
-	# bidirectional_setup  =  libbolt.ffishim_bidirectional_setup
-# bidirectional_channelstate_new  =  libbolt.ffishim_bidirectional_channelstate_new
-# bidirectional_keygen  =  libbolt.ffishim_bidirectional_keygen
-# bidirectional_init_merchant  =  libbolt.ffishim_bidirectional_init_merchant
-# bidirectional_generate_commit_setup  =  libbolt.ffishim_bidirectional_generate_commit_setup
-# bidirectional_init_customer  =  libbolt.ffishim_bidirectional_init_customer
-# bidirectional_establish_customer_phase1  =  libbolt.ffishim_bidirectional_establish_customer_phase1
-# bidirectional_establish_merchant_phase2  =  libbolt.ffishim_bidirectional_establish_merchant_phase2
-# bidirectional_establish_customer_final  =  libbolt.ffishim_bidirectional_establish_customer_final
-
 	"""docstring for Libbolt"""
+	
 	def __init__(self, path):
 		self.lib = cdll.LoadLibrary(path)
 		self.load_library_params()
@@ -58,29 +48,29 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_pay_by_customer_phase1.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, ctypes.c_int32)
 		self.lib.ffishim_bidirectional_pay_by_customer_phase1.restype = c_void_p
 
+		self.lib.ffishim_bidirectional_pay_by_merchant_phase1.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_pay_by_merchant_phase1.restype = c_void_p
 
-		# For Test Structures ONLY
+		self.lib.ffishim_bidirectional_pay_by_customer_phase2.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_pay_by_customer_phase2.restype = c_void_p
 
-		# libbolt.ffishim_bidirectional_teststruct.argtypes = (c_uint8, )
-		self.lib.ffishim_bidirectional_teststruct.restype = c_void_p
+		self.lib.ffishim_bidirectional_pay_by_merchant_phase2.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_pay_by_merchant_phase2.restype = c_void_p
 
-		self.lib.ffishim_bidirectional_teststruct_in.argtypes = (c_void_p, )
-		self.lib.ffishim_bidirectional_teststruct_in.restype = c_uint8
+		self.lib.ffishim_bidirectional_pay_by_customer_final.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_pay_by_customer_final.restype = c_void_p
+
+		self.lib.ffishim_bidirectional_customer_refund.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_customer_refund.restype = c_void_p
+
+		self.lib.ffishim_bidirectional_merchant_refund.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_merchant_refund.restype = c_void_p
+
+		self.lib.ffishim_bidirectional_resolve.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_resolve.restype = c_void_p
 
 		self.lib.ffishim_free_string.argtypes = (c_void_p, )
 
-			# bidirectional_teststruct = libbolt.ffishim_bidirectional_teststruct
-			# bidirectional_teststruct_in = libbolt.ffishim_bidirectional_teststruct_in
-
-		# TODO set all the dictionary keys iin one place instead of hard coding them
-
-	def bidirectional_teststruct(self):
-		output_string = ast.literal_eval(ctypes.cast(self.lib.ffishim_bidirectional_teststruct(), ctypes.c_char_p).value.decode('utf-8'))
-		print(output_string)
-		return output_string['a']
-
-	def bidirectional_teststruct_in(self, input_struct):	
-		return self.lib.ffishim_bidirectional_teststruct_in(input_struct)
 
 	def bidirectional_setup(self, extra_verify):
 		inputs = 0
@@ -132,7 +122,6 @@ class Libbolt(object):
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['customer_data']
 
-
 	def bidirectional_pay_by_customer_phase1_precompute(self, pp, cust_data, merch_pubkey):
 		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase1_precompute(pp, cust_data, merch_pubkey)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
@@ -143,6 +132,40 @@ class Libbolt(object):
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['channel_token'],output_dictionary['new_wallet'],output_dictionary['pay_proof'] )
 
+	def bidirectional_pay_by_merchant_phase1(self, pp, channel, pay_proof, merch_data):
+		output_string = self.lib.ffishim_bidirectional_pay_by_merchant_phase1(pp, channel, pay_proof, merch_data)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (output_dictionary['rt_w'],output_dictionary['state'])
+
+	def bidirectional_pay_by_customer_phase2(self, pp, cust_data, new_wallet, merch_public_key, rt_w):
+		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase2(pp, cust_data, new_wallet, merch_public_key, rt_w)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return output_dictionary['rv_w']
+
+	def bidirectional_pay_by_merchant_phase2(self, pp, channel, pay_proof, merch_data, revoke_token):
+		output_string = self.lib.ffishim_bidirectional_pay_by_merchant_phase2( pp, channel, pay_proof, merch_data, revoke_token)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (output_dictionary['new_wallet_sig'],output_dictionary['state'], output_dictionary['merch_data'])
+
+	def bidirectional_pay_by_customer_final(self, pp, merch_public_key, cust_data, channel_token, new_wallet, new_wallet_sig):
+		output_string = self.lib.ffishim_bidirectional_pay_by_customer_final(pp, merch_public_key, cust_data, channel_token, new_wallet, new_wallet_sig)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return output_dictionary['customer_data']
+
+	def bidirectional_customer_refund(self, pp, channel, merch_public_key, wallet):
+		output_string = self.lib.ffishim_bidirectional_customer_refund(pp, channel, merch_public_key, wallet)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return output_dictionary['rc_c']
+
+	def bidirectional_merchant_refund(self, pp, channel, channel_token, merch_data, channel_closure, revoke_token):
+		output_string = self.lib.ffishim_bidirectional_merchant_refund(pp, channel, channel_token, merch_data, channel_closure, revoke_token)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (output_dictionary['rc_m'], output_dictionary['state'])
+
+	def bidirectional_resolve(self, pp, cust_data, merch_data, cust_closure, merch_closure, revoke_token):
+		output_string = self.lib.ffishim_bidirectional_resolve( pp, cust_data, merch_data, cust_closure, merch_closure, revoke_token)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (int(output_dictionary['new_b0_cust']), int(output_dictionary['new_b0_merch']))
 
 # --------------------------------------------
 
@@ -165,53 +188,45 @@ else:
 libbolt = Libbolt('target/debug/{}bolt.{}'.format(prefix, ext))
 
 
-# print(a)
-
-# b = libbolt.bidirectional_teststruct_in(a)
-
-# print(b)
-# print(second_thing['range_proof_bits'])
-
-# print(ctypes.cast(a, ctypes.c_char_p).value.decode('utf-8'))
-# print(ctypes.cast(b, ctypes.c_char_p).value.decode('utf-8'))
-
 
 b0_cust = 50;
 b0_merch = 50;
 
 pp = libbolt.bidirectional_setup(False)
-# print(pp)
 
 merch_keys = libbolt.bidirectional_keygen(pp)
-# print merch_keys
+
 cust_keys = libbolt.bidirectional_keygen(pp)
-# print(cust_keys)
 
 channel_state = libbolt.bidirectional_channelstate_new("My New Channel A", 0)
-# print(channel)
-# print(" After channel")
+
 merch_data = libbolt.bidirectional_init_merchant(pp, b0_cust, merch_keys)
-# print(merch_data)
-# print(" After merch_data")
+
 cm_csp = libbolt.bidirectional_generate_commit_setup(pp, libbolt.util_extract_public_key_from_keypair(merch_keys))
-# print(" After cm_csp")
+
 cust_data, channel_state = libbolt.bidirectional_init_customer(pp, channel_state, b0_cust, b0_merch, cm_csp, cust_keys)
-# print channel_state
-# print(cust_data)
+
 proof1 = libbolt.bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
-print(" After proof1")
+
 wallet_sig, channel_state = libbolt.bidirectional_establish_merchant_phase2(pp, channel_state, merch_data, proof1)
-print(" After wallet_sig")
+
 cust_data = libbolt.bidirectional_establish_customer_final(pp, libbolt.util_extract_public_key_from_keypair(merch_keys), cust_data, wallet_sig)
-print(" After final")
-cust_data = libbolt.bidirectional_pay_by_customer_phase1_precompute(pp, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys) )
-print(" After Precompute")
 
-(t_c, new_wallet, pay_proof) = libbolt.bidirectional_pay_by_customer_phase1(pp, channel_state, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys), 5)
-print(" after pay phase 1")
+cust_data = libbolt.bidirectional_pay_by_customer_phase1_precompute(pp, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys))
 
-# print(setup)
-# print(ctypes.cast(pp, ctypes.c_char_p).value.decode('utf-8'))
-# print(ctypes.cast(keys, ctypes.c_char_p).value.decode('utf-8'))
-# print(ctypes.cast(channel_token, ctypes.c_char_p).value.decode('utf-8'))
-# print(ctypes.cast(commit_setup, ctypes.c_char_p).value.decode('utf-8'))
+(channel_token, new_wallet, pay_proof) = libbolt.bidirectional_pay_by_customer_phase1(pp, channel_state, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys), 5)
+
+(rt_w, channel_state) =  libbolt.bidirectional_pay_by_merchant_phase1(pp, channel_state, pay_proof, merch_data)
+
+rv_w = libbolt.bidirectional_pay_by_customer_phase2(pp, cust_data, new_wallet, libbolt.util_extract_public_key_from_keypair(merch_keys), rt_w)
+
+(new_wallet_sig, state, merch_data)	= libbolt.bidirectional_pay_by_merchant_phase2(pp, channel_state, pay_proof, merch_data, rv_w)
+
+cust_data = libbolt.bidirectional_pay_by_customer_final(pp, libbolt.util_extract_public_key_from_keypair(merch_keys), cust_data, channel_token, new_wallet, new_wallet_sig)
+
+print("--------------------")
+
+cust_data = libbolt.bidirectional_pay_by_customer_phase1_precompute(pp, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys))
+
+(channel_token, new_wallet, pay_proof) = libbolt.bidirectional_pay_by_customer_phase1(pp, channel_state, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys), -10)
+

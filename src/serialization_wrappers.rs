@@ -4,6 +4,7 @@ use bn::{Group, Fr, G1, G2, Gt};
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use secp256k1;
 use std::fmt;
+use curve25519_dalek::ristretto::RistrettoPoint;
 // use serde-rustc-serialize-interop;
 
 use serde::{Serialize, Serializer, ser::SerializeSeq, ser::SerializeStruct, Deserialize, Deserializer, de::Visitor, de::Error, de::SeqAccess};
@@ -255,7 +256,7 @@ pub fn deserialize_optional_fixed_64_byte_array<'de, D>(deserializer: D) -> Resu
 where 
     D: Deserializer<'de>
 {
-    let a = deserializer.deserialize_any(OptionalByteArrayVisitor);
+    let a = deserializer.deserialize_option(OptionalByteArrayVisitor);
 
     Ok(a.unwrap())
 }
@@ -467,11 +468,118 @@ where
 }
 
 
+// --------------
+// Fix for the tuple thing.  Not sure why its bugging, but it sure as hell is.
 
+struct RangeProofVisitor;
+
+impl<'de> Visitor<'de> for RangeProofVisitor {
+    type Value = (bulletproofs::RangeProof, curve25519_dalek::ristretto::CompressedRistretto);
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of bytes representing a tuple, one range proof and one risteretto point")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+
+        // the bytes representing the rangeproof
+        let tmp = seq.next_element::<Vec<u8>>();
+        let range_bytes = tmp.unwrap().unwrap();
+        let range_proof = bulletproofs::RangeProof::from_bytes(&range_bytes[..]).unwrap();
+
+        // the bytes representing the point
+        let tmp2 = seq.next_element::<Vec<u8>>();
+        let point_bytes = tmp2.unwrap().unwrap();
+        let point = curve25519_dalek::ristretto::CompressedRistretto::from_slice(&point_bytes[..]);
+        
+        Ok((range_proof, point))
+    }
+}
+
+pub fn deserialize_range_proof<'de, D>(deserializer: D) -> Result<(bulletproofs::RangeProof, curve25519_dalek::ristretto::CompressedRistretto), D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_seq(RangeProofVisitor);
+
+    Ok(a.unwrap())
+}
+
+struct RPointVisitor;
+
+impl<'de> Visitor<'de> for RPointVisitor {
+    type Value = curve25519_dalek::ristretto::RistrettoPoint;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of bytes representing a tuple, one range proof and one risteretto point")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+
+
+        let mut point_bytes = Vec::new();
+        loop {
+            let tmp = seq.next_element::<u8>();
+            if let Ok(Some(b)) = tmp {
+                point_bytes.push(b)
+            } else {
+                break;
+            }
+        } 
+
+        let point = curve25519_dalek::ristretto::CompressedRistretto::from_slice(&point_bytes[..]);
+        
+        Ok(point.decompress().unwrap())
+    }
+}
+
+pub fn deserialize_r_point<'de, D>(deserializer: D) -> Result<curve25519_dalek::ristretto::RistrettoPoint, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_seq(RPointVisitor);
+
+    Ok(a.unwrap())
+}
 
 // -------------
 // These are hot fixes because secp256k1's implemenetation seems to be very very broken
 // TODO THIS NEED TO BE FIXED UPSTREAM !!!
+
+struct SignatureVisitor;
+
+impl<'de> Visitor<'de> for SignatureVisitor {
+    type Value = secp256k1::Signature;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of usize for a BulletproofGens")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+
+        let mut bytes = Vec::new();
+        loop {
+            let tmp = seq.next_element::<u8>();
+            if let Ok(Some(b)) = tmp {
+                bytes.push(b)
+            } else {
+                break;
+            }
+        } 
+
+        Ok(secp256k1::Signature::from_der(bytes.as_slice()).unwrap())
+    }
+}
+
+pub fn deserialize_secp_signature<'de, D>(deserializer: D) -> Result<secp256k1::Signature, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_seq(SignatureVisitor);
+
+    Ok(a.unwrap())
+}
+
 
 struct PublicKeyVisitor;
 
