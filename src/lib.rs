@@ -139,6 +139,13 @@ pub fn print(g: &G1) -> String {
     return c_s;
 }
 
+pub fn print_length(commit: &commit_scheme::Commitment) {
+    let c_vec: Vec<u8> = encode(&commit.c, Infinite).unwrap();
+    println!("Length of G2: {}", c_vec.len());
+    let r_vec: Vec<u8> = encode(&commit.r, Infinite).unwrap();
+    println!("Length of FR: {}", r_vec.len());
+}
+
 // OLD RefundMessage
 //impl<'a> RefundMessage<'a> {
 //    pub fn new(_c_id: Fr, _index: i32) -> RefundMessage<'a> {
@@ -605,7 +612,6 @@ pub mod bidirectional {
 
     use serialization_wrappers;
     use serde::{Serialize, Deserialize};
-
 
     fn print_secret_vector(x: &Vec<Fr>) {
         for i in 0 .. x.len() {
