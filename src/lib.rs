@@ -658,12 +658,15 @@ pub mod bidirectional {
         common_params: clproto::CommonParams, // common params for NIZK
     }
 
+// TODO This is broken
     #[derive(Clone, Serialize, Deserialize)]
     pub struct CustomerWallet {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
         cid: Fr, // channel Id
+        #[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
         wpk: secp256k1::PublicKey, // signature verification key
+        #[serde(deserialize_with = "serialization_wrappers::deserialize_secret_key")]
         wsk: secp256k1::SecretKey, // signature signing key
         #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
         h_wpk: Fr,
@@ -864,6 +867,7 @@ pub mod bidirectional {
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
         // construct channel token
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone(), third_party_pay: channel.third_party };
+
         // construct customer wallet secret key plus other components
         let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: cid, wpk: wpk, wsk: wsk, h_wpk: h_wpk,
                                     r: r, balance: b0_customer, merchant_balance: b0_merchant,
@@ -1686,7 +1690,7 @@ pub mod ffishim {
         let deserialized_merchant_data: bidirectional::InitMerchantData = serde_json::from_str(&name_merchant_data).unwrap();
 
         let proof1 = bidirectional::establish_customer_phase1(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data.bases);
-        let ser = ["{\'proof\':\'", serde_json::to_string(&proof1).unwrap().as_str(), "\'}"].concat();;
+        let ser = ["{\'proof\':\'", serde_json::to_string(&proof1).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -1714,13 +1718,15 @@ pub mod ffishim {
         let deserialized_proof_1: clproto::ProofCV = serde_json::from_str(&name_proof_1).unwrap(); 
 
         let wallet_sig = bidirectional::establish_merchant_phase2(&deserialized_pp, &mut deserialized_channel_state, &deserialized_merchant_data, &deserialized_proof_1);
-        let ser = serde_json::to_string(&wallet_sig).unwrap();
+        let ser = ["{\'wallet_sig\':\'", serde_json::to_string(&wallet_sig).unwrap().as_str(), "\', \'state\':\'", serde_json::to_string(&deserialized_channel_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
+// Everythnig above is done
+
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_customer_final(serialized_pp: *mut c_char, serialized_merchant_keypair: *mut c_char, serialized_customer_data: *mut c_char, serialized_wallet_sig: *mut c_char) -> bool {
+    pub extern fn ffishim_bidirectional_establish_customer_final(serialized_pp: *mut c_char, serialized_merchant_keypair: *mut c_char, serialized_customer_data: *mut c_char, serialized_wallet_sig: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
         let name_pp: &str = str::from_utf8(bytes_pp).unwrap(); // make sure the bytes are UTF-8
@@ -1741,7 +1747,11 @@ pub mod ffishim {
         let name_wallet_sig: &str = str::from_utf8(bytes_wallet_sig).unwrap(); // make sure the bytes are UTF-8
         let deserialized_wallet_sig: clsigs::SignatureD = serde_json::from_str(&name_wallet_sig).unwrap();
 
-        bidirectional::establish_customer_final(&deserialized_pp, &deserialized_merchant_keypair.pk, &mut deserialized_customer_data.csk, deserialized_wallet_sig)
+        // TODO make this return the csk
+        bidirectional::establish_customer_final(&deserialized_pp, &deserialized_merchant_keypair.pk, &mut deserialized_customer_data.csk, deserialized_wallet_sig);
+        let ser = ["{\'customer_data\':\'", serde_json::to_string(&deserialized_customer_data).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
     }
 
 

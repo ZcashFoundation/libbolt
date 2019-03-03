@@ -57,7 +57,6 @@ impl<'de> Visitor<'de> for GOneVisitor {
         loop {
             let tmp = seq.next_element::<u8>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 bytes.push(b)
             } else {
                 break;
@@ -84,7 +83,6 @@ impl<'de> Visitor<'de> for GTwoVisitor {
         loop {
             let tmp = seq.next_element::<u8>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 bytes.push(b)
             } else {
                 break;
@@ -111,7 +109,6 @@ impl<'de> Visitor<'de> for GTargetVisitor {
         loop {
             let tmp = seq.next_element::<u8>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 bytes.push(b)
             } else {
                 break;
@@ -138,7 +135,6 @@ impl<'de> Visitor<'de> for FieldVisitor {
         loop {
             let tmp = seq.next_element::<u8>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 bytes.push(b)
             } else {
                 break;
@@ -165,7 +161,6 @@ impl<'de> Visitor<'de> for OptionalFieldVisitor {
         loop {
             let tmp = seq.next_element::<u8>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 bytes.push(b)
             } else {
                 break;
@@ -293,14 +288,11 @@ impl<'de> Visitor<'de> for G1VecVisitor {
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
 
-        // println!("Hi G1VecVisitor");
-
         let mut vec = Vec::new();
 
         loop {
             let tmp = seq.next_element::<Vec<u8>>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 vec.push(decode(&b[..]).unwrap());
             } else {
                 break;
@@ -322,14 +314,11 @@ impl<'de> Visitor<'de> for G2VecVisitor {
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
 
-        // println!("Hi G2VecVisitor");
-
         let mut vec = Vec::new();
 
         loop {
             let tmp = seq.next_element::<Vec<u8>>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 vec.push(decode(&b[..]).unwrap());
             } else {
                 break;
@@ -351,14 +340,12 @@ impl<'de> Visitor<'de> for GTargetVecVisitor {
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
 
-        // println!("Hi G2VecVisitor");
 
         let mut vec = Vec::new();
 
         loop {
             let tmp = seq.next_element::<Vec<u8>>();
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 vec.push(decode(&b[..]).unwrap());
             } else {
                 break;
@@ -380,16 +367,12 @@ impl<'de> Visitor<'de> for FrVecVisitor {
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
 
-        // println!("Hi FrVecVisitor");
-
         let mut vec = Vec::new();
 
         loop {
             let tmp = seq.next_element::<Vec<u8>>();
-            // println!("tmp = {:?}", tmp);
 
             if let Ok(Some(b)) = tmp {
-                // println!("Byte = {:?}", b);
                 vec.push(decode(&b[..]).unwrap());
             } else {
                 break;
@@ -414,7 +397,6 @@ where
     D: Deserializer<'de>
 {
     let a = deserializer.deserialize_seq(G2VecVisitor);
-
     Ok(a.unwrap())
 }
 
@@ -480,6 +462,81 @@ where
     D: Deserializer<'de>
 {
     let a = deserializer.deserialize_seq(BulletProofVisitor);
+
+    Ok(a.unwrap())
+}
+
+
+
+
+// -------------
+// These are hot fixes because secp256k1's implemenetation seems to be very very broken
+// TODO THIS NEED TO BE FIXED UPSTREAM !!!
+
+struct PublicKeyVisitor;
+
+impl<'de> Visitor<'de> for PublicKeyVisitor {
+    type Value = secp256k1::PublicKey;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of usize for a BulletproofGens")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+
+        let mut bytes = Vec::new();
+        loop {
+            let tmp = seq.next_element::<u8>();
+            if let Ok(Some(b)) = tmp {
+                bytes.push(b)
+            } else {
+                break;
+            }
+        } 
+
+        Ok(secp256k1::PublicKey::from_slice(bytes.as_slice()).unwrap())
+    }
+}
+
+pub fn deserialize_public_key<'de, D>(deserializer: D) -> Result<secp256k1::PublicKey, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_seq(PublicKeyVisitor);
+
+    Ok(a.unwrap())
+}
+
+struct SecretKeyVisitor;
+
+impl<'de> Visitor<'de> for SecretKeyVisitor {
+    type Value = secp256k1::SecretKey;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Sequence of usize for a BulletproofGens")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+
+        let mut bytes = Vec::new();
+        loop {
+            let tmp = seq.next_element::<u8>();
+            if let Ok(Some(b)) = tmp {
+                bytes.push(b)
+            } else {
+                break;
+            }
+        } 
+
+        Ok(secp256k1::SecretKey::from_slice(bytes.as_slice()).unwrap())
+    }
+}
+
+pub fn deserialize_secret_key<'de, D>(deserializer: D) -> Result<secp256k1::SecretKey, D::Error> 
+where 
+    D: Deserializer<'de>
+{
+    let a = deserializer.deserialize_seq(SecretKeyVisitor);
 
     Ok(a.unwrap())
 }

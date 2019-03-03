@@ -50,7 +50,7 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_establish_merchant_phase2.restype = c_void_p
 
 		self.lib.ffishim_bidirectional_establish_customer_final.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bidirectional_establish_customer_final.restype = c_uint8
+		self.lib.ffishim_bidirectional_establish_customer_final.restype = c_void_p
 
 		# For Test Structures ONLY
 
@@ -104,17 +104,26 @@ class Libbolt(object):
 		return output_dictionary['commit_setup']
 
 	def bidirectional_init_customer(self, pp, channel, b0_cust, b0_merch, cm_csp, cust_keys):
+		# return self.lib.ffishim_bidirectional_init_customer(pp, channel, b0_cust, b0_merch, cm_csp, cust_keys)
 		output_string = self.lib.ffishim_bidirectional_init_customer(pp, channel, b0_cust, b0_merch, cm_csp, cust_keys)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		# self.lib.ffishim_free_string(channel) //TODO THIS THROWS AN ERROR?!?!?!??!!
+		# self.lib.ffishim_free_string(channel) #TODO THIS THROWS AN ERROR?!?!?!??!!
 		return (output_dictionary['customer_data'], output_dictionary['state'])
 
-	# def bidirectional_establish_customer_phase1(self, pp, cust_data, merch_data): # TODO merch_data.bases should be parsed out.
-	# 	output_string = self.lib.ffishim_bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
-	# 	output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-	# 	return output_dictionary['proof']
+	def bidirectional_establish_customer_phase1(self, pp, cust_data, merch_data): # TODO merch_data.bases should be parsed out.
+		output_string = self.lib.ffishim_bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return output_dictionary['proof']
 
+	def bidirectional_establish_merchant_phase2(self, pp, channel, merch_data, proof1):
+		output_string = self.lib.ffishim_bidirectional_establish_merchant_phase2(pp, channel, merch_data, proof1)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (output_dictionary['wallet_sig'], output_dictionary['state'])
 
+	def bidirectional_establish_customer_final(self, pp, merch_keys, cust_data, wallet_sig):
+		output_string = self.lib.ffishim_bidirectional_establish_customer_final(pp, merch_keys, cust_data, wallet_sig)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return output_dictionary['customer_data']
 
 # --------------------------------------------
 
@@ -169,13 +178,13 @@ cm_csp = libbolt.bidirectional_generate_commit_setup(pp, libbolt.util_extract_pu
 # print(" After cm_csp")
 cust_data, channel_state = libbolt.bidirectional_init_customer(pp, channel_state, b0_cust, b0_merch, cm_csp, cust_keys)
 # print channel_state
-# print(" After cust_data")
-# proof1 = libbolt.bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
-# print(" After proof1")
-# wallet_sig = bidirectional_establish_merchant_phase2(pp, channel, merch_data, proof1)
-# print(" After wallet_sig")
-# setup = bidirectional_establish_customer_final(pp, merch_keys, cust_data, wallet_sig)
-# print(" After setup")
+# print(cust_data)
+proof1 = libbolt.bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
+print(" After proof1")
+wallet_sig, channel_state = libbolt.bidirectional_establish_merchant_phase2(pp, channel_state, merch_data, proof1)
+print(" After wallet_sig")
+cust_data = libbolt.bidirectional_establish_customer_final(pp, merch_keys, cust_data, wallet_sig)
+print(" After final")
 
 # print(setup)
 # print(ctypes.cast(pp, ctypes.c_char_p).value.decode('utf-8'))
