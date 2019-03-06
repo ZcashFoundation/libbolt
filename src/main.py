@@ -178,11 +178,16 @@ class Libbolt(object):
 			return True
 		return False
 
+	def interperate_json_string_as_dictionary(self, json_string):
+		return ast.literal_eval(json_string)
+
+	def util_convert_int_list_to_hex_string(self, dictionary):
+		return "".join([ "{0:02x".format(x) for x in dictionary])
+
 	def util_extract_public_key_from_keypair(self, keypair):
 		# Interperate the input keypair struct as a dictionary and then extract
-		dictionary = ast.literal_eval(keypair)
+		dictionary = self.interperate_json_string_as_dictionary(keypair)
 		return json.dumps(dictionary['pk'])
-
 
 if platform == 'darwin':
     prefix = 'lib'
