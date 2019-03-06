@@ -419,6 +419,12 @@ where
     Ok(a.unwrap())
 }
 
+// Wrapper class for Vec<Fr>
+#[derive(Serialize, Deserialize)]
+pub struct VecFrWrapper( #[serde(serialize_with = "serialize_generic_encodable_vec", deserialize_with = "deserialize_fr_vec")] pub Vec<Fr>);
+
+
+
 pub fn serialize_bullet_proof<S>(bp_gens: &bulletproofs::BulletproofGens, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

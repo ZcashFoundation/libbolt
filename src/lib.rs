@@ -1517,6 +1517,10 @@ pub mod ffishim {
     use std::str;
     use std::mem;
 
+    use bn::Fr;
+
+    use serialization_wrappers;
+
     #[no_mangle]
     pub extern fn ffishim_free_string(pointer: *mut c_char) {
         unsafe{ 
@@ -1964,7 +1968,7 @@ pub mod ffishim {
         cser.into_raw()
     }
  
-     #[no_mangle]                        
+    #[no_mangle]                        
     pub extern fn ffishim_bidirectional_resolve(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char, serialized_closure_customer: *mut c_char,  serialized_closure_merchant: *mut c_char, serialized_revoke_token: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let bytes_pp = unsafe { CStr::from_ptr(serialized_pp).to_bytes() };
@@ -2004,6 +2008,31 @@ pub mod ffishim {
         cser.into_raw()
     }
 
+    #[no_mangle]                        
+    pub extern fn ffishim_commit_scheme_decommit(serialized_csp: *mut c_char, serialized_commitment: *mut c_char, serialized_x: *mut c_char) -> *mut c_char {
+        // Deserialize the csp
+        let bytes_csp = unsafe { CStr::from_ptr(serialized_csp).to_bytes() };
+        let name_csp: &str = str::from_utf8(bytes_csp).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_csp: commit_scheme::CSParams = serde_json::from_str(&name_csp).unwrap();
+
+        // Deserialize the commit
+        let bytes_commitment = unsafe { CStr::from_ptr(serialized_commitment).to_bytes() };
+        let name_commitment: &str = str::from_utf8(bytes_commitment).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_commitment: commit_scheme::Commitment = serde_json::from_str(&name_commitment).unwrap();
+
+        // Deserialize the vec<fr> x
+        let bytes_x = unsafe { CStr::from_ptr(serialized_x).to_bytes() };
+        let name_x: &str = str::from_utf8(bytes_x).unwrap(); // make sure the bytes are UTF-8
+        let deserialized_x: serialization_wrappers::VecFrWrapper = serde_json::from_str(&name_x).unwrap(); 
+            // Wrapper struct is required because Serde needs something to annotate
+
+        let ser = match commit_scheme::decommit(&deserialized_csp, &deserialized_commitment, &deserialized_x.0) {
+            false => "{\'return_value\':\'false\'}",
+            true => "{\'return_value\':\'true\'}",
+        };
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
@@ -2293,6 +2322,13 @@ mod tests {
         println!("Merchant channel balance with alice: {}", merch_data_a.csk.balance);
         println!("Customer bob balance: {}", bob_data.csk.balance);
         println!("Merchant channel balance with bob: {}", merch_data_b.csk.balance);
+    }
+
+    #[test]
+    #[ignore]
+    fn serialization_tests() {
+        // TODO: finish me
+        assert!(true);
     }
 
 }

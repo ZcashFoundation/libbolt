@@ -9,7 +9,7 @@ import json
 
 class Libbolt(object):
 	"""docstring for Libbolt"""
-	
+
 	def __init__(self, path):
 		self.lib = cdll.LoadLibrary(path)
 		self.load_library_params()
@@ -69,6 +69,12 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_resolve.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_resolve.restype = c_void_p
 
+		# Exposing the decommitment functionality
+		self.lib.ffishim_commit_scheme_decommit.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_commit_scheme_decommit.restype = c_void_p
+
+		# Things that don't really work
+
 		self.lib.ffishim_free_string.argtypes = (c_void_p, )
 
 
@@ -76,7 +82,6 @@ class Libbolt(object):
 		inputs = 0
 		if extra_verify:
 			inputs = 1
-		# print(ctypes.cast(self.lib.ffishim_bidirectional_setup(inputs), ctypes.c_char_p).value.decode('utf-8'))
 		output_string = ast.literal_eval(ctypes.cast(self.lib.ffishim_bidirectional_setup(inputs), ctypes.c_char_p).value.decode('utf-8'))
 		return output_string['pp']
 
@@ -101,10 +106,8 @@ class Libbolt(object):
 		return output_dictionary['commit_setup']
 
 	def bidirectional_init_customer(self, pp, channel, b0_cust, b0_merch, cm_csp, cust_keys):
-		# return self.lib.ffishim_bidirectional_init_customer(pp, channel, b0_cust, b0_merch, cm_csp, cust_keys)
 		output_string = self.lib.ffishim_bidirectional_init_customer(pp, channel, b0_cust, b0_merch, cm_csp, cust_keys)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		# self.lib.ffishim_free_string(channel) #TODO THIS THROWS AN ERROR?!?!?!??!!
 		return (output_dictionary['customer_data'], output_dictionary['state'])
 
 	def bidirectional_establish_customer_phase1(self, pp, cust_data, merch_data): # TODO merch_data.bases should be parsed out.
@@ -168,6 +171,12 @@ class Libbolt(object):
 		return (int(output_dictionary['new_b0_cust']), int(output_dictionary['new_b0_merch']))
 
 # --------------------------------------------
+	def commit_scheme_decommit(self, csp, commitment, x):
+		output_string = self.lib.ffishim_commit_scheme_decommit(csp, commitment, x)
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		if output_dictionary['return_value'] == 'true':
+			return True
+		return False
 
 	def util_extract_public_key_from_keypair(self, keypair):
 		# Interperate the input keypair struct as a dictionary and then extract
@@ -186,8 +195,6 @@ else:
     ext = 'so'
 
 libbolt = Libbolt('target/debug/{}bolt.{}'.format(prefix, ext))
-
-
 
 b0_cust = 50;
 b0_merch = 50;
