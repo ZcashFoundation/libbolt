@@ -7,6 +7,7 @@
 //! Libbolt relies on BN curves at 128-bit security, as implemented in
 //! [`bn module`](https://github.com/zcash-hackworks/bn).
 //!
+#![allow(non_snake_case)]
 #![feature(extern_prelude)]
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
