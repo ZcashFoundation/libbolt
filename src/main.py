@@ -182,7 +182,7 @@ class Libbolt(object):
 		return ast.literal_eval(json_string)
 
 	def util_convert_int_list_to_hex_string(self, dictionary):
-		return "".join([ "{0:02x".format(x) for x in dictionary])
+		return "".join(["{0:02x}".format(x) for x in dictionary])
 
 	def util_extract_public_key_from_keypair(self, keypair):
 		# Interperate the input keypair struct as a dictionary and then extract
@@ -199,7 +199,7 @@ else:
     prefix = 'lib'
     ext = 'so'
 
-libbolt = Libbolt('target/debug/{}bolt.{}'.format(prefix, ext))
+libbolt = Libbolt('target/release/{}bolt.{}'.format(prefix, ext))
 
 b0_cust = 50;
 b0_merch = 50;
@@ -241,4 +241,29 @@ print("--------------------")
 cust_data = libbolt.bidirectional_pay_by_customer_phase1_precompute(pp, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys))
 
 (channel_token, new_wallet, pay_proof) = libbolt.bidirectional_pay_by_customer_phase1(pp, channel_state, cust_data, libbolt.util_extract_public_key_from_keypair(merch_keys), -10)
+
+# temp fix re: T/F from Rust -> C/Py
+channel_token = channel_token.replace('false', 'False')
+Tc = libbolt.interperate_json_string_as_dictionary(channel_token)
+#print(Tc)
+w_com_c = libbolt.util_convert_int_list_to_hex_string(Tc["w_com"]["c"])
+w_com_r = libbolt.util_convert_int_list_to_hex_string(Tc["w_com"]["r"])
+
+print("w_com.c => 0x{}, len = {}".format(w_com_c, len(Tc["w_com"]["c"])))
+print("w_com.r => 0x{}, len = {}".format(w_com_r, len(Tc["w_com"]["r"])))
+print("--------------------")
+
+# TODO: compute hash of the channel pubkey?
+
+# write out the CSP bytes
+csp = libbolt.interperate_json_string_as_dictionary(cm_csp)
+total_csp = ""
+for i in range(0, len(csp["pub_bases"])):
+    csp_hex = libbolt.util_convert_int_list_to_hex_string(csp["pub_bases"][i])
+    print("csp[{}] => 0x{}, len = {}".format(i, csp_hex, len(csp["pub_bases"][i])))
+    total_csp += csp_hex
+
+print("CSP Blob = ", total_csp)
+print("Overall len = {}".format(len(total_csp)/2))
+
 
