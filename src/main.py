@@ -199,7 +199,9 @@ else:
     prefix = 'lib'
     ext = 'so'
 
-libbolt = Libbolt('target/release/{}bolt.{}'.format(prefix, ext))
+releaseordebug = 'debug'
+
+libbolt = Libbolt('target/{}/{}bolt.{}'.format(releaseordebug, prefix, ext))
 
 b0_cust = 50;
 b0_merch = 50;
