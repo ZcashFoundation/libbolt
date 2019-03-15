@@ -6,18 +6,18 @@
 extern "C" {
 
    /* Purpose: open channel
-    * Arguments: take as input the serialized wallet commitment, commitment pub params and
-    * serialized vector of messages (m).
+    * Arguments: take as input the channel token which consists of the serialized wallet commitment,
+    * commitment pub params and a second arg (serialized vector of messages m).
     * Returns: 0 (false) or 1 (true)
     */
-   int validate_channel_open(const char *w_com, const char *csp, const char *m);
+   int validate_channel_open(const char *tc_c, const char *m);
 
    /* Purpose: close channel
-    * Arguments: take as input the serialized channel closure message (rc_c), the master pub params for CL (pp),
+    * Arguments: take as input the master pub params for CL (pp), serialized channel closure message (rc_c),
     * and serialized public key of merchant.
     * Returns: 0 (false) or 1 (true)
     */
-   int validate_channel_close(const char *rc_c, const char *pp, const char *pk_m);
+   int validate_channel_close(const char *pp, const char *rc_c, const char *pk_m);
 
    /* Purpose: dispute channel
     * Arguments: serialized pub params, channel closure for cust/merch and channel tokens for cust/merch
