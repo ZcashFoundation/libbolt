@@ -5,6 +5,7 @@ use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use secp256k1;
 use std::fmt;
 use curve25519_dalek::ristretto::RistrettoPoint;
+use commit_scheme;
 // use serde-rustc-serialize-interop;
 
 use serde::{Serialize, Serializer, ser::SerializeSeq, ser::SerializeStruct, Deserialize, Deserializer, de::Visitor, de::Error, de::SeqAccess};
@@ -126,7 +127,7 @@ impl<'de> Visitor<'de> for FieldVisitor {
     type Value = Fr;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("Sequence of bytes representing an element of G2")
+        formatter.write_str("Sequence of bytes representing an element of Fr")
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> 
@@ -152,7 +153,7 @@ impl<'de> Visitor<'de> for OptionalFieldVisitor {
     type Value = Option<Fr>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("Sequence of bytes representing an element of G2")
+        formatter.write_str("Sequence of bytes representing an optional Fr")
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> 
@@ -247,7 +248,7 @@ pub fn deserialize_optional_fr<'de, D>(deserializer: D) -> Result<Option<Fr>, D:
 where 
     D: Deserializer<'de>
 {
-    let a = deserializer.deserialize_any(OptionalFieldVisitor);
+    let a = deserializer.deserialize_option(OptionalFieldVisitor);
 
     Ok(a.unwrap())
 }
@@ -310,7 +311,7 @@ impl<'de> Visitor<'de> for G2VecVisitor {
     type Value = Vec<G2>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("Sequence of byte encodings of G2")
+        formatter.write_str("Sequence of byte encodings of Vec G2")
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
@@ -336,7 +337,7 @@ impl<'de> Visitor<'de> for GTargetVecVisitor {
     type Value = Vec<Gt>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("Sequence of byte encodings of G2")
+        formatter.write_str("Sequence of byte encodings of Vec Gt")
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
@@ -419,11 +420,20 @@ where
     Ok(a.unwrap())
 }
 
+// Wrapper class for Fr
+#[derive(Serialize, Deserialize)]
+pub struct FrWrapper( #[serde(serialize_with = "serialize_generic_encodable", deserialize_with = "deserialize_fr")] pub Fr);
+
 // Wrapper class for Vec<Fr>
 #[derive(Serialize, Deserialize)]
 pub struct VecFrWrapper( #[serde(serialize_with = "serialize_generic_encodable_vec", deserialize_with = "deserialize_fr_vec")] pub Vec<Fr>);
 
-
+// Wrapper class for commitment and the CSParams
+#[derive(Serialize, Deserialize)]
+pub struct WalletCommitmentAndParamsWrapper {
+    pub com: commit_scheme::Commitment,
+    pub params: commit_scheme::CSParams,
+}
 
 pub fn serialize_bullet_proof<S>(bp_gens: &bulletproofs::BulletproofGens, serializer: S) -> Result<S::Ok, S::Error>
 where

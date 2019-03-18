@@ -632,7 +632,7 @@ pub mod bidirectional {
 
     #[derive(Serialize, Deserialize)]
     pub struct PublicParams {
-        cl_mpk: clsigs::PublicParams,
+        pub cl_mpk: clsigs::PublicParams,
         l: usize, // messages for commitment
 
         #[serde(serialize_with = "serialization_wrappers::serialize_bullet_proof", deserialize_with = "serialization_wrappers::deserialize_bullet_proof" )]
@@ -759,13 +759,13 @@ pub mod bidirectional {
     #[derive(Clone, Serialize, Deserialize)]
     pub struct ChannelclosureC {
         pub message: RefundMessage,
-        signature: clsigs::SignatureD
+        pub signature: clsigs::SignatureD
     }
 
     #[derive(Clone, Serialize, Deserialize)]
     pub struct ChannelclosureM {
-        message: RevokedMessage,
-        signature: clsigs::SignatureD
+        pub message: RevokedMessage,
+        pub signature: clsigs::SignatureD
     }
 
     // proof of valid balance
@@ -871,6 +871,7 @@ pub mod bidirectional {
         let mut x: Vec<Fr> = vec![r, cid, b0, h_wpk];
         // commitment of wallet values
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
+
         // construct channel token
         let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone(), third_party_pay: channel.third_party };
 
@@ -1873,7 +1874,6 @@ pub mod ffishim {
         // Deserialize the merchant data
         let deserialized_merchant_data: bidirectional::InitMerchantData = deserialize_object(serialized_merchant_data); 
 
-
         //TODO handle none()
 
         // Deserialize the client closure
@@ -1906,6 +1906,69 @@ pub mod ffishim {
         let ser = match commit_scheme::decommit(&deserialized_csp, &deserialized_commitment, &deserialized_x.0) {
             false => "{\'return_value\':\'false\'}",
             true => "{\'return_value\':\'true\'}",
+        };
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_validate_channel_open(serialized_channel_token: *mut c_char, serialized_messages: *mut c_char) -> *mut c_char {
+
+        // Deserialize the channel token
+        let deserialized_channel_token: serialization_wrappers::WalletCommitmentAndParamsWrapper = deserialize_object(serialized_channel_token);
+
+        // Deserialize the vec<fr> x
+        let deserialized_messages: serialization_wrappers::VecFrWrapper = deserialize_object(serialized_messages);
+
+        let ser = match commit_scheme::decommit(&deserialized_channel_token.params, &deserialized_channel_token.com, &deserialized_messages.0) {
+            false => "{\'return_value\':\'false\'}",
+            true => "{\'return_value\':\'true\'}",
+        };
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_validate_channel_close(serialized_pp: *mut c_char, serialized_closure_customer: *mut c_char, serialized_merchant_public_key: *mut c_char) -> *mut c_char {
+        // Deserialize the pp
+        let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
+
+        // Deserialize the customer closure
+        let deserialized_closure_customer: bidirectional::ChannelclosureC = deserialize_object(serialized_closure_customer);
+
+        // Deserialize the merchant keypair 
+        let deserialized_merchant_public_key: clsigs::PublicKeyD = deserialize_object(serialized_merchant_public_key);
+
+        //validate signature 
+        let ser = match clsigs::verify_d(&deserialized_pp.cl_mpk, &deserialized_merchant_public_key, &deserialized_closure_customer.message.hash(), &deserialized_closure_customer.signature) {
+            false => "{\'return_value\':\'false\'}",
+            true => "{\'return_value\':\'true\'}",
+        };
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_resolve_channel_dispute(serialized_pp: *mut c_char, serialized_channel_closure_message_customer: *mut c_char, serialized_channel_token_client: *mut c_char, serialized_channel_closure_message_merchant: *mut c_char, serialized_merchant_public_key: *mut c_char) -> *mut c_char {
+        // Deserialize the pp
+        let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
+
+        // Deserialize the customer closure
+        let deseralized_customer_closure: bidirectional::ChannelclosureC = deserialize_object(serialized_channel_closure_message_customer);
+
+        // Deserialize the Channel Token
+        let deserialized_channel_token: bidirectional::ChannelToken = deserialize_object(serialized_channel_token_client); 
+ 
+        // Deserialize the merchant closure
+        let deserialized_closure_merchant: bidirectional::ChannelclosureM = deserialize_object(serialized_channel_closure_message_merchant);
+
+        // Deserialize the merchant keypair 
+        let deserialized_merchant_public_key: clsigs::PublicKeyD = deserialize_object(serialized_merchant_public_key);
+
+        //Verify the revocation token 
+        let ser = match clsigs::verify_d(&deserialized_pp.cl_mpk, &deserialized_merchant_public_key, &deserialized_closure_merchant.message.hash(), &deserialized_closure_merchant.signature) {
+            false => "{\'return_value\':\'false\'}",
+            true => "{\'return_value\':\'true\'}",     
         };
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
