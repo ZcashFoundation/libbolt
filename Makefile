@@ -35,7 +35,7 @@ pythontests:
 
 cpptests:
 	cargo +nightly build
-	g++ src/main.cpp -L ./target/debug/ -lbolt -o cpp_test
+	g++ src/main.cpp -L ./target/debug/ -lbolt -I ./include -o cpp_test
 	LD_LIBRARY_PATH=./target/debug/ ./cpp_test
 	rm cpp_test
 
