@@ -86,93 +86,93 @@ class Libbolt(object):
 		return output_string['pp']
 
 	def bidirectional_keygen(self, pp):
-		output_string = self.lib.ffishim_bidirectional_keygen(pp)
+		output_string = self.lib.ffishim_bidirectional_keygen(pp.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['keypair']
 
 	def bidirectional_channelstate_new(self, name, third_party_support):
-		output_string = self.lib.ffishim_bidirectional_channelstate_new(name, third_party_support)
+		output_string = self.lib.ffishim_bidirectional_channelstate_new(name.encode(), third_party_support)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['state']
 
 	def bidirectional_init_merchant(self, pp, b0_cust, merch_keys):
-		output_string = self.lib.ffishim_bidirectional_init_merchant(pp, b0_cust, merch_keys)
+		output_string = self.lib.ffishim_bidirectional_init_merchant(pp.encode(), b0_cust, merch_keys.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['merchant_data']
 
 	def bidirectional_generate_commit_setup(self, pp, merch_public_key):
-		output_string = self.lib.ffishim_bidirectional_generate_commit_setup(pp, merch_public_key)
+		output_string = self.lib.ffishim_bidirectional_generate_commit_setup(pp.encode(), merch_public_key.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['commit_setup']
 
 	def bidirectional_init_customer(self, pp, channel, b0_cust, b0_merch, cm_csp, cust_keys):
-		output_string = self.lib.ffishim_bidirectional_init_customer(pp, channel, b0_cust, b0_merch, cm_csp, cust_keys)
+		output_string = self.lib.ffishim_bidirectional_init_customer(pp.encode(), channel.encode(), b0_cust, b0_merch, cm_csp.encode(), cust_keys.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['customer_data'], output_dictionary['state'])
 
 	def bidirectional_establish_customer_phase1(self, pp, cust_data, merch_data): # TODO merch_data.bases should be parsed out.
-		output_string = self.lib.ffishim_bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
+		output_string = self.lib.ffishim_bidirectional_establish_customer_phase1(pp.encode(), cust_data.encode(), merch_data.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['proof']
 
 	def bidirectional_establish_merchant_phase2(self, pp, channel, merch_data, proof1):
-		output_string = self.lib.ffishim_bidirectional_establish_merchant_phase2(pp, channel, merch_data, proof1)
+		output_string = self.lib.ffishim_bidirectional_establish_merchant_phase2(pp.encode(), channel.encode(), merch_data.encode(), proof1.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['wallet_sig'], output_dictionary['state'])
 
 	def bidirectional_establish_customer_final(self, pp, merch_pubkey, cust_data, wallet_sig):
-		output_string = self.lib.ffishim_bidirectional_establish_customer_final(pp, merch_pubkey, cust_data, wallet_sig)
+		output_string = self.lib.ffishim_bidirectional_establish_customer_final(pp.encode(), merch_pubkey.encode(), cust_data.encode(), wallet_sig.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['customer_data']
 
 	def bidirectional_pay_by_customer_phase1_precompute(self, pp, cust_data, merch_pubkey):
-		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase1_precompute(pp, cust_data, merch_pubkey)
+		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase1_precompute(pp.encode(), cust_data.encode(), merch_pubkey.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['customer_data']
 
 	def bidirectional_pay_by_customer_phase1(self, pp, channel, cust_data, merch_public_key, balance_increment):
-		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase1(pp, channel, cust_data, merch_public_key, balance_increment)
+		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase1(pp.encode(), channel.encode(), cust_data.encode(), merch_public_key.encode(), balance_increment)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['channel_token'],output_dictionary['new_wallet'],output_dictionary['pay_proof'] )
 
 	def bidirectional_pay_by_merchant_phase1(self, pp, channel, pay_proof, merch_data):
-		output_string = self.lib.ffishim_bidirectional_pay_by_merchant_phase1(pp, channel, pay_proof, merch_data)
+		output_string = self.lib.ffishim_bidirectional_pay_by_merchant_phase1(pp.encode(), channel.encode(), pay_proof.encode(), merch_data.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['rt_w'],output_dictionary['state'])
 
 	def bidirectional_pay_by_customer_phase2(self, pp, cust_data, new_wallet, merch_public_key, rt_w):
-		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase2(pp, cust_data, new_wallet, merch_public_key, rt_w)
+		output_string = self.lib.ffishim_bidirectional_pay_by_customer_phase2(pp.encode(), cust_data.encode(), new_wallet.encode(), merch_public_key.encode(), rt_w.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['rv_w']
 
 	def bidirectional_pay_by_merchant_phase2(self, pp, channel, pay_proof, merch_data, revoke_token):
-		output_string = self.lib.ffishim_bidirectional_pay_by_merchant_phase2( pp, channel, pay_proof, merch_data, revoke_token)
+		output_string = self.lib.ffishim_bidirectional_pay_by_merchant_phase2( pp.encode(), channel.encode(), pay_proof.encode(), merch_data.encode(), revoke_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['new_wallet_sig'],output_dictionary['state'], output_dictionary['merch_data'])
 
 	def bidirectional_pay_by_customer_final(self, pp, merch_public_key, cust_data, channel_token, new_wallet, new_wallet_sig):
-		output_string = self.lib.ffishim_bidirectional_pay_by_customer_final(pp, merch_public_key, cust_data, channel_token, new_wallet, new_wallet_sig)
+		output_string = self.lib.ffishim_bidirectional_pay_by_customer_final(pp.encode(), merch_public_key.encode(), cust_data.encode(), channel_token.encode(), new_wallet.encode(), new_wallet_sig.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['customer_data']
 
 	def bidirectional_customer_refund(self, pp, channel, merch_public_key, wallet):
-		output_string = self.lib.ffishim_bidirectional_customer_refund(pp, channel, merch_public_key, wallet)
+		output_string = self.lib.ffishim_bidirectional_customer_refund(pp.encode(), channel.encode(), merch_public_key.encode(), wallet.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['rc_c']
 
 	def bidirectional_merchant_refund(self, pp, channel, channel_token, merch_data, channel_closure, revoke_token):
-		output_string = self.lib.ffishim_bidirectional_merchant_refund(pp, channel, channel_token, merch_data, channel_closure, revoke_token)
+		output_string = self.lib.ffishim_bidirectional_merchant_refund(pp.encode(), channel.encode(), channel_token.encode(), merch_data.encode(), channel_closure.encode(), revoke_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['rc_m'], output_dictionary['state'])
 
 	def bidirectional_resolve(self, pp, cust_data, merch_data, cust_closure, merch_closure, revoke_token):
-		output_string = self.lib.ffishim_bidirectional_resolve( pp, cust_data, merch_data, cust_closure, merch_closure, revoke_token)
+		output_string = self.lib.ffishim_bidirectional_resolve( pp.encode(), cust_data.encode(), merch_data.encode(), cust_closure.encode(), merch_closure.encode(), revoke_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (int(output_dictionary['new_b0_cust']), int(output_dictionary['new_b0_merch']))
 
 # --------------------------------------------
 	def commit_scheme_decommit(self, csp, commitment, x):
-		output_string = self.lib.ffishim_commit_scheme_decommit(csp, commitment, x)
+		output_string = self.lib.ffishim_commit_scheme_decommit(csp.encode(), commitment.encode(), x.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		if output_dictionary['return_value'] == 'true':
 			return True
