@@ -645,6 +645,7 @@ pub mod bidirectional {
     pub struct ChannelToken {
         w_com: commit_scheme::Commitment,
         pk: clsigs::PublicKeyD,
+        csp: commit_scheme::CSParams,
         third_party_pay: bool
     }
 
@@ -873,7 +874,7 @@ pub mod bidirectional {
         let w_com = commit_scheme::commit(&cm_csp,  &x, r);
 
         // construct channel token
-        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone(), third_party_pay: channel.third_party };
+        let t_c = ChannelToken { w_com: w_com, pk: keypair.pk.clone(), csp: cm_csp.clone(), third_party_pay: channel.third_party };
 
         // construct customer wallet secret key plus other components
         let csk_c = CustomerWallet { sk: keypair.sk.clone(), cid: cid, wpk: wpk, wsk: wsk, h_wpk: h_wpk,
@@ -1118,7 +1119,7 @@ pub mod bidirectional {
                                 wallet_sig: wallet_proof.blind_sig // blinded signature for old wallet
                             };
         // create new wallet structure (w/o signature or refund token)
-        let t_c = ChannelToken { w_com: w_com, pk: t.pk.clone(), third_party_pay: t.third_party_pay };
+        let t_c = ChannelToken { w_com: w_com, pk: t.pk.clone(), csp: cm_csp.clone(), third_party_pay: t.third_party_pay };
         let csk_c = CustomerWallet { sk: old_w.sk.clone(), cid: cid, wpk: wpk, wsk: wsk, h_wpk: h_wpk,
                             r: r_pr, balance: updated_balance, merchant_balance: merchant_balance,
                             proof: None, signature: None, refund_token: None };
