@@ -116,7 +116,7 @@ fn main() {
     let (new_wallet_sig, pay_merch_time2) = measure!(bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof, &mut merch_data, &rv_w));
     println!(">> TIME for pay_by_merchant_phase2: {}", pay_merch_time2);
 
-    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut cust_data, t_c, new_wallet, new_wallet_sig));
+    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut cust_data, t_c, new_wallet, rt_w, new_wallet_sig));
 
     {
         // scope localizes the immutable borrow here (for debug purposes only)
@@ -141,7 +141,7 @@ fn main() {
     // get the new wallet sig (new_wallet_sig) on the new wallet
     let new_wallet_sig1 = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof1, &mut merch_data, &rv_w1);
 
-    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut cust_data, t_c1, new_wallet1, new_wallet_sig1));
+    assert!(bidirectional::pay_by_customer_final(&pp, &merch_keypair.pk, &mut cust_data, t_c1, new_wallet1, rt_w1, new_wallet_sig1));
 
     {
         let cust_wallet = &cust_data.csk;
@@ -170,7 +170,7 @@ fn main() {
         println!("Merchant has refuted the refund request!");
 
         let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&pp, &cust_data, &merch_data,
-                                                                 Some(rc_c), Some(rc_m), Some(rt_w1));
+                                                                 Some(rc_c), Some(rc_m));
         println!("Resolved! Customer = {}, Merchant = {}", new_b0_cust, new_b0_merch);
     }
 

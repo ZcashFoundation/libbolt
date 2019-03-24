@@ -943,6 +943,7 @@ pub mod bidirectional {
                 assert!(clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &sig));
             }
             w.signature = Some(sig);
+            // TODO: add a refund token here to the wallet
             //println!("establish_customer_final - verified merchant signature on initial wallet with {}", w.balance);
             return true;
         }
@@ -1321,7 +1322,7 @@ pub mod bidirectional {
     ///
     pub fn pay_by_customer_final(pp: &PublicParams, pk_m: &clsigs::PublicKeyD,
                                      c_data: &mut InitCustomerData, mut new_t: ChannelToken,
-                                     mut new_w: CustomerWallet, sig: clsigs::SignatureD) -> bool {
+                                     mut new_w: CustomerWallet, rt_w: clsigs::SignatureD, sig: clsigs::SignatureD) -> bool {
         if new_w.signature.is_none() {
             if pp.extra_verify {
                 let bal = convert_int_to_fr(new_w.balance);
@@ -1331,6 +1332,8 @@ pub mod bidirectional {
             }
             // update signature in new wallet
             new_w.signature = Some(sig);
+            // update refund token in new wallet
+            new_w.refund_token = Some(rt_w);
             // update csk in new wallet
             c_data.csk = new_w;
             // update the channel token
@@ -1434,8 +1437,7 @@ pub mod bidirectional {
     /// to each party based on provided inputs.
     ///
     pub fn resolve(pp: &PublicParams, c: &InitCustomerData, m: &InitMerchantData,
-                   rc_c: Option<ChannelclosureC>, rc_m: Option<ChannelclosureM>,
-                   rt_w: Option<clsigs::SignatureD>) -> (i32, i32) {
+                   rc_c: Option<ChannelclosureC>, rc_m: Option<ChannelclosureM>) -> (i32, i32) {
         let total_balance = c.csk.balance + m.csk.balance;
         if rc_c.is_none() && rc_m.is_none() {
             panic!("resolve1 - Did not specify channel closure messages for either customer or merchant!");
@@ -1480,7 +1482,8 @@ pub mod bidirectional {
             let refund = convert_str_to_fr("refund");
             let mut x: Vec<Fr> = vec![c.csk.r.clone(), c.csk.cid.clone(), bal, h_wpk, refund];
 
-            let is_rt_valid = clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &rt_w.unwrap());
+            let refund_token = msg.rt.clone();
+            let is_rt_valid = clsigs::verify_d(&pp.cl_mpk, &pk_m, &x, &refund_token.unwrap());
             if !is_rt_valid {
                 // refund token signature not valid, so pay full channel balance to merchant
                 return (0, total_balance)
@@ -1801,7 +1804,13 @@ pub mod ffishim {
     }
 
     #[no_mangle]                        
-    pub extern fn ffishim_bidirectional_pay_by_customer_final(serialized_pp: *mut c_char, serialized_merchant_public_key: *mut c_char, serialized_customer_data: /* make mut */ *mut c_char, serialized_channel_token: *mut c_char, serialized_new_wallet: *mut c_char, serialized_new_wallet_sig: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_pay_by_customer_final(serialized_pp: *mut c_char,
+                                                              serialized_merchant_public_key: *mut c_char,
+                                                              serialized_customer_data: /* make mut */ *mut c_char,
+                                                              serialized_channel_token: *mut c_char,
+                                                              serialized_new_wallet: *mut c_char,
+                                                              serialized_refund_token: *mut c_char,
+                                                              serialized_new_wallet_sig: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
 
@@ -1817,17 +1826,25 @@ pub mod ffishim {
         // Deserialize the new wallet
         let deserialized_new_wallet: bidirectional::CustomerWallet = deserialize_object(serialized_new_wallet); 
 
+        // Deserialize the refund token
+        let deserialized_refund_token: clsigs::SignatureD = deserialize_object(serialized_refund_token);
+
         // Deserialize the new wallet sig
         let deserialized_new_wallet_sig: clsigs::SignatureD = deserialize_object(serialized_new_wallet_sig); 
 
-        bidirectional::pay_by_customer_final(&deserialized_pp, &deserialized_merchant_public_key, &mut deserialized_customer_data, deserialized_channel_token, deserialized_new_wallet, deserialized_new_wallet_sig);
+        bidirectional::pay_by_customer_final(&deserialized_pp, &deserialized_merchant_public_key,
+                                             &mut deserialized_customer_data, deserialized_channel_token,
+                                             deserialized_new_wallet, deserialized_refund_token, deserialized_new_wallet_sig);
         let ser = ["{\'customer_data\':\'", serde_json::to_string(&deserialized_customer_data).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]                        
-    pub extern fn ffishim_bidirectional_customer_refund(serialized_pp: *mut c_char, serialized_channel: *mut c_char, serialized_merchant_public_key: *mut c_char,  serialized_wallet: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_customer_refund(serialized_pp: *mut c_char,
+                                                        serialized_channel: *mut c_char,
+                                                        serialized_merchant_public_key: *mut c_char,
+                                                        serialized_wallet: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
 
@@ -1874,7 +1891,7 @@ pub mod ffishim {
     }
  
     #[no_mangle]                        
-    pub extern fn ffishim_bidirectional_resolve(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char, serialized_closure_customer: *mut c_char,  serialized_closure_merchant: *mut c_char, serialized_revoke_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_resolve(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char, serialized_closure_customer: *mut c_char,  serialized_closure_merchant: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
 
@@ -1892,10 +1909,7 @@ pub mod ffishim {
         // Deserialize the merchant closure
         let deserialized_closure_merchant: bidirectional::ChannelclosureM = deserialize_object(serialized_closure_merchant);
 
-        // Deserialize the revoke_token
-        let deserialized_revoke_token: clsigs::SignatureD = deserialize_object(serialized_revoke_token);
-
-        let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data, Some(deserialized_closure_customer), Some(deserialized_closure_merchant), Some(deserialized_revoke_token));
+        let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data, Some(deserialized_closure_customer), Some(deserialized_closure_merchant));
         let ser = ["{\'new_b0_cust\':\'", new_b0_cust.to_string().as_str(), "\', \'new_b0_merch\':\'", new_b0_merch.to_string().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -2096,7 +2110,7 @@ mod tests {
         // get the new wallet sig (new_wallet_sig) on the new wallet
         let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&pp, channel, &pay_proof, merch_data, &rv_w);
 
-        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust_data, t_c, new_wallet, new_wallet_sig));
+        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust_data, t_c, new_wallet, rt_w, new_wallet_sig));
     }
 
     #[test]
@@ -2227,9 +2241,9 @@ mod tests {
         // get the new wallet sig (new_wallet_sig) on the new wallet
         let new_wallet_sig2 = bidirectional::pay_by_merchant_phase2(&pp, channel2, &pay_proof2, merch2_data, &rv_w2);
 
-        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust1_data, t_c1, new_wallet1, new_wallet_sig1));
+        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust1_data, t_c1, new_wallet1, rt_w1, new_wallet_sig1));
 
-        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust2_data, t_c2, new_wallet2, new_wallet_sig2));
+        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust2_data, t_c2, new_wallet2, rt_w2, new_wallet_sig2));
     }
 
     #[test]

@@ -57,7 +57,7 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_pay_by_merchant_phase2.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_pay_by_merchant_phase2.restype = c_void_p
 
-		self.lib.ffishim_bidirectional_pay_by_customer_final.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_pay_by_customer_final.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_pay_by_customer_final.restype = c_void_p
 
 		self.lib.ffishim_bidirectional_customer_refund.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
@@ -66,7 +66,7 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_merchant_refund.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_merchant_refund.restype = c_void_p
 
-		self.lib.ffishim_bidirectional_resolve.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_resolve.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_resolve.restype = c_void_p
 
 		# Exposing the decommitment functionality
@@ -150,8 +150,9 @@ class Libbolt(object):
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['new_wallet_sig'],output_dictionary['state'], output_dictionary['merch_data'])
 
-	def bidirectional_pay_by_customer_final(self, pp, merch_public_key, cust_data, channel_token, new_wallet, new_wallet_sig):
-		output_string = self.lib.ffishim_bidirectional_pay_by_customer_final(pp.encode(), merch_public_key.encode(), cust_data.encode(), channel_token.encode(), new_wallet.encode(), new_wallet_sig.encode())
+	def bidirectional_pay_by_customer_final(self, pp, merch_public_key, cust_data, channel_token, new_wallet, refund_token, new_wallet_sig):
+		output_string = self.lib.ffishim_bidirectional_pay_by_customer_final(pp.encode(), merch_public_key.encode(), cust_data.encode(), channel_token.encode(),
+																			 new_wallet.encode(), refund_token.encode(), new_wallet_sig.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['customer_data']
 
@@ -165,8 +166,8 @@ class Libbolt(object):
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary['rc_m'], output_dictionary['state'])
 
-	def bidirectional_resolve(self, pp, cust_data, merch_data, cust_closure, merch_closure, revoke_token):
-		output_string = self.lib.ffishim_bidirectional_resolve( pp.encode(), cust_data.encode(), merch_data.encode(), cust_closure.encode(), merch_closure.encode(), revoke_token.encode())
+	def bidirectional_resolve(self, pp, cust_data, merch_data, cust_closure, merch_closure):
+		output_string = self.lib.ffishim_bidirectional_resolve( pp.encode(), cust_data.encode(), merch_data.encode(), cust_closure.encode(), merch_closure.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (int(output_dictionary['new_b0_cust']), int(output_dictionary['new_b0_merch']))
 
@@ -203,8 +204,8 @@ releaseordebug = 'debug'
 
 libbolt = Libbolt('target/{}/{}bolt.{}'.format(releaseordebug, prefix, ext))
 
-b0_cust = 50;
-b0_merch = 50;
+b0_cust = 50
+b0_merch = 50
 
 pp = libbolt.bidirectional_setup(False)
 
@@ -236,7 +237,7 @@ rv_w = libbolt.bidirectional_pay_by_customer_phase2(pp, cust_data, new_wallet, l
 
 (new_wallet_sig, state, merch_data)	= libbolt.bidirectional_pay_by_merchant_phase2(pp, channel_state, pay_proof, merch_data, rv_w)
 
-cust_data = libbolt.bidirectional_pay_by_customer_final(pp, libbolt.util_extract_public_key_from_keypair(merch_keys), cust_data, channel_token, new_wallet, new_wallet_sig)
+cust_data = libbolt.bidirectional_pay_by_customer_final(pp, libbolt.util_extract_public_key_from_keypair(merch_keys), cust_data, channel_token, new_wallet, rt_w, new_wallet_sig)
 
 print("--------------------")
 
