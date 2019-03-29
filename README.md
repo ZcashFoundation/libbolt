@@ -8,6 +8,10 @@ BOLT is a system for conducting **privacy-preserving off-chain payments** betwee
 
 The libbolt library is a proof of concept implementation that relies on experimental libraries and dependencies at the moment. It is not suitable for production software yet.
 
+# NOTE
+
+Active development of libbolt is ongoing at [Bolt Labs, Inc](https://github.com/boltlabs-inc/libbolt) to instantiate on a cryptocurrency. Will submit pull requests periodically to this repo when new features are complete.
+
 # Dependencies
 
 * secp256k1
