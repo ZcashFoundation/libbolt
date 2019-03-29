@@ -34,10 +34,10 @@ pythontests:
 	python src/main.py
 
 cpptests:
-	cargo +nightly build
-	g++ src/main.cpp -L ./target/debug/ -lbolt -I ./include -o cpp_test
-	LD_LIBRARY_PATH=./target/debug/ ./cpp_test
-	rm cpp_test
+	@cargo +nightly build
+	@g++ src/main.cpp -L ./target/debug/ -lbolt -I ./include -o cpp_test
+	@LD_LIBRARY_PATH=./target/debug/ ./cpp_test
+	@rm cpp_test
 
 clean:
 	cargo +nightly clean
