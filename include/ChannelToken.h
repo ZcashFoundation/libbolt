@@ -17,9 +17,9 @@
 #define VECTOR_LENGTH 810
 #define HEX_STRING_LENGTH VECTOR_LENGTH*2
 
-#define NUM_BASE_POINTS 5
-#define LENGTH_POINT 129
-#define LENGTH_R  32
+#define CHANNEL_TOKEN_NUM_BASE_POINTS 5
+#define CHANNEL_TOKEN_LENGTH_POINT 129
+#define CHANNEL_TOKEN_LENGTH_R  32
 
 using namespace rapidjson;
 
@@ -45,22 +45,22 @@ class ChannelToken : public std::vector<uint8_t> {
       std::vector<uint8_t>::iterator it = this->begin();
 
       // Double check the g-count
-      if( NUM_BASE_POINTS != *it )
+      if( CHANNEL_TOKEN_NUM_BASE_POINTS != *it )
         return("{}");
       it++;
 
       // Double check the g-len
-      if( LENGTH_POINT != *it )
+      if( CHANNEL_TOKEN_LENGTH_POINT != *it )
         return("{}");
       it++;
 
       Value params(kObjectType);
       Value pub_bases(kArrayType);
 
-      for( int i = 0; i< NUM_BASE_POINTS; i++) 
+      for( int i = 0; i< CHANNEL_TOKEN_NUM_BASE_POINTS; i++) 
       {
         Value base(kArrayType);
-        for( int j = 0; j< LENGTH_POINT; j++) 
+        for( int j = 0; j< CHANNEL_TOKEN_LENGTH_POINT; j++) 
         { 
           base.PushBack(*it, allocator);
           it++;
@@ -73,12 +73,12 @@ class ChannelToken : public std::vector<uint8_t> {
       Value com(kObjectType);
 
       // double check c-len
-      if( LENGTH_POINT != *it )
+      if( CHANNEL_TOKEN_LENGTH_POINT != *it )
         return("{}");
       it++;
 
       Value c(kArrayType);
-      for( int j = 0; j< LENGTH_POINT; j++) 
+      for( int j = 0; j< CHANNEL_TOKEN_LENGTH_POINT; j++) 
       { 
         c.PushBack(*it, allocator);
         it++;
@@ -87,12 +87,12 @@ class ChannelToken : public std::vector<uint8_t> {
       com.AddMember("c",c,allocator);
 
       // double check r-len
-      if( LENGTH_R != *it )
+      if( CHANNEL_TOKEN_LENGTH_R != *it )
         return("{}");
       it++;
 
       Value r(kArrayType);
-      for( int j = 0; j< LENGTH_R; j++) 
+      for( int j = 0; j< CHANNEL_TOKEN_LENGTH_R; j++) 
       { 
         r.PushBack(*it, allocator);
         it++;
@@ -132,7 +132,7 @@ class ChannelToken : public std::vector<uint8_t> {
 
       if(!pub_bases.IsArray())
         return false;
-      if(!(pub_bases.Size() == SizeType(NUM_BASE_POINTS)))
+      if(!(pub_bases.Size() == SizeType(CHANNEL_TOKEN_NUM_BASE_POINTS)))
         return false;
 
       //Checking the formatting in com ahead of time before we edit the internal vector
@@ -155,22 +155,22 @@ class ChannelToken : public std::vector<uint8_t> {
       if(!r.IsArray())
         return false;
 
-      if(!(c.Size() == SizeType(LENGTH_POINT)))
+      if(!(c.Size() == SizeType(CHANNEL_TOKEN_LENGTH_POINT)))
         return false;
-      if(!(r.Size() == SizeType(LENGTH_R)))
+      if(!(r.Size() == SizeType(CHANNEL_TOKEN_LENGTH_R)))
         return false;
 
       // Add the header information
       // From here on out, make sure to call cleanupAndFalse() instead of false
-      this->push_back(NUM_BASE_POINTS);
-      this->push_back(LENGTH_POINT);
+      this->push_back(CHANNEL_TOKEN_NUM_BASE_POINTS);
+      this->push_back(CHANNEL_TOKEN_LENGTH_POINT);
 
       for (SizeType i = 0; i < pub_bases.Size(); i++) 
       {
         const Value& basepoint = pub_bases[i];
         if(!basepoint.IsArray())
           return cleanupAndFalse();
-        if(!(basepoint.Size() == SizeType(LENGTH_POINT)))
+        if(!(basepoint.Size() == SizeType(CHANNEL_TOKEN_LENGTH_POINT)))
           return cleanupAndFalse();
 
         for(SizeType j = 0; j < basepoint.Size(); j++)
@@ -179,12 +179,12 @@ class ChannelToken : public std::vector<uint8_t> {
         }
       }
 
-      this->push_back(LENGTH_POINT);
+      this->push_back(CHANNEL_TOKEN_LENGTH_POINT);
 
       for(SizeType j = 0; j < c.Size(); j++)
         this->push_back(c[j].GetUint64());
 
-      this->push_back(LENGTH_R);
+      this->push_back(CHANNEL_TOKEN_LENGTH_R);
 
       for(SizeType j = 0; j < r.Size(); j++)
         this->push_back(r[j].GetUint64());
