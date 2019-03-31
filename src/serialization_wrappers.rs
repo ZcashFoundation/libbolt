@@ -428,6 +428,11 @@ pub struct FrWrapper( #[serde(serialize_with = "serialize_generic_encodable", de
 #[derive(Serialize, Deserialize)]
 pub struct VecFrWrapper( #[serde(serialize_with = "serialize_generic_encodable_vec", deserialize_with = "deserialize_fr_vec")] pub Vec<Fr>);
 
+// Wrapper class for Vec<G2>
+#[derive(Serialize, Deserialize)]
+pub struct VecG2Wrapper( #[serde(serialize_with = "serialize_generic_encodable_vec", deserialize_with = "deserialize_g_two_vec")] pub Vec<G2>);
+
+
 // Wrapper class for commitment and the CSParams
 #[derive(Serialize, Deserialize)]
 pub struct WalletCommitmentAndParamsWrapper {

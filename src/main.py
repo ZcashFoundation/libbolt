@@ -190,6 +190,10 @@ class Libbolt(object):
 		dictionary = self.interperate_json_string_as_dictionary(keypair)
 		return json.dumps(dictionary['pk'])
 
+	def util_extract_pub_bases_from_keypair(self, keypair):
+		dictionary = self.interperate_json_string_as_dictionary(keypair)
+		return json.dumps(dictionary['bases'])
+
 if platform == 'darwin':
     prefix = 'lib'
     ext = 'dylib'
@@ -221,7 +225,8 @@ cm_csp = libbolt.bidirectional_generate_commit_setup(pp, libbolt.util_extract_pu
 
 cust_data, channel_state = libbolt.bidirectional_init_customer(pp, channel_state, b0_cust, b0_merch, cm_csp, cust_keys)
 
-proof1 = libbolt.bidirectional_establish_customer_phase1(pp, cust_data, merch_data)
+merch_bases = libbolt.util_extract_pub_bases_from_keypair(merch_data)
+proof1 = libbolt.bidirectional_establish_customer_phase1(pp, cust_data, merch_bases)
 
 wallet_sig, channel_state = libbolt.bidirectional_establish_merchant_phase2(pp, channel_state, merch_data, proof1)
 

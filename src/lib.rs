@@ -1643,7 +1643,9 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_customer_phase1(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_customer_phase1(serialized_pp: *mut c_char,
+                                                                  serialized_customer_data: *mut c_char,
+                                                                  serialized_merchant_bases: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
 
@@ -1651,9 +1653,10 @@ pub mod ffishim {
         let deserialized_customer_data: bidirectional::InitCustomerData = deserialize_object(serialized_customer_data); 
 
         // Deserialize the merchant data
-        let deserialized_merchant_data: bidirectional::InitMerchantData = deserialize_object(serialized_merchant_data); 
+        //let deserialized_merchant_data: bidirectional::InitMerchantData = deserialize_object(serialized_merchant_data);
+        let deserialized_merchant_bases: serialization_wrappers::VecG2Wrapper = deserialize_object(serialized_merchant_bases);
 
-        let proof1 = bidirectional::establish_customer_phase1(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data.bases);
+        let proof1 = bidirectional::establish_customer_phase1(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_bases.0);
         let ser = ["{\'proof\':\'", serde_json::to_string(&proof1).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
