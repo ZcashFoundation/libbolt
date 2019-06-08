@@ -12,7 +12,6 @@ use debug_elem_in_hex;
 use debug_g1_in_hex;
 use debug_g2_in_hex;
 use debug_gt_in_hex;
-use concat_to_vector;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use clsigs::{PublicParams, SignatureD, PublicKeyD, SecretKeyD, hash_g2_to_fr, hash_gt_to_fr};

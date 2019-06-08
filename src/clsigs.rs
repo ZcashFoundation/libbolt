@@ -9,7 +9,7 @@ use debug_elem_in_hex;
 use debug_g1_in_hex;
 use debug_g2_in_hex;
 use debug_gt_in_hex;
-use concat_to_vector;
+use concat_g2_to_vector;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::encode;
 use sodiumoxide::crypto::hash::sha512;
@@ -238,13 +238,13 @@ impl SignatureD {
     pub fn hash(&self, prefix: &str) -> Fr {
         let mut output_buf: Vec<u8> = Vec::new();
         output_buf.extend_from_slice(prefix.as_bytes());
-        concat_to_vector(&mut output_buf, &self.a);
-        concat_to_vector(&mut output_buf, &self.b);
-        concat_to_vector(&mut output_buf, &self.c);
+        concat_g2_to_vector(&mut output_buf, &self.a);
+        concat_g2_to_vector(&mut output_buf, &self.b);
+        concat_g2_to_vector(&mut output_buf, &self.c);
         assert_eq!(self.A.len(), self.B.len());
         for i in 0 .. self.A.len() {
-            concat_to_vector(&mut output_buf, &self.A[i]);
-            concat_to_vector(&mut output_buf, &self.B[i]);
+            concat_g2_to_vector(&mut output_buf, &self.A[i]);
+            concat_g2_to_vector(&mut output_buf, &self.B[i]);
         }
 
         // println!("DEBUG: signature len => {}", output_buf.len());

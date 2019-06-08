@@ -8,6 +8,11 @@
 //! [`bn module`](https://github.com/zcash-hackworks/bn).
 //!
 #![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+#![allow(unused_parens)]
+#![allow(non_upper_case_globals)]
+#![allow(unused_results)]
+#![allow(missing_docs)]
 #![feature(extern_prelude)]
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
@@ -52,6 +57,7 @@ pub mod prf;
 pub mod sym;
 pub mod ote;
 pub mod clsigs;
+pub mod clsigs_ps;
 pub mod commit_scheme;
 pub mod clproto;
 pub mod serialization_wrappers;
@@ -239,7 +245,12 @@ impl Message {
 
 ////////////////////////////////// Utilities //////////////////////////////////
 
-pub fn concat_to_vector(output: &mut Vec<u8>, t: &G2) {
+pub fn concat_g1_to_vector(output: &mut Vec<u8>, t: &G1) {
+    let t_vec: Vec<u8> = encode(t, Infinite).unwrap();
+    output.extend(t_vec);
+}
+
+pub fn concat_g2_to_vector(output: &mut Vec<u8>, t: &G2) {
     let t_vec: Vec<u8> = encode(t, Infinite).unwrap();
     output.extend(t_vec);
 }
@@ -1662,21 +1673,27 @@ pub mod ffishim {
         cser.into_raw()
     }
 
+    // TODO: ADD DEBUG TO SEE WHICH ARG FAILS TO PARSE
     #[no_mangle]
     pub extern fn ffishim_bidirectional_establish_merchant_phase2(serialized_pp: *mut c_char, serialized_channel: *mut c_char, serialized_merchant_data: *mut c_char, serialized_proof1: *mut c_char) -> *mut c_char {
         // Deserialize the pp
         let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
+        println!("deserialized pp!");
 
         // Deserialize the channel state
         let mut deserialized_channel_state: bidirectional::ChannelState = deserialize_object(serialized_channel); 
+        println!("deserialized channel state!");
 
         // Deserialize the merchant data
         let deserialized_merchant_data: bidirectional::InitMerchantData = deserialize_object(serialized_merchant_data);
+        println!("deserialized merchant data!");
 
         // Deserialize the first proof
         let deserialized_proof_1: clproto::ProofCV = deserialize_object(serialized_proof1); 
+        println!("deserialized proof_1!");
 
         let wallet_sig = bidirectional::establish_merchant_phase2(&deserialized_pp, &mut deserialized_channel_state, &deserialized_merchant_data, &deserialized_proof_1);
+        println!("got the wallet signature!");
         let ser = ["{\'wallet_sig\':\'", serde_json::to_string(&wallet_sig).unwrap().as_str(), "\', \'state\':\'", serde_json::to_string(&deserialized_channel_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

@@ -158,7 +158,7 @@ pub fn commit(csp: &CSParams, x: &Vec<Fr>, r: Fr) -> Commitment {
     //let r = R.unwrap_or(Fr::random(rng));
     // c = g1^m1 * ... * gn^mn * h^r
     //println!("(commit) index: 0");
-    let mut c = (csp.pub_bases[0] * r);
+    let mut c = csp.pub_bases[0] * r;
     for i in 1 .. x.len() {
         //println!("(commit) index: {}", i);
         c = c + (csp.pub_bases[i] * x[i]);

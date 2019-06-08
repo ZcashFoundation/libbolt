@@ -227,6 +227,7 @@ cust_data, channel_state = libbolt.bidirectional_init_customer(pp, channel_state
 
 merch_bases = libbolt.util_extract_pub_bases_from_keypair(merch_data)
 proof1 = libbolt.bidirectional_establish_customer_phase1(pp, cust_data, merch_bases)
+print("proof 1: ", proof1)
 
 wallet_sig, channel_state = libbolt.bidirectional_establish_merchant_phase2(pp, channel_state, merch_data, proof1)
 

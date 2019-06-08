@@ -1,6 +1,6 @@
 [package]
 name = "bolt"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["J. Ayo Akinyele <ayo@yeletech.org>"]
 description = "library for Blind Off-chain Lightweight Transactions (BOLT)"
 keywords = ["zcash", "payment channels", "bolt"]
