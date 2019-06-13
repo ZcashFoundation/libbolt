@@ -19,8 +19,11 @@
 #[cfg(all(test, feature = "unstable"))] extern crate test;
 
 extern crate bn;
+extern crate ff;
+extern crate pairing;
 extern crate rand;
 extern crate rand_core;
+
 extern crate bincode;
 extern crate sodiumoxide;
 extern crate rustc_serialize;
@@ -36,6 +39,8 @@ extern crate serde_with;
 
 extern crate libc;
 
+#[cfg(test)]
+extern crate rand_xorshift;
 
 use std::fmt;
 use std::str;
@@ -50,14 +55,16 @@ use curve25519_dalek::digest::*;
 use curve25519_dalek::scalar::Scalar;
 use merlin::Transcript;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
+use ff::{Rand, Field};
 
 use serde::{Serialize, Deserialize};
 
 pub mod prf;
 pub mod sym;
 pub mod ote;
+pub mod bls;
+pub mod cl;
 pub mod clsigs;
-pub mod clsigs_ps;
 pub mod commit_scheme;
 pub mod clproto;
 pub mod serialization_wrappers;

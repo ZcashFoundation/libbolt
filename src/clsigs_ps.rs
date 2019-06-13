@@ -125,6 +125,29 @@ impl PublicKeyPS {
     }
 }
 
+impl fmt::Display for PublicKeyPS {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let a_vec: Vec<u8> = encode(&self.X, Infinite).unwrap();
+
+        let mut a_s = String::new();
+        for x in a_vec.iter() {
+            a_s = format!("{}{:x}", a_s, x);
+        }
+
+        let mut Y = String::new();
+
+        for i in 0 .. self.Y.len() {
+            let b_vec: Vec<u8> = encode(&self.Y, Infinite).unwrap();
+            let mut b_s = String::new();
+            for y in b_vec.iter() {
+                b_s = format!("{}{:x}", b_s, y);
+            }
+        }
+        write!(f, "PublicKeyPS : (\nX = 0x{},\n{}\n)", a_s, Y)
+    }
+}
+
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SecretKeyPS {
     #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
