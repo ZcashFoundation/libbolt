@@ -18,13 +18,13 @@ use serde::{Serialize, Deserialize};
 #[derive(Clone)]
 pub struct PublicKey<E: Engine> {
     g: E::G2,
-    h: E::G2
+    h: E::G2,
 }
 
 #[derive(Clone)]
 pub struct Commitment<E: Engine> {
     pub c: E::G2,
-    pub r: E::Fr
+    pub r: E::Fr,
 }
 
 #[derive(Clone)]
@@ -137,7 +137,7 @@ pub fn setup<E: Engine>(len: usize, pub_bases: Vec<E::G2>, h: E::G2) -> CSParams
     p.push(h);
 
     let _p = pub_bases;
-    for i in 0 .. _p.len() {
+    for i in 0.._p.len() {
         p.push(_p[i]);
     }
     return CSParams { pub_bases: p };
@@ -147,7 +147,7 @@ pub fn setup_gen_params<E: Engine>(len: usize) -> CSParams<E> {
     let rng = &mut thread_rng();
 
     let mut p: Vec<E::G2> = Vec::new();
-    for i in 0 .. len {
+    for i in 0..len {
         p.push(E::G2::rand(rng));
     }
     return CSParams { pub_bases: p };
@@ -161,9 +161,9 @@ pub fn commit<E: Engine>(csp: &CSParams<E>, x: &Vec<E::Fr>, r: E::Fr) -> Commitm
     //println!("(commit) index: 0");
     let mut c = csp.pub_bases[0].clone();
     c.mul_assign(r);
-    for i in 1 .. x.len() {
+    for i in 1..x.len() {
         //println!("(commit) index: {}", i);
-        let mut basis= csp.pub_bases[i];
+        let mut basis = csp.pub_bases[i];
         basis.mul_assign(x[i]);
         c.add_assign(&basis);
     }
@@ -182,8 +182,8 @@ pub fn decommit<E: Engine>(csp: &CSParams<E>, cm: &Commitment<E>, x: &Vec<E::Fr>
     // assert!(cm.r == x[0]);
     let mut dc = csp.pub_bases[0].clone();
     dc.mul_assign(cm.r.clone());
-    for i in 1 .. l {
-        let mut basis= csp.pub_bases[i];
+    for i in 1..l {
+        let mut basis = csp.pub_bases[i];
         basis.mul_assign(x[i]);
         dc.add_assign(&basis);
     }
@@ -207,8 +207,8 @@ mod tests {
         let r = Fr::rand(rng);
         let c = ped92_commit(&pk, m1, Some(r));
 
-        assert!(ped92_decommit(&pk, &c, m1) == true);
-        assert!(ped92_decommit(&pk, &c, m2) == false);
+        assert_eq!(true, ped92_decommit(&pk, &c, m1));
+        assert_eq!(false, ped92_decommit(&pk, &c, m2));
     }
 
     #[test]
@@ -218,12 +218,12 @@ mod tests {
         let csp = setup_gen_params::<Bls12>(len);
 
         let mut m: Vec<Fr> = Vec::new();
-        for i in 0 .. len {
+        for i in 0..len {
             m.push(Fr::rand(rng));
         }
         let r = m[0].clone();
         let c = commit(&csp, &m, r);
 
-        assert!(decommit(&csp, &c, &m) == true);
+        assert_eq!(true, decommit(&csp, &c, &m));
     }
 }
