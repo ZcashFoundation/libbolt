@@ -265,6 +265,11 @@ impl<E: Engine> BlindKeyPair<E> {
         BlindKeyPair { secret, public }
     }
 
+    /// extract unblinded public key
+    pub fn get_public_key(&self, mpk: &PublicParams<E>) -> PublicKey<E> {
+        PublicKey::from_secret(mpk, &self.secret)
+    }
+
     /// sign a vector of messages
     pub fn sign<R: Rng>(&self, csprng: &mut R, message: &Vec<E::Fr>) -> Signature<E> {
         self.secret.sign(csprng, message)
@@ -359,6 +364,8 @@ mod tests {
         let mpk = setup(&mut rng);
         let keypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
 
+        let public_key = keypair.get_public_key(&mpk);
+
         let mut message1 : Vec<Fr> = Vec::new();
         let mut message2 : Vec<Fr> = Vec::new();
 
@@ -368,6 +375,8 @@ mod tests {
         }
 
         let sig = keypair.sign(&mut rng, &message1);
+        assert_eq!(public_key.verify(&mpk, &message1, &sig), true);
+        assert_eq!(public_key.verify(&mpk, &message2, &sig), false);
 
         let t = Fr::rand(&mut rng);
         let blind_sig = keypair.blind(&mut rng, &t,&sig);
