@@ -65,6 +65,7 @@ pub mod ote;
 pub mod cl;
 pub mod clsigs;
 pub mod commit_scheme;
+pub mod ped92;
 pub mod clproto;
 pub mod serialization_wrappers;
 
