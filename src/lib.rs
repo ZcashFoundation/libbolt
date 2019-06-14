@@ -62,7 +62,6 @@ use serde::{Serialize, Deserialize};
 pub mod prf;
 pub mod sym;
 pub mod ote;
-pub mod bls;
 pub mod cl;
 pub mod clsigs;
 pub mod commit_scheme;

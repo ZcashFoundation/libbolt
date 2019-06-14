@@ -8,11 +8,15 @@ BOLT is a system for conducting **privacy-preserving off-chain payments** betwee
 
 The libbolt library is a proof of concept implementation that relies on experimental libraries and dependencies at the moment. It is not suitable for production software yet.
 
+# NOTE
+
+Active development of libbolt is ongoing at [Bolt Labs, Inc](https://github.com/boltlabs-inc/libbolt) to instantiate on a cryptocurrency. We will submit pull requests periodically when new features are complete.
+
 # Dependencies
 
 * secp256k1
 * sodiumoxide
-* bn
+* pairing
 * curve25519_dalek
 * merlin
 * bulletproofs
@@ -55,7 +59,7 @@ To use the libbolt library, add the `libbolt` crate to your dependency file in `
 
 ```toml
 [dependencies]
-bolt = "0.2.0"
+bolt = "0.3.0"
 ```
 
 Then add an extern declaration at the root of your crate as follows:
