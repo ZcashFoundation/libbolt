@@ -7,6 +7,7 @@ Asiacrypt 2008
 extern crate pairing;
 extern crate rand;
 
+use rand::{thread_rng, Rng};
 use super::*;
 use cl::{KeyPair, Signature, PublicParams, setup};
 use ped92::{CSPublicKey, Commitment};
@@ -70,111 +71,95 @@ pub struct RPPublicParams<E: Engine> {
     b: i64,
 }
 
-/*
+impl<E: Engine> ParamsUL<E> {
+    /*
 setup_ul generates the signature for the interval [0,u^l).
 The value of u should be roughly b/log(b), but we can choose smaller values in
 order to get smaller parameters, at the cost of having worse performance.
 */
-fn setup_ul<E: Engine>(u: i64, l: i64) -> ParamsUL<E> {
-    let mut rng = &mut rand::thread_rng();
+    pub fn setup_ul<R: Rng>(rng: &mut R, u: i64, l: i64) -> ParamsUL<E> {
+        let mpk = setup(rng);
+        let kp = KeyPair::<E>::generate(rng, &mpk, 1);
 
-    let mpk = setup(&mut rng);
-    let kp = KeyPair::<E>::generate(&mut rng, &mpk, 1);
+        let mut signatures: HashMap<String, Signature<E>> = HashMap::new();
+        for i in 0..u {
+            let sig_i = kp.sign(rng, &vec! {E::Fr::from_str(i.to_string().as_str()).unwrap()});
+            signatures.insert(i.to_string(), sig_i);
+        }
 
-    let mut signatures: HashMap<String, Signature<E>> = HashMap::new();
-    for i in 0..u {
-        let sig_i = kp.sign(&mut rng, &vec! {E::Fr::from_str(i.to_string().as_str()).unwrap()});
-        signatures.insert(i.to_string(), sig_i);
+        let com = CSPublicKey::setup(rng);
+        return ParamsUL { mpk, signatures, com, kp, u, l };
     }
 
-    let com = CSPublicKey::setup(rng);
-    return ParamsUL { mpk, signatures, com, kp, u, l };
-}
-
-/*
-Decompose receives as input an integer x and outputs an array of integers such that
-x = sum(xi.u^i), i.e. it returns the decomposition of x into base u.
-*/
-fn decompose(x: i64, u: i64) -> Vec<i64> {
-    let l = (x as f64).log(u as f64).ceil() as usize;
-    let mut result = Vec::with_capacity(l as usize);
-    let mut decomposer = x.clone();
-    for i in 0..l {
-        result.push(decomposer % u);
-        decomposer = decomposer / u;
-    }
-    return result;
-}
-
-/*
+    /*
 prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L].
 */
-fn prove_ul<E: Engine>(x: i64, r: E::Fr, p: ParamsUL<E>) -> ProofUL<E> {
-    let mut rng = &mut rand::thread_rng();
-    let mut mutr = r.clone();
+    pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr) -> ProofUL<E> {
+        let mut mutr = r.clone();
 
-    let decx = decompose(x, p.u);
-    let modx = E::Fr::from_str(&(x.to_string())).unwrap();
+        let decx = decompose(x, self.u);
+        let modx = E::Fr::from_str(&(x.to_string())).unwrap();
 
 // Initialize variables
-    let mut v = Vec::<E::Fr>::with_capacity(p.l as usize);
-    let mut V = Vec::<E::G1>::with_capacity(p.l as usize);
-    let mut a = Vec::<E::Fqk>::with_capacity(p.l as usize);
-    let mut s = Vec::<E::Fr>::with_capacity(p.l as usize);
-    let mut t = Vec::<E::Fr>::with_capacity(p.l as usize);
-    let mut zsig = Vec::<E::Fr>::with_capacity(p.l as usize);
-    let mut zv = Vec::<E::Fr>::with_capacity(p.l as usize);
-    let mut one = E::G2::one();
-    let mut D = E::G2::zero();
-    one.negate();
-    D.add_assign(&one);
-    let mut m = E::Fr::rand(rng);
+        let mut v = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut V = Vec::<E::G1>::with_capacity(self.l as usize);
+        let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
+        let mut s = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut t = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut zsig = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut zv = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut one = E::G2::one();
+        let mut D = E::G2::zero();
+        one.negate();
+        D.add_assign(&one);
+        let mut m = E::Fr::rand(rng);
 
 // D = H^m
-    let mut Dnew = p.com.h;
-    Dnew.mul_assign(m);
-    for i in 0..p.l as usize {
-        v.push(E::Fr::rand(rng));
-        let mut A = p.signatures.get(&decx[i].to_string()).unwrap().H;
-        A.mul_assign(v[i]);
-        V.push(A);
-        s.push(E::Fr::rand(rng));
-        t.push(E::Fr::rand(rng));
-        a.push(E::pairing(V[i], p.mpk.g2));
-        a[i].pow(s[i].into_repr());
-        a[i] = a[i].inverse().unwrap();
-        let mut E = E::pairing(p.mpk.g1, p.mpk.g2);
-        E.pow(t[i].into_repr());
-        a[i].add_assign(&E);
+        let mut Dnew = self.com.h;
+        Dnew.mul_assign(m);
+        for i in 0..self.l as usize {
+            v.push(E::Fr::rand(rng));
+            let mut A = self.signatures.get(&decx[i].to_string()).unwrap().H;
+            A.mul_assign(v[i]);
+            V.push(A);
+            s.push(E::Fr::rand(rng));
+            t.push(E::Fr::rand(rng));
+            a.push(E::pairing(V[i], self.mpk.g2));
+            a[i].pow(s[i].into_repr());
+            a[i] = a[i].inverse().unwrap();
+            let mut E = E::pairing(self.mpk.g1, self.mpk.g2);
+            E.pow(t[i].into_repr());
+            a[i].add_assign(&E);
 
-        let ui = p.u.pow(i as u32);
-        let mut muisi = s[i].clone();
-        muisi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
-        let mut aux = p.mpk.g2.clone();
-        aux.mul_assign(muisi);
-        D.add_assign(&aux);
-    }
-    D.add_assign(&Dnew);
+            let ui = self.u.pow(i as u32);
+            let mut muisi = s[i].clone();
+            muisi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
+            let mut aux = self.mpk.g2.clone();
+            aux.mul_assign(muisi);
+            D.add_assign(&aux);
+        }
+        D.add_assign(&Dnew);
 
-    let C = p.com.commit(rng, modx, Some(mutr));
+        let C = self.com.commit(rng, modx, Some(mutr));
 // Fiat-Shamir heuristic
-    let c = Hash::<E>(a.clone(), D.clone());
+        let c = Hash::<E>(a.clone(), D.clone());
 
-    let mut zr = m.clone();
-    mutr.mul_assign(&c);
-    zr.sub_assign(&mutr);
-    for i in 0..p.l as usize {
-        zsig[i] = s[i].clone();
-        let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
-        dx.mul_assign(&c);
-        zsig[i].sub_assign(&dx);
-        let mut vi = v[i].clone();
-        vi.mul_assign(&c);
-        let mut ti = t[i].clone();
-        ti.sub_assign(&vi);
-        zv[i] = ti.clone();
+        let mut zr = m.clone();
+        mutr.mul_assign(&c);
+        zr.sub_assign(&mutr);
+        for i in 0..self.l as usize {
+            zsig.push(s[i].clone());
+            let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
+            dx.mul_assign(&c);
+            zsig[i].sub_assign(&dx);
+            let mut vi = v[i].clone();
+            vi.mul_assign(&c);
+            let mut ti = t[i].clone();
+            ti.sub_assign(&vi);
+            zv.push(ti.clone());
+        }
+        return ProofUL { v: V, d: D, comm: C, a, s, t, zsig, zv, ch: c, m, zr };
     }
-    return ProofUL { v: V, d: D, comm: C, a, s, t, zsig, zv, ch: c, m, zr };
 }
 
 fn Hash<E: Engine>(a: Vec<E::Fqk>, D: E::G2) -> E::Fr {
@@ -196,6 +181,21 @@ fn Hash<E: Engine>(a: Vec<E::Fqk>, D: E::G2) -> E::Fr {
     return result.unwrap();
 }
 
+/*
+Decompose receives as input an integer x and outputs an array of integers such that
+x = sum(xi.u^i), i.e. it returns the decomposition of x into base u.
+*/
+fn decompose(x: i64, u: i64) -> Vec<i64> {
+    let l = (x as f64).log(u as f64).ceil() as usize;
+    let mut result = Vec::with_capacity(l as usize);
+    let mut decomposer = x.clone();
+    for i in 0..l {
+        result.push(decomposer % u);
+        decomposer = decomposer / u;
+    }
+    return result;
+}
+
 fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
     let mut result: String = "".to_string();
     for byte in bytearray.iter() {
@@ -211,7 +211,7 @@ impl<E: Engine> RPPublicParams<E> {
     /*
     Setup receives integers a and b, and configures the parameters for the rangeproof scheme.
     */
-    pub fn setup(a: i64, b: i64) -> RPPublicParams<E> {
+    pub fn setup<R: Rng>(rng: &mut R, a: i64, b: i64) -> RPPublicParams<E> {
         // Compute optimal values for u and l
         if a > b {
             panic!("a must be less than or equal to b");
@@ -222,7 +222,7 @@ impl<E: Engine> RPPublicParams<E> {
             let u = b / logb as i64;
             if u != 0 {
                 let l = (b as f64).log(u as f64).ceil() as i64;
-                let params_out: ParamsUL<E> = setup_ul(u, l);
+                let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l);
                 return RPPublicParams { p: params_out, a, b };
             } else {
                 panic!("u is zero");
@@ -241,11 +241,21 @@ mod tests {
 
     #[test]
     fn setup_ul_works() {
-        let params_set = setup_ul::<Bls12>(2, 3);
-        assert_eq!(2, params_set.signatures.len());
-        for (m, s) in params_set.signatures {
-            assert_eq!(true, params_set.kp.verify(&params_set.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s));
+        let rng = &mut rand::thread_rng();
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
+        assert_eq!(2, params.signatures.len());
+        for (m, s) in params.signatures {
+            assert_eq!(true, params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s));
         }
+    }
+
+    #[test]
+    fn prove_ul_works() {
+        let rng = &mut rand::thread_rng();
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
+        let fr = Fr::rand(rng);
+        let proof = params.prove_ul(rng, 10, fr);
+
     }
 
     #[test]
@@ -259,7 +269,8 @@ mod tests {
 
     #[test]
     fn setup_works() {
-        let public_params = RPPublicParams::<Bls12>::setup(2, 10);
+        let rng = &mut rand::thread_rng();
+        let public_params = RPPublicParams::<Bls12>::setup(rng, 2, 10);
         assert_eq!(2, public_params.a);
         assert_eq!(10, public_params.b);
         assert_eq!(10, public_params.p.signatures.len());
@@ -273,30 +284,33 @@ mod tests {
     #[test]
     #[should_panic(expected = "a must be less than or equal to b")]
     fn setup_wrong_a_and_b() {
-        let public_params = RPPublicParams::<Bls12>::setup(10, 2);
+        let rng = &mut rand::thread_rng();
+        let public_params = RPPublicParams::<Bls12>::setup(rng, 10, 2);
     }
 
     #[test]
     #[should_panic(expected = "u is zero")]
     fn setup_wrong_b() {
-        let public_params = RPPublicParams::<Bls12>::setup(-1, 0);
+        let rng = &mut rand::thread_rng();
+        let public_params = RPPublicParams::<Bls12>::setup(rng, -1, 0);
     }
 
     #[test]
     #[should_panic(expected = "log(b) is zero")]
     fn setup_wrong_logb() {
-        let public_params = RPPublicParams::<Bls12>::setup(-1, 1);
+        let rng = &mut rand::thread_rng();
+        let public_params = RPPublicParams::<Bls12>::setup(rng, -1, 1);
     }
 
     #[test]
     fn fmt_byte_to_int_works() {
         assert_eq!("122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123",
-                   fmt_bytes_to_int([12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123,13,43,12,235,23,123]));
+                   fmt_bytes_to_int([12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123]));
     }
 
     #[test]
     fn hash_works() {
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
         let D = G2::rand(rng);
         let D2 = G2::rand(rng);
         let a = vec! {Fq12::rand(rng), Fq12::rand(rng), Fq12::rand(rng)};
