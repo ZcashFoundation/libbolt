@@ -1,12 +1,12 @@
 // ped92.rs
 use rand::{thread_rng, Rng};
-use pairing::{Engine, CurveProjective, CurveAffine};
+use pairing::{Engine, CurveProjective};
 use ff::Rand;
 
 #[derive(Clone)]
 pub struct CSPublicKey<E: Engine> {
-    g: E::G2,
-    h: E::G2,
+    pub g: E::G2,
+    pub h: E::G2,
 }
 
 #[derive(Clone)]
