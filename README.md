@@ -69,68 +69,10 @@ extern crate bolt;
 
 # API
 
-The libbolt library provides APIs for three types of payment channels:
+The libbolt library provides APIs for two types of payment channels:
 
-* unidirectional payment channels (*work in progress*)
 * bidirectional payment channels
 * third-party payments
-
-## Unidirectional Payment Channels
-
-A unidirectional payment channel enables payments from a customer to a merchant and only supports transfer of fixed-sized values in one direction.
-
-### Channel Setup and Key Generation
-
-The first part of setting up unidirectional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
-	
-	use bolt::unidirectional;
-	
-	// setup unidirectional scheme params
-	let pp = unidirectional::setup(true);
-	
-	// generate the initial channel state
-	let mut channel = unidirectional::ChannelState::new(String::from("My New Channel A -> B"));
-
-To generate keys for both parties, call the `unidirectional::keygen()` routine with the public parameters as input.
-	
-	// merchant generates a long-lived key pair
-	let m_keypair = unidirectional::keygen(&pp);
-	
-	// customer generates an ephemeral keypair for use on a single channel
-	let c_keypair = unidirectional::keygen(&pp);
-
-### Initialization
-
-To initialize the channel for both parties, do the following:
-	
-	let b0_merch = 50;
-	let b0_cust = 50;
-	// initialize on the merchant side with balance, b0_merch
-	let mut m_data = unidirectional::init_merchant(&pp, b0_merch, &m_keypair));
-		
-	 // generate the public params for the commitment scheme
-	let cm_csp = unidirectional::generate_commit_setup(&pp, &m_keypair.pk);
-	    
-	// initialize on the customer side with balance, b0_cust    
-	let mut c_data = unidirectional::init_customer(&pp, // public params
-	                                              &channel, // channel state
-	                                              b0_cust, // init customer balance
-	                                              b0_merch, // init merchant balance
-	                                              &cm_csp, // commitment pub params
-	                                              &c_keypair)); // customer keypair
-
-
-### Establish Protocol
-
-**TODO**
-
-### Pay protocol
-
-**TODO**
-
-### Channel Closure Algorithms		
-
-**TODO**
 
 ## Bidirectional Payment Channels
 
