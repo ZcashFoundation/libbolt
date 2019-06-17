@@ -170,8 +170,8 @@ mod tests {
         let r = Fr::rand(rng);
         let c = pk.commit(rng, m1, Some(r));
 
-        assert_eq!(true, pk.decommit(&c, m1));
-        assert_eq!(false, pk.decommit(&c, m2));
+        assert_eq!(pk.decommit(&c, m1), true);
+        assert_eq!(pk.decommit(&c, m2), false);
     }
 
     #[test]
@@ -187,6 +187,6 @@ mod tests {
         let r = m[0].clone();
         let c = csp.commit(rng, &m, r);
 
-        assert_eq!(true, csp.decommit(&c, &m));
+        assert_eq!(csp.decommit(&c, &m), true);
     }
 }

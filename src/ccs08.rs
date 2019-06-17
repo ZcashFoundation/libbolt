@@ -42,8 +42,8 @@ proofUL contains the necessary elements for the ZK range proof.
 */
 #[derive(Clone)]
 struct ProofUL<E: Engine> {
-    v: Vec<E::G1>,
-    d: E::G2,
+    V: Vec<E::G1>,
+    D: E::G2,
     comm: Commitment<E>,
     a: Vec<E::Fqk>,
     s: Vec<E::Fr>,
@@ -77,7 +77,7 @@ setup_ul generates the signature for the interval [0,u^l).
 The value of u should be roughly b/log(b), but we can choose smaller values in
 order to get smaller parameters, at the cost of having worse performance.
 */
-    pub fn setup_ul<R: Rng>(rng: &mut R, u: i64, l: i64) -> ParamsUL<E> {
+    pub fn setup_ul<R: Rng>(rng: &mut R, u: i64, l: i64) -> Self {
         let mpk = setup(rng);
         let kp = KeyPair::<E>::generate(rng, &mpk, 1);
 
@@ -95,9 +95,7 @@ order to get smaller parameters, at the cost of having worse performance.
 prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L].
 */
     pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr) -> ProofUL<E> {
-        let mut mutr = r.clone();
-
-        let decx = decompose(x, self.u);
+        let decx = decompose(x, self.u, self.l);
         let modx = E::Fr::from_str(&(x.to_string())).unwrap();
 
 // Initialize variables
@@ -108,20 +106,18 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         let mut t = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut zsig = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut zv = Vec::<E::Fr>::with_capacity(self.l as usize);
-        let mut one = E::G2::one();
         let mut D = E::G2::zero();
-        one.negate();
-        D.add_assign(&one);
         let mut m = E::Fr::rand(rng);
 
 // D = H^m
-        let mut Dnew = self.com.h;
-        Dnew.mul_assign(m);
+        let mut hm = self.com.h.clone();
+        hm.mul_assign(m);
         for i in 0..self.l as usize {
             v.push(E::Fr::rand(rng));
             let mut A = self.signatures.get(&decx[i].to_string()).unwrap().H;
             A.mul_assign(v[i]);
             V.push(A);
+            assert_eq!(A, V[i]); //TODO: remove
             s.push(E::Fr::rand(rng));
             t.push(E::Fr::rand(rng));
             a.push(E::pairing(V[i], self.mpk.g2));
@@ -129,36 +125,87 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
             a[i] = a[i].inverse().unwrap();
             let mut E = E::pairing(self.mpk.g1, self.mpk.g2);
             E.pow(t[i].into_repr());
-            a[i].add_assign(&E);
+            a[i].mul_assign(&E); //TODO: add or mul
 
             let ui = self.u.pow(i as u32);
             let mut muisi = s[i].clone();
             muisi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
-            let mut aux = self.mpk.g2.clone();
+            let mut aux = self.com.g.clone();
             aux.mul_assign(muisi);
             D.add_assign(&aux);
         }
-        D.add_assign(&Dnew);
+        D.add_assign(&hm);
 
-        let C = self.com.commit(rng, modx, Some(mutr));
+        let C = self.com.commit(rng, modx, Some(r));
 // Fiat-Shamir heuristic
         let c = Hash::<E>(a.clone(), D.clone());
 
         let mut zr = m.clone();
-        mutr.mul_assign(&c);
-        zr.sub_assign(&mutr);
+        let mut rc = r.clone();
+        rc.mul_assign(&c);
+        zr.sub_assign(&rc);
         for i in 0..self.l as usize {
             zsig.push(s[i].clone());
+            assert_eq!(s[i], zsig[i]); //TODO: remove
             let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
             dx.mul_assign(&c);
             zsig[i].sub_assign(&dx);
-            let mut vi = v[i].clone();
-            vi.mul_assign(&c);
+            let mut vic = v[i].clone();
+            vic.mul_assign(&c);
             let mut ti = t[i].clone();
-            ti.sub_assign(&vi);
-            zv.push(ti.clone());
+            ti.sub_assign(&vic);
+            zv.push(ti);
         }
-        return ProofUL { v: V, d: D, comm: C, a, s, t, zsig, zv, ch: c, m, zr };
+
+        return ProofUL { V, D, comm: C, a, s, t, zsig, zv, ch: c, m, zr };
+    }
+
+    /*
+verify_ul is used to validate the ZKRP proof. It returns true iff the proof is valid.
+*/
+    pub fn verify_ul(&self, proof: &ProofUL<E>) -> bool {
+        // D == C^c.h^ zr.g^zsig ?
+        let r1 = self.verify_part1(&proof);
+        let r2 = self.verify_part2(&proof);
+        return r1 && r2;
+    }
+
+    fn verify_part2(&self, proof: &ProofUL<E>) -> bool {
+        let mut r2 = true;
+        for i in 0..self.l as usize {
+            // a == [e(V,y)^c].[e(V,g)^-zsig].[e(g,g)^zv]
+            let mut p1 = E::pairing(proof.V[i], self.kp.public.X);
+            p1.pow(proof.ch.into_repr());
+            let mut p2 = E::pairing(proof.V[i], self.mpk.g2);
+            p2.pow(proof.zsig[i].into_repr());
+            p2 = p2.inverse().unwrap();
+            p1.mul_assign(&p2); // TODO: add or mul
+            let mut E = E::pairing(self.mpk.g1, self.mpk.g2);
+            E.pow(proof.zv[i].into_repr());
+            p1.mul_assign(&E); //TODO: add or mul
+
+            print!("{}\n", p1);
+            print!("{}\n", proof.a[i]);
+            r2 = r2 && p1 == proof.a[i];
+        }
+        return r2;
+    }
+
+    fn verify_part1(&self, proof: &ProofUL<E>) -> bool {
+        let mut D = proof.comm.c.clone();
+        D.mul_assign(proof.ch);
+        let mut hzr = self.com.h.clone();
+        hzr.mul_assign(proof.zr);
+        D.add_assign(&hzr);
+        for i in 0..self.l {
+            let ui = self.u.pow(i as u32);
+            let mut muizsigi = proof.zsig[i as usize];
+            muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
+            let mut aux = self.com.g.clone();
+            aux.mul_assign(muizsigi);
+            D.add_assign(&aux);
+        }
+        return D == proof.D;
     }
 }
 
@@ -185,8 +232,7 @@ fn Hash<E: Engine>(a: Vec<E::Fqk>, D: E::G2) -> E::Fr {
 Decompose receives as input an integer x and outputs an array of integers such that
 x = sum(xi.u^i), i.e. it returns the decomposition of x into base u.
 */
-fn decompose(x: i64, u: i64) -> Vec<i64> {
-    let l = (x as f64).log(u as f64).ceil() as usize;
+fn decompose(x: i64, u: i64, l: i64) -> Vec<i64> {
     let mut result = Vec::with_capacity(l as usize);
     let mut decomposer = x.clone();
     for i in 0..l {
@@ -211,7 +257,7 @@ impl<E: Engine> RPPublicParams<E> {
     /*
     Setup receives integers a and b, and configures the parameters for the rangeproof scheme.
     */
-    pub fn setup<R: Rng>(rng: &mut R, a: i64, b: i64) -> RPPublicParams<E> {
+    pub fn setup<R: Rng>(rng: &mut R, a: i64, b: i64) -> Self {
         // Compute optimal values for u and l
         if a > b {
             panic!("a must be less than or equal to b");
@@ -243,9 +289,9 @@ mod tests {
     fn setup_ul_works() {
         let rng = &mut rand::thread_rng();
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
-        assert_eq!(2, params.signatures.len());
+        assert_eq!(params.signatures.len(), 2);
         for (m, s) in params.signatures {
-            assert_eq!(true, params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s));
+            assert_eq!(params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s), true);
         }
     }
 
@@ -255,29 +301,85 @@ mod tests {
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
         let fr = Fr::rand(rng);
         let proof = params.prove_ul(rng, 10, fr);
+        assert_eq!(proof.a.len(), 3);
+        assert_eq!(proof.s.len(), 3);
+        assert_eq!(proof.t.len(), 3);
+        assert_eq!(proof.V.len(), 3);
+        assert_eq!(proof.zsig.len(), 3);
+        let mut s = proof.s[0].clone();
+        let mut ch = proof.ch.clone();
+        ch.mul_assign(&Fr::from_str(&decompose(10, 2, 4).get(0).unwrap().to_string()).unwrap());
+        s.sub_assign(&ch);
+        assert_eq!(proof.zsig[0], s);
+        assert_eq!(proof.zv.len(), 3);
+    }
 
+    #[test]
+    fn prove_and_verify_part1_ul_works() {
+        let rng = &mut rand::thread_rng();
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
+        let fr = Fr::rand(rng);
+        let proof = params.prove_ul(rng, 10, fr);
+        assert_eq!(params.verify_part1(&proof), true);
+    }
+
+    #[test]
+    #[ignore]
+    fn prove_and_verify_part2_ul_works() {
+        let rng = &mut rand::thread_rng();
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
+        let fr = Fr::rand(rng);
+        let proof = params.prove_ul(rng, 10, fr);
+        assert_eq!(params.verify_part2(&proof), true);
+    }
+
+    #[test]
+    #[ignore]
+    fn prove_and_verify_ul_works() {
+        let rng = &mut rand::thread_rng();
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
+        let fr = Fr::rand(rng);
+        let proof = params.prove_ul(rng, 10, fr);
+        assert_eq!(params.verify_ul(&proof), true);
     }
 
     #[test]
     fn decompose_works() {
-        assert_eq!(vec! {1, 2, 2}, decompose(25, 3));
-        assert_eq!(vec! {0, 6, 6}, decompose(336, 7));
-        assert_eq!(vec! {5, 3, 4}, decompose(285, 8));
-        assert_eq!(vec! {8, 9}, decompose(125, 13));
-        assert_eq!(vec! {5, 2, 0, 3, 2, 0, 3}, decompose(143225, 6));
+        assert_eq!(decompose(25, 3, 3), vec! {1, 2, 2});
+        assert_eq!(decompose(336, 7, 3), vec! {0, 6, 6});
+        assert_eq!(decompose(285, 8, 3), vec! {5, 3, 4});
+        assert_eq!(decompose(125, 13, 2), vec! {8, 9});
+        assert_eq!(decompose(143225, 6, 7), vec! {5, 2, 0, 3, 2, 0, 3});
+    }
+
+    #[test]
+    fn decompose_recompose_works() {
+        let vec1 = decompose(25, 3, 5);
+        let mut result = 0;
+        for i in 0..5 {
+            result += vec1[i] * 3i64.pow(i as u32);
+        }
+        assert_eq!(result, 25);
+
+        let vec1 = decompose(143225, 6, 7);
+        let mut result = 0;
+        for i in 0..7 {
+            result += vec1[i] * 6i64.pow(i as u32);
+        }
+        assert_eq!(result, 143225);
     }
 
     #[test]
     fn setup_works() {
         let rng = &mut rand::thread_rng();
         let public_params = RPPublicParams::<Bls12>::setup(rng, 2, 10);
-        assert_eq!(2, public_params.a);
-        assert_eq!(10, public_params.b);
-        assert_eq!(10, public_params.p.signatures.len());
-        assert_eq!(10 / ((10 as f64).log10() as i64), public_params.p.u);
-        assert_eq!(((10 / (10 / ((10 as f64).log10() as i64))) as f64).ceil() as i64, public_params.p.l);
+        assert_eq!(public_params.a, 2);
+        assert_eq!(public_params.b, 10);
+        assert_eq!(public_params.p.signatures.len(), 10);
+        assert_eq!(public_params.p.u, 10 / ((10 as f64).log10() as i64));
+        assert_eq!(public_params.p.l, ((10 / (10 / ((10 as f64).log10() as i64))) as f64).ceil() as i64);
         for (m, s) in public_params.p.signatures {
-            assert_eq!(true, public_params.p.kp.verify(&public_params.p.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s));
+            assert_eq!(public_params.p.kp.verify(&public_params.p.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s), true);
         }
     }
 
@@ -304,8 +406,8 @@ mod tests {
 
     #[test]
     fn fmt_byte_to_int_works() {
-        assert_eq!("122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123",
-                   fmt_bytes_to_int([12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123]));
+        assert_eq!(fmt_bytes_to_int([12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123]),
+                   "122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123");
     }
 
     #[test]
@@ -315,7 +417,7 @@ mod tests {
         let D2 = G2::rand(rng);
         let a = vec! {Fq12::rand(rng), Fq12::rand(rng), Fq12::rand(rng)};
         let a2 = vec! {Fq12::rand(rng), Fq12::rand(rng), Fq12::rand(rng)};
-        assert_eq!(false, Hash::<Bls12>(a.clone(), D.clone()).is_zero());
+        assert_eq!(Hash::<Bls12>(a.clone(), D.clone()).is_zero(), false);
         assert_ne!(Hash::<Bls12>(a2.clone(), D.clone()), Hash::<Bls12>(a.clone(), D.clone()));
         assert_ne!(Hash::<Bls12>(a.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
         assert_ne!(Hash::<Bls12>(a2.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
