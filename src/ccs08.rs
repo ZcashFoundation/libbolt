@@ -293,6 +293,33 @@ impl<E: Engine> RPPublicParams<E> {
             panic!("log(b) is zero");
         }
     }
+
+    /*
+        Prove method is responsible for generating the zero knowledge proof.
+    */
+    pub fn prove<R: Rng>(&self, rng: &mut R, x: i64) -> RangeProof<E> {
+        let ul = self.p.u.pow(self.p.l as u32);
+        let r = E::Fr::rand(rng);
+
+        // x - b + ul
+        let xb = x + self.b + ul;
+        let first = self.p.prove_ul(rng, xb, r);
+
+        // x - a
+        let xa = x - self.a;
+        let second = self.p.prove_ul(rng, xa, r);
+
+        return RangeProof { p1: first, p2: second };
+    }
+
+    /*
+        Verify is responsible for validating the proof.
+    */
+    pub fn verify(&self, proof: RangeProof<E>) -> bool {
+        let first = self.p.verify_ul(&proof.p1);
+        let second = self.p.verify_ul(&proof.p2);
+        return first && second;
+    }
 }
 
 
@@ -350,6 +377,16 @@ mod tests {
         let fr = Fr::rand(rng);
         let proof = params.prove_ul(rng, 10, fr);
         assert_eq!(params.verify_ul(&proof), true);
+    }
+
+    #[test]
+    #[ignore]
+    fn prove_and_verify_works() {
+        let rng = &mut rand::thread_rng();
+        let params = RPPublicParams::<Bls12>::setup(rng, 2, 25);
+        let fr = Fr::rand(rng);
+        let proof = params.prove(rng, 10);
+        assert_eq!(params.verify(proof), true);
     }
 
     #[test]
