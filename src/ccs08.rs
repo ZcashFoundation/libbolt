@@ -42,16 +42,14 @@ proofUL contains the necessary elements for the ZK range proof.
 */
 #[derive(Clone)]
 struct ProofUL<E: Engine> {
-    V: Vec<E::G1>,
+    V: Vec<(E::G1, E::G1)>,
     D: E::G2,
     comm: Commitment<E>,
     a: Vec<E::Fqk>,
-    s: Vec<E::Fr>,
-    t: Vec<E::Fr>,
+    zx: Vec<E::Fr>,
     zsig: Vec<E::Fr>,
     zv: Vec<E::Fr>,
     ch: E::Fr,
-    m: E::Fr,
     zr: E::Fr,
 }
 
@@ -95,69 +93,81 @@ order to get smaller parameters, at the cost of having worse performance.
 prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L].
 */
     pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr) -> ProofUL<E> {
+        //TODO: check if x in range
         let decx = decompose(x, self.u, self.l);
         let modx = E::Fr::from_str(&(x.to_string())).unwrap();
 
 // Initialize variables
         let mut v = Vec::<E::Fr>::with_capacity(self.l as usize);
-        let mut V = Vec::<E::G1>::with_capacity(self.l as usize);
+        let mut V = Vec::<(E::G1, E::G1)>::with_capacity(self.l as usize);
         let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
         let mut s = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut t = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut tt = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut zx = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut zsig = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut zv = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut D = E::G2::zero();
         let mut m = E::Fr::rand(rng);
 
-// D = H^m
+        // D = H^m
         let mut hm = self.com.h.clone();
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             v.push(E::Fr::rand(rng));
-            let mut A = self.signatures.get(&decx[i].to_string()).unwrap().H;
-            A.mul_assign(v[i]);
-            V.push(A);
-            assert_eq!(A, V[i]); //TODO: remove
+            let r = E::Fr::rand(rng);
+            let mut A = self.signatures.get(&decx[i].to_string()).unwrap().h;
+            let mut B = self.signatures.get(&decx[i].to_string()).unwrap().H;
+            let mut Aprime = A.clone();
+            A.mul_assign(r);
+            Aprime.mul_assign(v[i]);
+            B.add_assign(&Aprime);
+            B.mul_assign(r);
+            V.push((A, B));
             s.push(E::Fr::rand(rng));
+            let mut gx = E::pairing(V[i].0, self.kp.public.X);
+            gx.pow(s[i].into_repr());
+            a.push(gx);
             t.push(E::Fr::rand(rng));
-            a.push(E::pairing(V[i], self.mpk.g2));
-            a[i].pow(s[i].into_repr());
-            a[i] = a[i].inverse().unwrap();
-            let mut E = E::pairing(self.mpk.g1, self.mpk.g2);
-            E.pow(t[i].into_repr());
-            a[i].mul_assign(&E); //TODO: add or mul
+            let mut gy = E::pairing(V[i].0, self.kp.public.Y[0]);
+            gy.pow(t[i].into_repr());
+            a[i].mul_assign(&gy);
+            tt.push(E::Fr::rand(rng));
+            let mut h = E::pairing(V[i].0, self.mpk.g2);
+            h.pow(tt[i].into_repr());
+            a[i].mul_assign(&h);
 
             let ui = self.u.pow(i as u32);
-            let mut muisi = s[i].clone();
-            muisi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
+            let mut muiti = t[i].clone();
+            muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
             let mut aux = self.com.g.clone();
-            aux.mul_assign(muisi);
+            aux.mul_assign(muiti);
             D.add_assign(&aux);
         }
         D.add_assign(&hm);
 
         let C = self.com.commit(rng, modx, Some(r));
-// Fiat-Shamir heuristic
+        // Fiat-Shamir heuristic
         let c = Hash::<E>(a.clone(), D.clone());
 
         let mut zr = m.clone();
         let mut rc = r.clone();
         rc.mul_assign(&c);
-        zr.sub_assign(&rc);
+        zr.add_assign(&rc);
         for i in 0..self.l as usize {
-            zsig.push(s[i].clone());
-            assert_eq!(s[i], zsig[i]); //TODO: remove
+            zsig.push(t[i].clone());
             let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
             dx.mul_assign(&c);
-            zsig[i].sub_assign(&dx);
+            zsig[i].add_assign(&dx);
+            zx.push(c.clone());
+            zx[i].add_assign(&s[i]);
+            zv.push(tt[i].clone());
             let mut vic = v[i].clone();
             vic.mul_assign(&c);
-            let mut ti = t[i].clone();
-            ti.sub_assign(&vic);
-            zv.push(ti);
+            tt[i].add_assign(&vic);
         }
 
-        return ProofUL { V, D, comm: C, a, s, t, zsig, zv, ch: c, m, zr };
+        return ProofUL { V, D, comm: C, a, zx, zsig, zv, ch: c, zr };
     }
 
     /*
@@ -173,20 +183,25 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
     fn verify_part2(&self, proof: &ProofUL<E>) -> bool {
         let mut r2 = true;
         for i in 0..self.l as usize {
-            // a == [e(V,y)^c].[e(V,g)^-zsig].[e(g,g)^zv]
-            let mut p1 = E::pairing(proof.V[i], self.kp.public.X);
-            p1.pow(proof.ch.into_repr());
-            let mut p2 = E::pairing(proof.V[i], self.mpk.g2);
-            p2.pow(proof.zsig[i].into_repr());
-            p2 = p2.inverse().unwrap();
-            p1.mul_assign(&p2); // TODO: add or mul
-            let mut E = E::pairing(self.mpk.g1, self.mpk.g2);
-            E.pow(proof.zv[i].into_repr());
-            p1.mul_assign(&E); //TODO: add or mul
+            let mut g = E::pairing(proof.V[i].1, self.mpk.g2);
+            g.pow(proof.ch.into_repr());
+            g = g.inverse().unwrap();
 
-            print!("{}\n", p1);
+            let mut gx = E::pairing(proof.V[i].0, self.kp.public.X);
+            gx.pow(proof.zx[i].into_repr());
+            g.mul_assign(&gx);
+
+            let mut gy = E::pairing(proof.V[i].0, self.kp.public.Y[0]);
+            gy.pow(proof.zsig[i].into_repr());
+            g.mul_assign(&gy);
+
+            let mut h = E::pairing(proof.V[i].0, self.mpk.g2);
+            h.pow(proof.zv[i].into_repr());
+            g.mul_assign(&h);
+
+            print!("{}\n", g);
             print!("{}\n", proof.a[i]);
-            r2 = r2 && p1 == proof.a[i];
+            r2 = r2 && g == proof.a[i];
         }
         return r2;
     }
@@ -194,6 +209,7 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
     fn verify_part1(&self, proof: &ProofUL<E>) -> bool {
         let mut D = proof.comm.c.clone();
         D.mul_assign(proof.ch);
+        D.negate();
         let mut hzr = self.com.h.clone();
         hzr.mul_assign(proof.zr);
         D.add_assign(&hzr);
@@ -283,7 +299,7 @@ impl<E: Engine> RPPublicParams<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pairing::bls12_381::{Bls12, G2, Fq12, Fr};
+    use pairing::bls12_381::{Bls12, G1, G2, Fq12, Fr};
 
     #[test]
     fn setup_ul_works() {
@@ -302,15 +318,8 @@ mod tests {
         let fr = Fr::rand(rng);
         let proof = params.prove_ul(rng, 10, fr);
         assert_eq!(proof.a.len(), 3);
-        assert_eq!(proof.s.len(), 3);
-        assert_eq!(proof.t.len(), 3);
         assert_eq!(proof.V.len(), 3);
         assert_eq!(proof.zsig.len(), 3);
-        let mut s = proof.s[0].clone();
-        let mut ch = proof.ch.clone();
-        ch.mul_assign(&Fr::from_str(&decompose(10, 2, 4).get(0).unwrap().to_string()).unwrap());
-        s.sub_assign(&ch);
-        assert_eq!(proof.zsig[0], s);
         assert_eq!(proof.zv.len(), 3);
     }
 
@@ -421,5 +430,35 @@ mod tests {
         assert_ne!(Hash::<Bls12>(a2.clone(), D.clone()), Hash::<Bls12>(a.clone(), D.clone()));
         assert_ne!(Hash::<Bls12>(a.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
         assert_ne!(Hash::<Bls12>(a2.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
+    }
+
+    #[test]
+    fn weird_stuff_happening() {
+        let rng = &mut rand::thread_rng();
+        let g1 = G1::rand(rng);
+        let g2 = G2::rand(rng);
+        let mut g = Bls12::pairing(g1, g2);
+        let mut c = Fr::rand(rng);
+        print!("{}\n", c);
+        let mut gprime = Bls12::pairing(g1, g2);
+//        let mut cneg = c.clone();
+//        cneg.negate();
+        let mut cneg = Fr::zero();
+        cneg.sub_assign(&c);
+        let mut zero = cneg.clone();
+        zero.add_assign(&c);
+        assert_eq!(zero, Fr::zero());
+        gprime.pow(cneg.into_repr());
+        g.pow(c.into_repr());
+        let mut gtest = g.clone();
+        let ginv = g.inverse().unwrap();
+        //TODO: this should actually work: assert_eq!(ginv, gprime);
+
+        //TODO: instead this works:
+        gprime.mul_assign(&g);
+        g.square();
+//        cneg.add_assign(&c);
+//        assert_eq!(cneg, Fr::zero());
+        assert_eq!(gprime, g);
     }
 }
