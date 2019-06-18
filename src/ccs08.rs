@@ -10,7 +10,7 @@ extern crate rand;
 use rand::{thread_rng, Rng};
 use super::*;
 use cl::{KeyPair, Signature, PublicParams, setup};
-use ped92::{CSPublicKey, Commitment};
+use ped92::{CSParams, Commitment};
 use pairing::{Engine, CurveProjective};
 use ff::PrimeField;
 use std::collections::HashMap;
@@ -25,7 +25,7 @@ This must be computed in a trusted setup.
 struct ParamsUL<E: Engine> {
     pub mpk: PublicParams<E>,
     pub signatures: HashMap<String, Signature<E>>,
-    pub com: CSPublicKey<E>,
+    pub com: CSParams<E>,
     kp: KeyPair<E>,
     // u determines the amount of signatures we need in the public params.
     // Each signature can be compressed to just 1 field element of 256 bits.
@@ -85,7 +85,7 @@ order to get smaller parameters, at the cost of having worse performance.
             signatures.insert(i.to_string(), sig_i);
         }
 
-        let com = CSPublicKey::setup(rng);
+        let com = CSParams::setup(rng);
         return ParamsUL { mpk, signatures, com, kp, u, l };
     }
 
