@@ -457,8 +457,89 @@ mod tests {
         //TODO: instead this works:
         gprime.mul_assign(&g);
         g.square();
-//        cneg.add_assign(&c);
-//        assert_eq!(cneg, Fr::zero());
+        cneg.add_assign(&c);
+        assert_eq!(cneg, Fr::zero());
         assert_eq!(gprime, g);
+    }
+
+    #[test]
+    fn more_weird_stuff_happening() {
+        let rng = &mut rand::thread_rng();
+        let g1 = G1::rand(rng);
+        let g2 = G2::rand(rng);
+//        let mut g = Bls12::pairing(g1, g2);
+        let mut g = Fq12::rand(rng);
+        let mut c = Fr::rand(rng);
+        print!("{}\n", c);
+        let mut gprime = g.clone();
+        let mut gc = g.clone();
+        gc.pow(c.into_repr());
+        g.mul_assign(&gc);
+
+        c.add_assign(&Fr::one());
+        gprime.pow(c.into_repr());
+
+        //Todo: should: assert_eq!(gprime, g);
+    }
+
+    #[test]
+    fn test_more_weird_stuff_with_bn() {
+        use bn::{Fr, G1, G2, Gt, pairing, SerializableGt};
+        use std::ops::Add;
+        use std::ops::Mul;
+
+        let rng = &mut rand::thread_rng();
+        let g1 = G1::random(rng);
+        let g2 = G2::random(rng);
+        let mut g = pairing(g1, g2);
+        let mut c = Fr::random(rng);
+        let mut gprime = g.clone();
+        let mut gc = g.clone();
+        gc = gc.pow(c);
+        g = g.mul(gc);
+
+        c = c.add(Fr::one());
+        gprime = gprime.pow(c);
+
+        debug_gt_in_hex("", &gprime);
+        debug_gt_in_hex("", &g);
+        assert!(gprime == g);
+    }
+
+    #[test]
+    fn test_weird_stuff_with_bn() {
+        use bn::{Fr, G1, G2, Gt, pairing, SerializableGt};
+        use std::ops::Add;
+        use std::ops::Sub;
+        use std::ops::Mul;
+
+        let rng = &mut rand::thread_rng();
+        let g1 = G1::random(rng);
+        let g2 = G2::random(rng);
+        let mut g = pairing(g1, g2);
+        let mut c = Fr::random(rng);
+        let mut gprime = pairing(g1, g2);
+//        let mut cneg = c.clone();
+//        cneg.negate();
+        let mut cneg = Fr::zero();
+        cneg = cneg.sub(c);
+
+        gprime = gprime.pow(cneg);
+        g = g.pow(c);
+        let mut gtest = g.clone();
+        let ginv = g.inverse();
+
+        debug_gt_in_hex("", &ginv);
+        debug_gt_in_hex("", &gprime);
+        assert!(gprime == ginv);
+    }
+
+    pub fn debug_gt_in_hex(prefix: &str, g: &Gt) {
+        let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
+        print!("{} (hex) = 0x", prefix);
+        for e in encoded.iter() {
+            print!("{:x}", e);
+        }
+        print!("\n");
     }
 }
