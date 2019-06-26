@@ -108,12 +108,12 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         let mut zsig = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut zv = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut D = E::G2::zero();
-        let mut m = E::Fr::rand(rng);
+        let m = E::Fr::rand(rng);
 
         // D = H^m
         let mut hm = self.com.h.clone();
         hm.mul_assign(m);
-        let x1 = for i in 0..self.l as usize {
+        for i in 0..self.l as usize {
             v.push(E::Fr::rand(rng));
             let r2 = E::Fr::rand(rng);
             let signature = self.signatures.get(&decx[i].to_string()).unwrap();
@@ -145,7 +145,7 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
             let mut aux = self.com.g.clone();
             aux.mul_assign(muiti);
             D.add_assign(&aux);
-        };
+        }
         D.add_assign(&hm);
 
         let C = self.com.commit(rng, modx, Some(r));
@@ -237,7 +237,7 @@ fn Hash<E: Engine>(a: Vec<E::Fqk>, D: E::G2) -> E::Fr {
 
     let mut hash_buf: [u8; 64] = [0; 64];
     hash_buf.copy_from_slice(&sha2_digest[0..64]);
-    let mut hexresult = fmt_bytes_to_int(hash_buf);
+    let hexresult = fmt_bytes_to_int(hash_buf);
     let result = E::Fr::from_str(&hexresult);
     return result.unwrap();
 }
@@ -249,7 +249,7 @@ x = sum(xi.u^i), i.e. it returns the decomposition of x into base u.
 fn decompose(x: i64, u: i64, l: i64) -> Vec<i64> {
     let mut result = Vec::with_capacity(l as usize);
     let mut decomposer = x.clone();
-    for i in 0..l {
+    for _i in 0..l {
         result.push(decomposer % u);
         decomposer = decomposer / u;
     }
@@ -276,7 +276,6 @@ impl<E: Engine> RPPublicParams<E> {
         if a > b {
             panic!("a must be less than or equal to b");
         }
-        let p: PublicParams<E>;
         let logb = (b as f64).log10();
         if logb != 0.0 {
             let u = b / logb as i64;
@@ -427,21 +426,21 @@ mod tests {
     #[should_panic(expected = "a must be less than or equal to b")]
     fn setup_wrong_a_and_b() {
         let rng = &mut rand::thread_rng();
-        let public_params = RPPublicParams::<Bls12>::setup(rng, 10, 2);
+        RPPublicParams::<Bls12>::setup(rng, 10, 2);
     }
 
     #[test]
     #[should_panic(expected = "u is zero")]
     fn setup_wrong_b() {
         let rng = &mut rand::thread_rng();
-        let public_params = RPPublicParams::<Bls12>::setup(rng, -1, 0);
+        RPPublicParams::<Bls12>::setup(rng, -1, 0);
     }
 
     #[test]
     #[should_panic(expected = "log(b) is zero")]
     fn setup_wrong_logb() {
         let rng = &mut rand::thread_rng();
-        let public_params = RPPublicParams::<Bls12>::setup(rng, -1, 1);
+        RPPublicParams::<Bls12>::setup(rng, -1, 1);
     }
 
     #[test]
