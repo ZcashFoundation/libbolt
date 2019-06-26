@@ -113,28 +113,30 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         // D = H^m
         let mut hm = self.com.h.clone();
         hm.mul_assign(m);
-        for i in 0..self.l as usize {
+        let x1 = for i in 0..self.l as usize {
             v.push(E::Fr::rand(rng));
-            let r = E::Fr::rand(rng);
-            let mut A = self.signatures.get(&decx[i].to_string()).unwrap().h;
-            let mut B = self.signatures.get(&decx[i].to_string()).unwrap().H;
+            let r2 = E::Fr::rand(rng);
+            let signature = self.signatures.get(&decx[i].to_string()).unwrap();
+            let mut A = signature.h;
+            let mut B = signature.H;
             let mut Aprime = A.clone();
-            A.mul_assign(r);
+            A.mul_assign(r2);
             Aprime.mul_assign(v[i]);
             B.add_assign(&Aprime);
-            B.mul_assign(r);
+            B.mul_assign(r2);
             V.push((A, B));
             s.push(E::Fr::rand(rng));
             let mut gx = E::pairing(V[i].0, self.kp.public.X);
-            gx.pow(s[i].into_repr());
+            gx = gx.pow(s[i].into_repr());
             a.push(gx);
             t.push(E::Fr::rand(rng));
+            assert_eq!(self.kp.public.Y.len(), 1);
             let mut gy = E::pairing(V[i].0, self.kp.public.Y[0]);
-            gy.pow(t[i].into_repr());
+            gy = gy.pow(t[i].into_repr());
             a[i].mul_assign(&gy);
             tt.push(E::Fr::rand(rng));
             let mut h = E::pairing(V[i].0, self.mpk.g2);
-            h.pow(tt[i].into_repr());
+            h = h.pow(tt[i].into_repr());
             a[i].mul_assign(&h);
 
             let ui = self.u.pow(i as u32);
@@ -143,7 +145,7 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
             let mut aux = self.com.g.clone();
             aux.mul_assign(muiti);
             D.add_assign(&aux);
-        }
+        };
         D.add_assign(&hm);
 
         let C = self.com.commit(rng, modx, Some(r));
@@ -159,12 +161,12 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
             let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
             dx.mul_assign(&c);
             zsig[i].add_assign(&dx);
-            zx.push(c.clone());
-            zx[i].add_assign(&s[i]);
+            zx.push(s[i].clone());
+            zx[i].add_assign(&c);
             zv.push(tt[i].clone());
             let mut vic = v[i].clone();
             vic.mul_assign(&c);
-            tt[i].add_assign(&vic);
+            zv[i].add_assign(&vic);
         }
 
         return ProofUL { V, D, comm: C, a, zx, zsig, zv, ch: c, zr };
@@ -183,25 +185,21 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
     fn verify_part2(&self, proof: &ProofUL<E>) -> bool {
         let mut r2 = true;
         for i in 0..self.l as usize {
-            let mut g = E::pairing(proof.V[i].1, self.mpk.g2);
-            g.pow(proof.ch.into_repr());
-            g = g.inverse().unwrap();
-
             let mut gx = E::pairing(proof.V[i].0, self.kp.public.X);
-            gx.pow(proof.zx[i].into_repr());
-            g.mul_assign(&gx);
+            gx = gx.pow(proof.zx[i].into_repr());
 
             let mut gy = E::pairing(proof.V[i].0, self.kp.public.Y[0]);
-            gy.pow(proof.zsig[i].into_repr());
-            g.mul_assign(&gy);
+            gy = gy.pow(proof.zsig[i].into_repr());
+            gx.mul_assign(&gy);
 
             let mut h = E::pairing(proof.V[i].0, self.mpk.g2);
-            h.pow(proof.zv[i].into_repr());
-            g.mul_assign(&h);
+            h = h.pow(proof.zv[i].into_repr());
+            gx.mul_assign(&h);
 
-            print!("{}\n", g);
-            print!("{}\n", proof.a[i]);
-            r2 = r2 && g == proof.a[i];
+            let mut g = E::pairing(proof.V[i].1, self.mpk.g2);
+            g = g.pow(proof.ch.into_repr());
+            g.mul_assign(&proof.a[i]);
+            r2 = r2 && gx == g;
         }
         return r2;
     }
@@ -302,7 +300,7 @@ impl<E: Engine> RPPublicParams<E> {
         let r = E::Fr::rand(rng);
 
         // x - b + ul
-        let xb = x + self.b + ul;
+        let xb = x - self.b + ul;
         let first = self.p.prove_ul(rng, xb, r);
 
         // x - a
@@ -360,7 +358,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn prove_and_verify_part2_ul_works() {
         let rng = &mut rand::thread_rng();
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
@@ -370,7 +367,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn prove_and_verify_ul_works() {
         let rng = &mut rand::thread_rng();
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
@@ -380,11 +376,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn prove_and_verify_works() {
         let rng = &mut rand::thread_rng();
         let params = RPPublicParams::<Bls12>::setup(rng, 2, 25);
-        let fr = Fr::rand(rng);
         let proof = params.prove(rng, 10);
         assert_eq!(params.verify(proof), true);
     }
@@ -467,116 +461,5 @@ mod tests {
         assert_ne!(Hash::<Bls12>(a2.clone(), D.clone()), Hash::<Bls12>(a.clone(), D.clone()));
         assert_ne!(Hash::<Bls12>(a.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
         assert_ne!(Hash::<Bls12>(a2.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
-    }
-
-    #[test]
-    fn weird_stuff_happening() {
-        let rng = &mut rand::thread_rng();
-        let g1 = G1::rand(rng);
-        let g2 = G2::rand(rng);
-        let mut g = Bls12::pairing(g1, g2);
-        let mut c = Fr::rand(rng);
-        print!("{}\n", c);
-        let mut gprime = Bls12::pairing(g1, g2);
-//        let mut cneg = c.clone();
-//        cneg.negate();
-        let mut cneg = Fr::zero();
-        cneg.sub_assign(&c);
-        let mut zero = cneg.clone();
-        zero.add_assign(&c);
-        assert_eq!(zero, Fr::zero());
-        gprime.pow(cneg.into_repr());
-        g.pow(c.into_repr());
-        let mut gtest = g.clone();
-        let ginv = g.inverse().unwrap();
-        //TODO: this should actually work: assert_eq!(ginv, gprime);
-
-        //TODO: instead this works:
-        gprime.mul_assign(&g);
-        g.square();
-        cneg.add_assign(&c);
-        assert_eq!(cneg, Fr::zero());
-        assert_eq!(gprime, g);
-    }
-
-    #[test]
-    fn more_weird_stuff_happening() {
-        let rng = &mut rand::thread_rng();
-        let g1 = G1::rand(rng);
-        let g2 = G2::rand(rng);
-//        let mut g = Bls12::pairing(g1, g2);
-        let mut g = Fq12::rand(rng);
-        let mut c = Fr::rand(rng);
-        print!("{}\n", c);
-        let mut gprime = g.clone();
-        let mut gc = g.clone();
-        gc.pow(c.into_repr());
-        g.mul_assign(&gc);
-
-        c.add_assign(&Fr::one());
-        gprime.pow(c.into_repr());
-
-        //Todo: should: assert_eq!(gprime, g);
-    }
-
-    #[test]
-    fn test_more_weird_stuff_with_bn() {
-        use bn::{Fr, G1, G2, Gt, pairing, SerializableGt};
-        use std::ops::Add;
-        use std::ops::Mul;
-
-        let rng = &mut rand::thread_rng();
-        let g1 = G1::random(rng);
-        let g2 = G2::random(rng);
-        let mut g = pairing(g1, g2);
-        let mut c = Fr::random(rng);
-        let mut gprime = g.clone();
-        let mut gc = g.clone();
-        gc = gc.pow(c);
-        g = g.mul(gc);
-
-        c = c.add(Fr::one());
-        gprime = gprime.pow(c);
-
-        debug_gt_in_hex("", &gprime);
-        debug_gt_in_hex("", &g);
-        assert!(gprime == g);
-    }
-
-    #[test]
-    fn test_weird_stuff_with_bn() {
-        use bn::{Fr, G1, G2, Gt, pairing, SerializableGt};
-        use std::ops::Add;
-        use std::ops::Sub;
-        use std::ops::Mul;
-
-        let rng = &mut rand::thread_rng();
-        let g1 = G1::random(rng);
-        let g2 = G2::random(rng);
-        let mut g = pairing(g1, g2);
-        let mut c = Fr::random(rng);
-        let mut gprime = pairing(g1, g2);
-//        let mut cneg = c.clone();
-//        cneg.negate();
-        let mut cneg = Fr::zero();
-        cneg = cneg.sub(c);
-
-        gprime = gprime.pow(cneg);
-        g = g.pow(c);
-        let mut gtest = g.clone();
-        let ginv = g.inverse();
-
-        debug_gt_in_hex("", &ginv);
-        debug_gt_in_hex("", &gprime);
-        assert!(gprime == ginv);
-    }
-
-    pub fn debug_gt_in_hex(prefix: &str, g: &Gt) {
-        let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
-        print!("{} (hex) = 0x", prefix);
-        for e in encoded.iter() {
-            print!("{:x}", e);
-        }
-        print!("\n");
     }
 }
