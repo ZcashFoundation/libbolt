@@ -1,12 +1,12 @@
 // ped92.rs
 use rand::{thread_rng, Rng};
-use pairing::{Engine, CurveProjective, CurveAffine};
+use pairing::{Engine, CurveProjective};
 use ff::Rand;
 
 #[derive(Clone)]
 pub struct CSParams<E: Engine> {
-    g: E::G2,
-    h: E::G2,
+    pub g: E::G2,
+    pub h: E::G2,
 }
 
 #[derive(Clone)]
@@ -164,8 +164,8 @@ mod tests {
         let r = Fr::rand(rng);
         let c = csp.commit(rng, m1, Some(r));
 
-        assert_eq!(true, csp.decommit(&c, &m1, &r));
-        assert_eq!(false, csp.decommit(&c, &m2, &r));
+        assert_eq!(csp.decommit(&c, &m1, &r), true);
+        assert_eq!(csp.decommit(&c, &m2, &r), false);
     }
 
     #[test]
@@ -181,9 +181,9 @@ mod tests {
         let r = m[0].clone();
         let c = csp.commit(rng, &m, &r);
 
-        assert_eq!(true, csp.decommit(&c, &m, &r));
+        assert_eq!(csp.decommit(&c, &m, &r), true);
         let mut r1 = r.clone();
         r1.add_assign(&Fr::one());
-        assert_eq!(false, csp.decommit(&c, &m, &r1));
+        assert_eq!(csp.decommit(&c, &m, &r1), false);
     }
 }
