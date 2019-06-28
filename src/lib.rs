@@ -41,6 +41,7 @@ extern crate libc;
 
 #[cfg(test)]
 extern crate rand_xorshift;
+extern crate core;
 
 use std::fmt;
 use std::str;

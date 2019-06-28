@@ -93,7 +93,9 @@ order to get smaller parameters, at the cost of having worse performance.
 prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L].
 */
     pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr) -> ProofUL<E> {
-        //TODO: check if x in range
+        if x > self.u.pow(self.l as u32) || x < 0 {
+            panic!("x is not within the range.");
+        }
         let decx = decompose(x, self.u, self.l);
         let modx = E::Fr::from_str(&(x.to_string())).unwrap();
 
@@ -130,7 +132,6 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
             gx = gx.pow(s[i].into_repr());
             a.push(gx);
             t.push(E::Fr::rand(rng));
-            assert_eq!(self.kp.public.Y.len(), 1);
             let mut gy = E::pairing(V[i].0, self.kp.public.Y[0]);
             gy = gy.pow(t[i].into_repr());
             a[i].mul_assign(&gy);
@@ -276,9 +277,10 @@ impl<E: Engine> RPPublicParams<E> {
         if a > b {
             panic!("a must be less than or equal to b");
         }
-        let logb = (b as f64).log10();
+        //TODO: optimize u?
+        let logb = (b as f64).log2();
         if logb != 0.0 {
-            let u = b / logb as i64;
+            let u = (logb / logb.log2()) as i64;
             if u != 0 {
                 let l = (b as f64).log(u as f64).ceil() as i64;
                 let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l);
@@ -295,6 +297,9 @@ impl<E: Engine> RPPublicParams<E> {
         Prove method is responsible for generating the zero knowledge proof.
     */
     pub fn prove<R: Rng>(&self, rng: &mut R, x: i64) -> RangeProof<E> {
+        if x > self.b || x < self.a {
+            panic!("x is not within the range.");
+        }
         let ul = self.p.u.pow(self.p.l as u32);
         let r = E::Fr::rand(rng);
 
@@ -324,6 +329,9 @@ impl<E: Engine> RPPublicParams<E> {
 mod tests {
     use super::*;
     use pairing::bls12_381::{Bls12, G1, G2, Fq12, Fr};
+    use time::PreciseTime;
+    use std::ops::Add;
+    use core::mem;
 
     #[test]
     fn setup_ul_works() {
@@ -338,13 +346,22 @@ mod tests {
     #[test]
     fn prove_ul_works() {
         let rng = &mut rand::thread_rng();
-        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
         let fr = Fr::rand(rng);
         let proof = params.prove_ul(rng, 10, fr);
-        assert_eq!(proof.a.len(), 3);
-        assert_eq!(proof.V.len(), 3);
-        assert_eq!(proof.zsig.len(), 3);
-        assert_eq!(proof.zv.len(), 3);
+        assert_eq!(proof.a.len(), 4);
+        assert_eq!(proof.V.len(), 4);
+        assert_eq!(proof.zsig.len(), 4);
+        assert_eq!(proof.zv.len(), 4);
+    }
+
+    #[test]
+    #[should_panic(expected = "x is not within the range")]
+    fn prove_ul_not_in_range() {
+        let rng = &mut rand::thread_rng();
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
+        let fr = Fr::rand(rng);
+        params.prove_ul(rng, 100, fr);
     }
 
     #[test]
@@ -380,6 +397,50 @@ mod tests {
         let params = RPPublicParams::<Bls12>::setup(rng, 2, 25);
         let proof = params.prove(rng, 10);
         assert_eq!(params.verify(proof), true);
+    }
+
+    #[test]
+    #[should_panic(expected = "x is not within the range")]
+    fn prove_not_in_range() {
+        let rng = &mut rand::thread_rng();
+        let params = RPPublicParams::<Bls12>::setup(rng, 2, 25);
+        let proof = params.prove(rng, 26);
+    }
+
+    #[test]
+    #[ignore]
+    fn prove_and_verify_performance() {
+        let rng = &mut rand::thread_rng();
+        let mut averageSetup = time::Duration::nanoseconds(0);
+        let mut averageSetupSize = 0;
+        let mut averageProve = time::Duration::nanoseconds(0);
+        let mut averageProofSize = 0;
+        let mut averageVerify = time::Duration::nanoseconds(0);
+        let iter = 5;
+        for i in 0..iter {
+            let a = rng.gen_range(0, 1000000);
+            let b = rng.gen_range(a, 1000000);
+            let x = rng.gen_range(a, b);
+
+            let sSetup = PreciseTime::now();
+            let params = RPPublicParams::<Bls12>::setup(rng, a, b);
+            averageSetup = averageSetup.add(sSetup.to(PreciseTime::now()));
+            averageSetupSize += mem::size_of_val(&params);
+
+            let sProve = PreciseTime::now();
+            let proof = params.prove(rng, x);
+            averageProve = averageProve.add(sProve.to(PreciseTime::now()));
+            averageProofSize += mem::size_of_val(&proof);
+
+            let sVerify = PreciseTime::now();
+            params.verify(proof);
+            averageVerify = averageVerify.add(sVerify.to(PreciseTime::now()));
+        }
+        print!("Setup: {}\n", averageSetup.num_milliseconds() / iter);
+        print!("Setup size: {}\n", averageSetupSize / iter as usize);
+        print!("Prove: {}\n", averageProve.num_milliseconds() / iter);
+        print!("Proof size: {}\n", averageProofSize / iter as usize);
+        print!("Verify: {}\n", averageVerify.num_milliseconds() / iter);
     }
 
     #[test]
