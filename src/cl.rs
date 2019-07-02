@@ -5,6 +5,7 @@ extern crate rand;
 
 use super::*;
 use pairing::{CurveAffine, CurveProjective, Engine};
+use ff::PrimeField;
 use rand::Rng;
 
 #[derive(Clone)]
@@ -223,6 +224,24 @@ impl<E: Engine> BlindPublicKey<E>  {
         signature.h != E::G1::one() && lhs == rhs
     }
 
+    /// Verify a proof of knowledge of a signature
+    pub fn verify_proof(&self, mpk: &PublicParams<E>, blindSig: Signature<E>, zx: E::Fr, zsig: Vec<E::Fr>, zv: E::Fr, challenge: E::Fr, a: &E::Fqk) -> bool {
+        let mut gx = E::pairing(blindSig.h, self.X);
+        gx = gx.pow(zx.into_repr());
+        for j in 0..self.Y2.len() {
+            let mut gy = E::pairing(blindSig.h, self.Y2[j]);
+            gy = gy.pow(zsig[j].into_repr());
+            gx.mul_assign(&gy);
+        }
+        let mut h = E::pairing(blindSig.h, mpk.g2);
+        h = h.pow(zv.into_repr());
+        gx.mul_assign(&h);
+        let mut g = E::pairing(blindSig.H, mpk.g2);
+        g = g.pow(challenge.into_repr());
+        g.mul_assign(&a);
+        gx == g
+    }
+
 }
 
 
@@ -299,6 +318,44 @@ impl<E: Engine> BlindKeyPair<E> {
         let t = bf.clone();
         m.push(t);
         self.public.verify(mpk, &m, signature)
+    }
+
+    /// prove knowledge of a signature: commitment phase
+    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, mpk: &PublicParams<E>, signature: &Signature<E>) -> (E::Fr, E::Fr, Vec<E::Fr>, E::Fr, E::Fqk, Signature<E>) {
+        let v1 = E::Fr::rand(rng);
+        let blindSig = self.blind(rng, &v1, signature);
+        let s1 = E::Fr::rand(rng);
+        let mut t1 = Vec::<E::Fr>::with_capacity(self.public.Y2.len());
+        let tt1 = E::Fr::rand(rng);
+        let mut gx = E::pairing(blindSig.h, self.public.X);
+        gx = gx.pow(s1.into_repr());
+        for j in 0..self.public.Y2.len() {
+            t1.push(E::Fr::rand(rng));
+            let mut gy = E::pairing(blindSig.h, self.public.Y2[j]);
+            gy = gy.pow(t1[j].into_repr());
+            gx.mul_assign(&gy);
+        }
+        let mut h = E::pairing(blindSig.h, mpk.g2);
+        h = h.pow(tt1.into_repr());
+        gx.mul_assign(&h);
+        (v1, s1, t1, tt1, gx, blindSig)
+    }
+
+    /// prove knowledge of a signature: response phase
+    pub fn prove_response(&self, v: E::Fr, s: E::Fr, t: &mut Vec<E::Fr>, tt: E::Fr, challenge: E::Fr, message: &mut Vec<E::Fr>) -> (Vec<E::Fr>, E::Fr, E::Fr) {
+        let mut zsig1 = t.clone();
+        for i in 0..zsig1.len() {
+            let mut message1 = message[i];
+            message1.mul_assign(&challenge);
+            zsig1[i].add_assign(&message1);
+        }
+        let mut zx1 = s.clone();
+        zx1.add_assign(&challenge);
+        let mut zv1 = tt.clone();
+        let mut vic = v.clone();
+        vic.mul_assign(&challenge);
+        zv1.add_assign(&vic);
+        (zsig1, zx1, zv1)
     }
 }
 
@@ -388,6 +445,30 @@ mod tests {
         assert_eq!(keypair.verify(&mpk,&message1, &t,&blind_sig), true);
         assert_eq!(keypair.verify(&mpk,&message2, &t,&blind_sig), false);
         assert_eq!(keypair.verify(&mpk,&message1, &t1,&blind_sig), false);
+    }
+
+    #[test]
+    fn proof_of_knowledge_of_signature() {
+        let mut rng = &mut rand::thread_rng();
+
+        let l = 5;
+        let mpk = setup(&mut rng);
+        let keypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+
+        let public_key = keypair.get_public_key(&mpk);
+
+        let mut message1 : Vec<Fr> = Vec::new();
+
+        for i in 0..l {
+            message1.push(Fr::rand(&mut rng));
+        }
+
+        let sig = keypair.sign(&mut rng, &message1);
+        let (v, s, mut t, tt, a, sig) = keypair.prove_commitment(rng, &mpk, &sig);
+        let challenge = Fr::rand(&mut rng);
+        let proof_part2 = keypair.prove_response(v, s, &mut t, tt, challenge, &mut message1);
+
+        assert_eq!(keypair.public.verify_proof(&mpk, sig, proof_part2.1, proof_part2.0, proof_part2.2, challenge, &a), true);
     }
 
 }
