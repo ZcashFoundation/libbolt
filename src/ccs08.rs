@@ -9,7 +9,7 @@ extern crate rand;
 
 use rand::{thread_rng, Rng};
 use super::*;
-use cl::{KeyPair, Signature, PublicParams, setup};
+use cl::{KeyPair, Signature, PublicParams, setup, BlindKeyPair};
 use ped92::{CSParams, Commitment};
 use pairing::{Engine, CurveProjective};
 use ff::PrimeField;
@@ -26,7 +26,7 @@ struct ParamsUL<E: Engine> {
     pub mpk: PublicParams<E>,
     pub signatures: HashMap<String, Signature<E>>,
     pub com: CSParams<E>,
-    kp: KeyPair<E>,
+    kp: BlindKeyPair<E>,
     // u determines the amount of signatures we need in the public params.
     // Each signature can be compressed to just 1 field element of 256 bits.
     // Then the parameters have minimum size equal to 256*u bits.
@@ -77,7 +77,7 @@ order to get smaller parameters, at the cost of having worse performance.
 */
     pub fn setup_ul<R: Rng>(rng: &mut R, u: i64, l: i64) -> Self {
         let mpk = setup(rng);
-        let kp = KeyPair::<E>::generate(rng, &mpk, 1);
+        let kp = BlindKeyPair::<E>::generate(rng, &mpk, 1);
 
         let mut signatures: HashMap<String, Signature<E>> = HashMap::new();
         for i in 0..u {
@@ -117,28 +117,24 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             v.push(E::Fr::rand(rng));
-            let r2 = E::Fr::rand(rng);
-            let signature = self.signatures.get(&decx[i].to_string()).unwrap();
-            let mut A = signature.h;
-            let mut B = signature.H;
-            let mut Aprime = A.clone();
-            A.mul_assign(r2);
-            Aprime.mul_assign(v[i]);
-            B.add_assign(&Aprime);
-            B.mul_assign(r2);
-            V.push((A, B));
             s.push(E::Fr::rand(rng));
-            let mut gx = E::pairing(V[i].0, self.kp.public.X);
-            gx = gx.pow(s[i].into_repr());
-            a.push(gx);
             t.push(E::Fr::rand(rng));
-            let mut gy = E::pairing(V[i].0, self.kp.public.Y[0]);
-            gy = gy.pow(t[i].into_repr());
-            a[i].mul_assign(&gy);
             tt.push(E::Fr::rand(rng));
-            let mut h = E::pairing(V[i].0, self.mpk.g2);
+            let signature = self.signatures.get(&decx[i].to_string()).unwrap();
+            let blindSig = self.kp.blind(rng, &v[i], signature);
+            let mut gx = E::pairing(blindSig.h, self.kp.public.X);
+            gx = gx.pow(s[i].into_repr());
+            for j in 0..self.kp.public.Y2.len() {
+                let mut gy = E::pairing(blindSig.h, self.kp.public.Y2[j]);
+                gy = gy.pow(t[i].into_repr());
+                gx.mul_assign(&gy);
+            }
+            let mut h = E::pairing(blindSig.h, self.mpk.g2);
             h = h.pow(tt[i].into_repr());
-            a[i].mul_assign(&h);
+            gx.mul_assign(&h);
+
+            V.push((blindSig.h, blindSig.H));
+            a.push(gx);
 
             let ui = self.u.pow(i as u32);
             let mut muiti = t[i].clone();
@@ -158,19 +154,29 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         rc.mul_assign(&c);
         zr.add_assign(&rc);
         for i in 0..self.l as usize {
-            zsig.push(t[i].clone());
             let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
-            dx.mul_assign(&c);
-            zsig[i].add_assign(&dx);
-            zx.push(s[i].clone());
-            zx[i].add_assign(&c);
-            zv.push(tt[i].clone());
-            let mut vic = v[i].clone();
-            vic.mul_assign(&c);
-            zv[i].add_assign(&vic);
+
+            let (zsig1, zx1, zv1) = <ParamsUL<E>>::proof_sig_response(v[i], s[i], t[i], tt[i], c, &mut dx);
+
+            zv.push(zv1);
+            zx.push(zx1);
+            zsig.push(zsig1);
         }
 
         return ProofUL { V, D, comm: C, a, zx, zsig, zv, ch: c, zr };
+    }
+
+    fn proof_sig_response(v: E::Fr, s: E::Fr, t: E::Fr, tt: E::Fr, c: E::Fr, message: &mut E::Fr) -> (E::Fr, E::Fr, E::Fr) {
+        let mut zsig1 = t.clone();
+        message.mul_assign(&c);
+        zsig1.add_assign(&message);
+        let mut zx1 = s.clone();
+        zx1.add_assign(&c);
+        let mut zv1 = tt.clone();
+        let mut vic = v.clone();
+        vic.mul_assign(&c);
+        zv1.add_assign(&vic);
+        (zsig1, zx1, zv1)
     }
 
     /*
@@ -186,23 +192,35 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
     fn verify_part2(&self, proof: &ProofUL<E>) -> bool {
         let mut r2 = true;
         for i in 0..self.l as usize {
-            let mut gx = E::pairing(proof.V[i].0, self.kp.public.X);
-            gx = gx.pow(proof.zx[i].into_repr());
+            let blindSig = proof.V[i];
+            let zx = proof.zx[i];
+            let zsig = proof.zsig[i];
+            let zv = proof.zv[i];
+            let challenge = proof.ch;
+            let a = proof.a[i];
 
-            let mut gy = E::pairing(proof.V[i].0, self.kp.public.Y[0]);
-            gy = gy.pow(proof.zsig[i].into_repr());
-            gx.mul_assign(&gy);
+            let subResult = self.verify_sig(blindSig, zx, zsig, zv, challenge, &a);
 
-            let mut h = E::pairing(proof.V[i].0, self.mpk.g2);
-            h = h.pow(proof.zv[i].into_repr());
-            gx.mul_assign(&h);
-
-            let mut g = E::pairing(proof.V[i].1, self.mpk.g2);
-            g = g.pow(proof.ch.into_repr());
-            g.mul_assign(&proof.a[i]);
-            r2 = r2 && gx == g;
+            r2 = r2 && subResult;
         }
-        return r2;
+        r2
+    }
+
+    fn verify_sig(&self, blindSig: (E::G1, E::G1), zx: E::Fr, zsig: E::Fr, zv: E::Fr, challenge: E::Fr, a: &E::Fqk) -> bool {
+        let mut gx = E::pairing(blindSig.0, self.kp.public.X);
+        gx = gx.pow(zx.into_repr());
+        for y in self.kp.public.Y2.iter() {
+            let mut gy = E::pairing(blindSig.0, *y);
+            gy = gy.pow(zsig.into_repr());
+            gx.mul_assign(&gy);
+        }
+        let mut h = E::pairing(blindSig.0, self.mpk.g2);
+        h = h.pow(zv.into_repr());
+        gx.mul_assign(&h);
+        let mut g = E::pairing(blindSig.1, self.mpk.g2);
+        g = g.pow(challenge.into_repr());
+        g.mul_assign(&a);
+        gx == g
     }
 
     fn verify_part1(&self, proof: &ProofUL<E>) -> bool {
@@ -279,17 +297,17 @@ impl<E: Engine> RPPublicParams<E> {
         }
         //TODO: optimize u?
         let logb = (b as f64).log2();
-        if logb != 0.0 {
-            let u = (logb / logb.log2()) as i64;
-            if u != 0 {
-                let l = (b as f64).log(u as f64).ceil() as i64;
-                let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l);
-                return RPPublicParams { p: params_out, a, b };
-            } else {
-                panic!("u is zero");
+        let loglogb = logb.log2();
+        if loglogb > 0.0 {
+            let mut u = (logb / loglogb) as i64;
+            if u < 2 {
+                u = 2;
             }
+            let l = (b as f64).log(u as f64).ceil() as i64;
+            let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l);
+            return RPPublicParams { p: params_out, a, b };
         } else {
-            panic!("log(b) is zero");
+            panic!("log(log(b)) is zero");
         }
     }
 
@@ -339,7 +357,7 @@ mod tests {
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
         assert_eq!(params.signatures.len(), 2);
         for (m, s) in params.signatures {
-            assert_eq!(params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s), true);
+            assert_eq!(params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &Fr::zero(),&s), true);
         }
     }
 
@@ -475,11 +493,11 @@ mod tests {
         let public_params = RPPublicParams::<Bls12>::setup(rng, 2, 10);
         assert_eq!(public_params.a, 2);
         assert_eq!(public_params.b, 10);
-        assert_eq!(public_params.p.signatures.len(), 10);
-        assert_eq!(public_params.p.u, 10 / ((10 as f64).log10() as i64));
-        assert_eq!(public_params.p.l, ((10 / (10 / ((10 as f64).log10() as i64))) as f64).ceil() as i64);
+        assert_eq!(public_params.p.signatures.len(), 2);
+        assert_eq!(public_params.p.u, 2);
+        assert_eq!(public_params.p.l, 4);
         for (m, s) in public_params.p.signatures {
-            assert_eq!(public_params.p.kp.verify(&public_params.p.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s), true);
+            assert_eq!(public_params.p.kp.verify(&public_params.p.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &Fr::zero(),&s), true);
         }
     }
 
@@ -491,17 +509,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "u is zero")]
-    fn setup_wrong_b() {
-        let rng = &mut rand::thread_rng();
-        RPPublicParams::<Bls12>::setup(rng, -1, 0);
-    }
-
-    #[test]
-    #[should_panic(expected = "log(b) is zero")]
+    #[should_panic(expected = "log(log(b)) is zero")]
     fn setup_wrong_logb() {
         let rng = &mut rand::thread_rng();
-        RPPublicParams::<Bls12>::setup(rng, -1, 1);
+        RPPublicParams::<Bls12>::setup(rng, -2, -1);
     }
 
     #[test]
