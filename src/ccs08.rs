@@ -47,7 +47,7 @@ struct ProofUL<E: Engine> {
     comm: Commitment<E>,
     a: Vec<E::Fqk>,
     zx: Vec<E::Fr>,
-    zsig: Vec<E::Fr>,
+    zsig: Vec<Vec<E::Fr>>,
     zv: Vec<E::Fr>,
     ch: E::Fr,
     zr: E::Fr,
@@ -104,10 +104,10 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         let mut V = Vec::<(E::G1, E::G1)>::with_capacity(self.l as usize);
         let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
         let mut s = Vec::<E::Fr>::with_capacity(self.l as usize);
-        let mut t = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut t = Vec::<Vec<E::Fr>>::with_capacity(self.l as usize);
         let mut tt = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut zx = Vec::<E::Fr>::with_capacity(self.l as usize);
-        let mut zsig = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut zsig = Vec::<Vec<E::Fr>>::with_capacity(self.l as usize);
         let mut zv = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut D = E::G2::zero();
         let m = E::Fr::rand(rng);
@@ -116,31 +116,23 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         let mut hm = self.com.h.clone();
         hm.mul_assign(m);
         for i in 0..self.l as usize {
-            v.push(E::Fr::rand(rng));
-            s.push(E::Fr::rand(rng));
-            t.push(E::Fr::rand(rng));
-            tt.push(E::Fr::rand(rng));
             let signature = self.signatures.get(&decx[i].to_string()).unwrap();
-            let blindSig = self.kp.blind(rng, &v[i], signature);
-            let mut gx = E::pairing(blindSig.h, self.kp.public.X);
-            gx = gx.pow(s[i].into_repr());
-            for j in 0..self.kp.public.Y2.len() {
-                let mut gy = E::pairing(blindSig.h, self.kp.public.Y2[j]);
-                gy = gy.pow(t[i].into_repr());
-                gx.mul_assign(&gy);
-            }
-            let mut h = E::pairing(blindSig.h, self.mpk.g2);
-            h = h.pow(tt[i].into_repr());
-            gx.mul_assign(&h);
+            let (v1, s1, t1, tt1, gx, V1) = self.proof_sig_commitment(rng, &signature);
 
-            V.push((blindSig.h, blindSig.H));
+            s.push(s1);
+            t.push(t1);
+            v.push(v1);
+            tt.push(tt1);
+            V.push(V1);
             a.push(gx);
 
             let ui = self.u.pow(i as u32);
-            let mut muiti = t[i].clone();
-            muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
             let mut aux = self.com.g.clone();
-            aux.mul_assign(muiti);
+            for j in 0..self.kp.public.Y2.len() {
+                let mut muiti = t[i][j].clone();
+                muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
+                aux.mul_assign(muiti);
+            }
             D.add_assign(&aux);
         }
         D.add_assign(&hm);
@@ -156,7 +148,7 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         for i in 0..self.l as usize {
             let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
 
-            let (zsig1, zx1, zv1) = <ParamsUL<E>>::proof_sig_response(v[i], s[i], t[i], tt[i], c, &mut dx);
+            let (zsig1, zx1, zv1) = <ParamsUL<E>>::proof_sig_response(v[i], s[i], &mut t[i], tt[i], c, &mut dx);
 
             zv.push(zv1);
             zx.push(zx1);
@@ -166,10 +158,32 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         return ProofUL { V, D, comm: C, a, zx, zsig, zv, ch: c, zr };
     }
 
-    fn proof_sig_response(v: E::Fr, s: E::Fr, t: E::Fr, tt: E::Fr, c: E::Fr, message: &mut E::Fr) -> (E::Fr, E::Fr, E::Fr) {
+    fn proof_sig_commitment<R: Rng>(&self, rng: &mut R, signature: &Signature<E>) -> (E::Fr, E::Fr, Vec<E::Fr>, E::Fr, E::Fqk, (E::G1, E::G1)) {
+        let v1 = E::Fr::rand(rng);
+        let blindSig = self.kp.blind(rng, &v1, signature);
+        let s1 = E::Fr::rand(rng);
+        let mut t1 = Vec::<E::Fr>::with_capacity(self.kp.public.Y2.len());
+        let tt1 = E::Fr::rand(rng);
+        let mut gx = E::pairing(blindSig.h, self.kp.public.X);
+        gx = gx.pow(s1.into_repr());
+        for j in 0..self.kp.public.Y2.len() {
+            t1.push(E::Fr::rand(rng));
+            let mut gy = E::pairing(blindSig.h, self.kp.public.Y2[j]);
+            gy = gy.pow(t1[j].into_repr());
+            gx.mul_assign(&gy);
+        }
+        let mut h = E::pairing(blindSig.h, self.mpk.g2);
+        h = h.pow(tt1.into_repr());
+        gx.mul_assign(&h);
+        (v1, s1, t1, tt1, gx, (blindSig.h, blindSig.H))
+    }
+
+    fn proof_sig_response(v: E::Fr, s: E::Fr, t: &mut Vec<E::Fr>, tt: E::Fr, c: E::Fr, message: &mut E::Fr) -> (Vec<E::Fr>, E::Fr, E::Fr) {
         let mut zsig1 = t.clone();
-        message.mul_assign(&c);
-        zsig1.add_assign(&message);
+        for zsig in &mut zsig1 {
+            message.mul_assign(&c);
+            zsig.add_assign(&message);
+        }
         let mut zx1 = s.clone();
         zx1.add_assign(&c);
         let mut zv1 = tt.clone();
@@ -194,7 +208,7 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
         for i in 0..self.l as usize {
             let blindSig = proof.V[i];
             let zx = proof.zx[i];
-            let zsig = proof.zsig[i];
+            let zsig = proof.zsig[i].clone();
             let zv = proof.zv[i];
             let challenge = proof.ch;
             let a = proof.a[i];
@@ -206,12 +220,12 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
         r2
     }
 
-    fn verify_sig(&self, blindSig: (E::G1, E::G1), zx: E::Fr, zsig: E::Fr, zv: E::Fr, challenge: E::Fr, a: &E::Fqk) -> bool {
+    fn verify_sig(&self, blindSig: (E::G1, E::G1), zx: E::Fr, zsig: Vec<E::Fr>, zv: E::Fr, challenge: E::Fr, a: &E::Fqk) -> bool {
         let mut gx = E::pairing(blindSig.0, self.kp.public.X);
         gx = gx.pow(zx.into_repr());
-        for y in self.kp.public.Y2.iter() {
-            let mut gy = E::pairing(blindSig.0, *y);
-            gy = gy.pow(zsig.into_repr());
+        for j in 0..self.kp.public.Y2.len() {
+            let mut gy = E::pairing(blindSig.0, self.kp.public.Y2[j]);
+            gy = gy.pow(zsig[j].into_repr());
             gx.mul_assign(&gy);
         }
         let mut h = E::pairing(blindSig.0, self.mpk.g2);
@@ -230,12 +244,14 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
         let mut hzr = self.com.h.clone();
         hzr.mul_assign(proof.zr);
         D.add_assign(&hzr);
-        for i in 0..self.l {
+        for i in 0..self.l as usize {
             let ui = self.u.pow(i as u32);
-            let mut muizsigi = proof.zsig[i as usize];
-            muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
             let mut aux = self.com.g.clone();
-            aux.mul_assign(muizsigi);
+            for j in 0..self.kp.public.Y2.len() {
+                let mut muizsigi = proof.zsig[i][j];
+                muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
+                aux.mul_assign(muizsigi);
+            }
             D.add_assign(&aux);
         }
         return D == proof.D;
@@ -357,7 +373,7 @@ mod tests {
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
         assert_eq!(params.signatures.len(), 2);
         for (m, s) in params.signatures {
-            assert_eq!(params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &Fr::zero(),&s), true);
+            assert_eq!(params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &Fr::zero(), &s), true);
         }
     }
 
@@ -497,7 +513,7 @@ mod tests {
         assert_eq!(public_params.p.u, 2);
         assert_eq!(public_params.p.l, 4);
         for (m, s) in public_params.p.signatures {
-            assert_eq!(public_params.p.kp.verify(&public_params.p.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &Fr::zero(),&s), true);
+            assert_eq!(public_params.p.kp.verify(&public_params.p.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &Fr::zero(), &s), true);
         }
     }
 
