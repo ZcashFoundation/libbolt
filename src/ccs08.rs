@@ -9,7 +9,7 @@ extern crate rand;
 
 use rand::{thread_rng, Rng};
 use super::*;
-use cl::{KeyPair, Signature, PublicParams, setup, BlindKeyPair};
+use cl::{KeyPair, Signature, PublicParams, setup, BlindKeyPair, ProofState, Proof};
 use ped92::{CSParams, Commitment};
 use pairing::{Engine, CurveProjective};
 use ff::PrimeField;
@@ -45,10 +45,7 @@ struct ProofUL<E: Engine> {
     V: Vec<Signature<E>>,
     D: E::G2,
     comm: Commitment<E>,
-    a: Vec<E::Fqk>,
-    zx: Vec<E::Fr>,
-    zsig: Vec<Vec<E::Fr>>,
-    zv: Vec<E::Fr>,
+    sigProofs: Vec<Proof<E>>,
     ch: E::Fr,
     zr: E::Fr,
 }
@@ -104,15 +101,9 @@ impl<E: Engine> ParamsUL<E> {
         let modx = E::Fr::from_str(&(x.to_string())).unwrap();
 
         // Initialize variables
-        let mut v = Vec::<E::Fr>::with_capacity(self.l as usize);
+        let mut proofStates = Vec::<ProofState<E>>::with_capacity(self.l as usize);
+        let mut sigProofs = Vec::<Proof<E>>::with_capacity(self.l as usize);
         let mut V = Vec::<Signature<E>>::with_capacity(self.l as usize);
-        let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
-        let mut s = Vec::<E::Fr>::with_capacity(self.l as usize);
-        let mut t = Vec::<Vec<E::Fr>>::with_capacity(self.l as usize);
-        let mut tt = Vec::<E::Fr>::with_capacity(self.l as usize);
-        let mut zx = Vec::<E::Fr>::with_capacity(self.l as usize);
-        let mut zsig = Vec::<Vec<E::Fr>>::with_capacity(self.l as usize);
-        let mut zv = Vec::<E::Fr>::with_capacity(self.l as usize);
         let mut D = E::G2::zero();
         let m = E::Fr::rand(rng);
 
@@ -121,19 +112,15 @@ impl<E: Engine> ParamsUL<E> {
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             let signature = self.signatures.get(&decx[i].to_string()).unwrap();
-            let (v1, s1, t1, tt1, gx, V1) = self.kp.prove_commitment(rng, &self.mpk, &signature);
+            let proofState = self.kp.prove_commitment(rng, &self.mpk, &signature);
 
-            s.push(s1);
-            t.push(t1);
-            v.push(v1);
-            tt.push(tt1);
-            V.push(V1);
-            a.push(gx);
+            V.push(proofState.blindSig.clone());
+            proofStates.push(proofState);
 
             let ui = self.u.pow(i as u32);
             let mut aux = self.com.g.clone();
             for j in 0..self.kp.public.Y2.len() {
-                let mut muiti = t[i][j].clone();
+                let mut muiti = proofStates[i].t[j].clone();
                 muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
                 aux.mul_assign(muiti);
             }
@@ -143,7 +130,7 @@ impl<E: Engine> ParamsUL<E> {
 
         let C = self.com.commit(rng, modx, Some(r));
         // Fiat-Shamir heuristic
-        let c = Hash::<E>(a.clone(), D.clone());
+        let c = hash::<E>(proofStates.clone(), D.clone());
 
         let mut zr = m.clone();
         let mut rc = r.clone();
@@ -152,14 +139,12 @@ impl<E: Engine> ParamsUL<E> {
         for i in 0..self.l as usize {
             let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
 
-            let (zsig1, zx1, zv1) = self.kp.prove_response(v[i], s[i], &mut t[i], tt[i], c, &mut vec!{dx});
+            let proof = self.kp.prove_response(proofStates[i].clone(), c, &mut vec!{dx});
 
-            zv.push(zv1);
-            zx.push(zx1);
-            zsig.push(zsig1);
+            sigProofs.push(proof);
         }
 
-        return ProofUL { V, D, comm: C, a, zx, zsig, zv, ch: c, zr };
+        return ProofUL { V, D, comm: C, sigProofs, ch: c, zr };
     }
 
     /**
@@ -175,14 +160,7 @@ impl<E: Engine> ParamsUL<E> {
     fn verify_part2(&self, proof: &ProofUL<E>) -> bool {
         let mut r2 = true;
         for i in 0..self.l as usize {
-            let blindSig = proof.V[i].clone();
-            let zx = proof.zx[i];
-            let zsig = proof.zsig[i].clone();
-            let zv = proof.zv[i];
-            let challenge = proof.ch;
-            let a = proof.a[i];
-
-            let subResult = self.kp.public.verify_proof(&self.mpk, blindSig, zx, zsig, zv, challenge, &a);
+            let subResult = self.kp.public.verify_proof(&self.mpk, proof.V[i].clone(), proof.sigProofs[i].clone(), proof.ch);
 
             r2 = r2 && subResult;
         }
@@ -200,7 +178,7 @@ impl<E: Engine> ParamsUL<E> {
             let ui = self.u.pow(i as u32);
             let mut aux = self.com.g.clone();
             for j in 0..self.kp.public.Y2.len() {
-                let mut muizsigi = proof.zsig[i][j];
+                let mut muizsigi = proof.sigProofs[i].zsig[j];
                 muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
                 aux.mul_assign(muizsigi);
             }
@@ -210,11 +188,11 @@ impl<E: Engine> ParamsUL<E> {
     }
 }
 
-fn Hash<E: Engine>(a: Vec<E::Fqk>, D: E::G2) -> E::Fr {
+fn hash<E: Engine>(a: Vec<ProofState<E>>, D: E::G2) -> E::Fr {
     // create a Sha256 object
     let mut a_vec: Vec<u8> = Vec::new();
     for a_el in a {
-        a_vec.extend(format!("{}", a_el).bytes());
+        a_vec.extend(format!("{}", a_el.a).bytes());
     }
 
     let mut x_vec: Vec<u8> = Vec::new();
@@ -335,10 +313,8 @@ mod tests {
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
         let fr = Fr::rand(rng);
         let proof = params.prove_ul(rng, 10, fr);
-        assert_eq!(proof.a.len(), 4);
         assert_eq!(proof.V.len(), 4);
-        assert_eq!(proof.zsig.len(), 4);
-        assert_eq!(proof.zv.len(), 4);
+        assert_eq!(proof.sigProofs.len(), 4);
     }
 
     #[test]
@@ -494,11 +470,21 @@ mod tests {
         let rng = &mut rand::thread_rng();
         let D = G2::rand(rng);
         let D2 = G2::rand(rng);
-        let a = vec! {Fq12::rand(rng), Fq12::rand(rng), Fq12::rand(rng)};
-        let a2 = vec! {Fq12::rand(rng), Fq12::rand(rng), Fq12::rand(rng)};
-        assert_eq!(Hash::<Bls12>(a.clone(), D.clone()).is_zero(), false);
-        assert_ne!(Hash::<Bls12>(a2.clone(), D.clone()), Hash::<Bls12>(a.clone(), D.clone()));
-        assert_ne!(Hash::<Bls12>(a.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
-        assert_ne!(Hash::<Bls12>(a2.clone(), D2.clone()), Hash::<Bls12>(a.clone(), D.clone()));
+        let params = setup(rng);
+        let kp = BlindKeyPair::generate(rng, &params, 2);
+        let m1 = Fr::rand(rng);
+        let m2 = Fr::rand(rng);
+        let sig = kp.sign(rng, &vec! {m1, m2});
+        let state = kp.prove_commitment(rng, &params, &sig);
+        let state1 = kp.prove_commitment(rng, &params, &sig);
+        let state2 = kp.prove_commitment(rng, &params, &sig);
+        let state3 = kp.prove_commitment(rng, &params, &sig);
+        let state4 = kp.prove_commitment(rng, &params, &sig);
+        let a = vec! {state, state1, state2};
+        let a2 = vec! {state3, state4};
+        assert_eq!(hash::<Bls12>(a.clone(), D.clone()).is_zero(), false);
+        assert_ne!(hash::<Bls12>(a2.clone(), D.clone()), hash::<Bls12>(a.clone(), D.clone()));
+        assert_ne!(hash::<Bls12>(a.clone(), D2.clone()), hash::<Bls12>(a.clone(), D.clone()));
+        assert_ne!(hash::<Bls12>(a2.clone(), D2.clone()), hash::<Bls12>(a.clone(), D.clone()));
     }
 }
