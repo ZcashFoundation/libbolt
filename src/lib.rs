@@ -70,6 +70,8 @@ pub mod commit_scheme;
 pub mod ped92;
 pub mod clproto;
 pub mod serialization_wrappers;
+pub mod nizk;
+pub mod util;
 
 const E_MIN: i32 = 1;
 const E_MAX: i32 = 255; // TODO: should be 2^32 - 1
