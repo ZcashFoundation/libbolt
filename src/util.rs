@@ -5,11 +5,7 @@ use ff::PrimeField;
 pub fn hash_g2_to_fr<E: Engine>(x: &E::G2) -> E::Fr {
     let mut x_vec: Vec<u8> = Vec::new();
     x_vec.extend(format!("{}", x).bytes());
-    let sha2_digest = sha512::hash(x_vec.as_slice());
-
-    let mut hash_buf: [u8; 64] = [0; 64];
-    hash_buf.copy_from_slice(&sha2_digest[0..64]);
-    return E::Fr::from_str(&fmt_bytes_to_int(hash_buf)).unwrap();
+    hash_to_fr::<E>(x_vec)
 }
 
 pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
@@ -21,6 +17,15 @@ pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
         result = result + &format!("{}", *byte as u8);
     }
     result.to_string()
+}
+
+pub fn hash_to_fr<E: Engine>(mut byteVec: Vec<u8>) -> E::Fr {
+    let sha2_digest = sha512::hash(byteVec.as_slice());
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    let hexresult = fmt_bytes_to_int(hash_buf);
+    let result = E::Fr::from_str(&hexresult);
+    return result.unwrap();
 }
 
 
@@ -35,8 +40,17 @@ mod tests {
     fn hash_g2_to_fr_works() {
         let mut two = G2::one();
         two.double();
-        print!("{}\n", hash_g2_to_fr::<Bls12>(&two));
         assert_eq!(format!("{}", hash_g2_to_fr::<Bls12>(&two).into_repr()),
+                   "0x27cd26f702a777dbf782534ae6bf2ec4aa6cb4617c8366f10f59bef13beb8c56");
+    }
+
+    #[test]
+    fn hash_to_fr_works() {
+        let mut two = G2::one();
+        two.double();
+        let mut x_vec: Vec<u8> = Vec::new();
+        x_vec.extend(format!("{}", two).bytes());
+        assert_eq!(format!("{}", hash_to_fr::<Bls12>(x_vec).into_repr()),
                    "0x27cd26f702a777dbf782534ae6bf2ec4aa6cb4617c8366f10f59bef13beb8c56");
     }
 
