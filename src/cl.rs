@@ -364,7 +364,7 @@ impl<E: Engine> BlindKeyPair<E> {
 
     /// prove knowledge of a signature: response phase
     /// returns a proof that can be send to the verifier together with the challenge and the blind signature
-    pub fn prove_response(&self, ps: ProofState<E>, challenge: E::Fr, message: &mut Vec<E::Fr>) -> SignatureProof<E> {
+    pub fn prove_response(&self, ps: &ProofState<E>, challenge: E::Fr, message: &mut Vec<E::Fr>) -> SignatureProof<E> {
         let mut zsig = ps.t.clone();
         for i in 0..zsig.len() {
             let mut message1 = message[i];
@@ -488,7 +488,7 @@ mod tests {
         let sig = keypair.sign(&mut rng, &message1);
         let proof_state = keypair.prove_commitment(rng, &mpk, &sig);
         let challenge = Fr::rand(&mut rng);
-        let proof = keypair.prove_response(proof_state.clone(), challenge, &mut message1);
+        let proof = keypair.prove_response(&proof_state.clone(), challenge, &mut message1);
 
         assert_eq!(keypair.public.verify_proof(&mpk, proof_state.blindSig, proof, challenge), true);
     }

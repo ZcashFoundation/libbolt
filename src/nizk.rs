@@ -9,6 +9,7 @@ use util::hash_g2_to_fr;
 
 #[derive(Clone)]
 struct Proof<E: Engine> {
+    sig: Signature<E>,
     sigProof: SignatureProof<E>,
     T: E::G1,
     z: Vec<E::Fr>
@@ -20,16 +21,16 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, com1: &Commitment<E>, com2: &Commitment
     let proofState = kp.prove_commitment(rng, &mpk, &paymentToken);
     let mut challenge = E::Fr::one();
     challenge.double();
-    let sigProof = kp.prove_response(proofState, challenge, &mut vec! {hash_g2_to_fr::<E>(&com1.c)});
+    let sigProof = kp.prove_response(&proofState, challenge, &mut vec! {hash_g2_to_fr::<E>(&com1.c)});
 
-    Proof {sigProof, T: E::G1::rand(rng), z: vec!{}}
+    Proof {sig: proofState.blindSig, sigProof, T: E::G1::rand(rng), z: vec!{}}
 }
 
 fn verify<E: Engine>(proof: Proof<E>, epsilon: E::Fr, com1: &Commitment<E>, com2: &Commitment<E>,
                      paymentToken: &Signature<E>, wpk: E::Fr, mpk: &PublicParams<E>, pk: &BlindPublicKey<E>) -> bool {
     let mut challenge = E::Fr::one();
     challenge.double();
-    pk.verify_proof(&mpk, paymentToken.clone(), proof.sigProof, challenge)
+    pk.verify_proof(&mpk, proof.sig, proof.sigProof, challenge)
 }
 
 #[cfg(test)]
@@ -38,7 +39,6 @@ mod tests {
     use pairing::bls12_381::{Bls12, G1, G2, Fq12, Fr};
 
     #[test]
-    #[ignore]
     fn nizk_proof_works() {
         let rng = &mut rand::thread_rng();
         let pkc = Fr::rand(rng);

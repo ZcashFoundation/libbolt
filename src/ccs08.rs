@@ -140,7 +140,7 @@ impl<E: Engine> ParamsUL<E> {
         for i in 0..self.l as usize {
             let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
 
-            let proof = self.kp.prove_response(proofStates[i].clone(), c, &mut vec!{dx});
+            let proof = self.kp.prove_response(&proofStates[i].clone(), c, &mut vec!{dx});
 
             sigProofs.push(proof);
         }
