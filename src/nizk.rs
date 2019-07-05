@@ -29,8 +29,7 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, com1: &Co
     h.mul_assign(t2);
     T.add_assign(&h);
     let proofState = kp.prove_commitment(rng, &mpk, &paymentToken);
-    let mut challenge = E::Fr::one();
-    challenge.double();
+    let challenge = hash::<E>(proofState.a, T);
     let sigProof = kp.prove_response(&proofState, challenge, &mut vec! {hash_g2_to_fr::<E>(&com1.c)});
 
     let mut z1 = newWallet[2].clone();
@@ -46,8 +45,7 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, com1: &Co
 
 fn verify<E: Engine>(proof: Proof<E>, epsilon: E::Fr, com1: &Commitment<E>, com2: &Commitment<E>,
                      paymentToken: &Signature<E>, wpk: E::Fr, comParams: &CSMultiParams<E>, mpk: &PublicParams<E>, pk: &BlindPublicKey<E>) -> bool {
-    let mut challenge = E::Fr::one();
-    challenge.double();
+    let challenge = hash::<E>(proof.sigProof.a, proof.T);
 
     let mut gWpk = comParams.pub_bases[2].clone();
     let mut minWpk = wpk.clone();
@@ -78,6 +76,14 @@ fn verify<E: Engine>(proof: Proof<E>, epsilon: E::Fr, com1: &Commitment<E>, com2
     let r = pk.verify_proof(&mpk, proof.sig, proof.sigProof, challenge);
 
     r && commitment == g2
+}
+
+fn hash<E: Engine>(a: E::Fqk, T: E::G2) -> E::Fr {
+    let mut x_vec: Vec<u8> = Vec::new();
+    x_vec.extend(format!("{}", a).bytes());
+    x_vec.extend(format!("{}", T).bytes());
+
+    util::hash_to_fr::<E>(x_vec)
 }
 
 #[cfg(test)]
