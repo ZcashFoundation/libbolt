@@ -107,43 +107,41 @@ decommit(csp, cm, msg) -> bool where
 impl<E: Engine> CSMultiParams<E> {
     /*
     Implements the setup algorithm for the Pedersen92 commitment scheme over
-    a vector of messages.
+    a vector of messages of length len.
     */
     pub fn setup_gen_params<R: Rng>(rng: &mut R, len: usize) -> Self {
         let mut p: Vec<E::G2> = Vec::new();
-        for i in 0..len {
+        //1 more base element for the randomness
+        for i in 0..len + 1 {
             p.push(E::G2::rand(rng));
         }
         return CSMultiParams { pub_bases: p };
     }
 
-    pub fn commit<R: Rng>(&self, rng: &mut R, x: &Vec<E::Fr>, r: &E::Fr) -> Commitment<E> {
-        //let r = R.unwrap_or(Fr::random(rng));
+    pub fn commit(&self, x: &Vec<E::Fr>, r: &E::Fr) -> Commitment<E> {
         // c = g1^m1 * ... * gn^mn * h^r
         let mut c = self.pub_bases[0].clone();
         c.mul_assign(r.clone());
-        for i in 1..x.len() {
-            let mut basis = self.pub_bases[i];
+        for i in 0..x.len() {
+            let mut basis = self.pub_bases[i + 1];
             basis.mul_assign(x[i]);
             c.add_assign(&basis);
         }
-        // return (c, r) <- r
         Commitment { c: c }
     }
 
     pub fn decommit(&self, cm: &Commitment<E>, x: &Vec<E::Fr>, r: &E::Fr) -> bool {
         let l = x.len();
         // pub_base[0] => h, x[0] => r
-        // check that cm.r == x[0]
         let cr = r.clone();
         let mut dc = self.pub_bases[0].clone();
         dc.mul_assign(cr);
-        for i in 1..l {
-            let mut basis = self.pub_bases[i];
+        for i in 0..l {
+            let mut basis = self.pub_bases[i + 1];
             basis.mul_assign(x[i]);
             dc.add_assign(&basis);
         }
-        return dc == cm.c && cr == x[0];
+        return dc == cm.c;
     }
 }
 
@@ -178,8 +176,8 @@ mod tests {
         for i in 0..len {
             m.push(Fr::rand(rng));
         }
-        let r = m[0].clone();
-        let c = csp.commit(rng, &m, &r);
+        let r = Fr::rand(rng);
+        let c = csp.commit(&m, &r);
 
         assert_eq!(csp.decommit(&c, &m, &r), true);
         let mut r1 = r.clone();
