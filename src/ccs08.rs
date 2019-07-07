@@ -113,7 +113,7 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
         let m = E::Fr::rand(rng);
 
         // D = H^m
-        let mut hm = self.com.h.clone();
+        let mut hm = self.com.h2.clone();
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             v.push(E::Fr::rand(rng));
@@ -143,7 +143,7 @@ prove_ul method is used to produce the ZKRP proof that secret x belongs to the i
             let ui = self.u.pow(i as u32);
             let mut muiti = t[i].clone();
             muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
-            let mut aux = self.com.g.clone();
+            let mut aux = self.com.g2.clone();
             aux.mul_assign(muiti);
             D.add_assign(&aux);
         }
@@ -206,17 +206,17 @@ verify_ul is used to validate the ZKRP proof. It returns true iff the proof is v
     }
 
     fn verify_part1(&self, proof: &ProofUL<E>) -> bool {
-        let mut D = proof.comm.c.clone();
+        let mut D = proof.comm.c2.clone();
         D.mul_assign(proof.ch);
         D.negate();
-        let mut hzr = self.com.h.clone();
+        let mut hzr = self.com.h2.clone();
         hzr.mul_assign(proof.zr);
         D.add_assign(&hzr);
         for i in 0..self.l {
             let ui = self.u.pow(i as u32);
             let mut muizsigi = proof.zsig[i as usize];
             muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
-            let mut aux = self.com.g.clone();
+            let mut aux = self.com.g2.clone();
             aux.mul_assign(muizsigi);
             D.add_assign(&aux);
         }
