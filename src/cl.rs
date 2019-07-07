@@ -7,7 +7,7 @@ use super::*;
 use pairing::{CurveAffine, CurveProjective, Engine};
 use ff::PrimeField;
 use rand::Rng;
-use ped92::Commitment;
+use ped92::{Commitment, CSMultiParams};
 
 #[derive(Clone)]
 pub struct PublicParams<E: Engine> {
@@ -310,6 +310,16 @@ impl<E: Engine> BlindKeyPair<E> {
         BlindKeyPair { secret, public }
     }
 
+    pub fn generate_cs_multi_params(&self, mpk: &PublicParams<E>) -> CSMultiParams<E> {
+        let mut com_bases1 = vec! {mpk.g1};
+        com_bases1.append(&mut self.public.Y1.clone());
+
+        let mut com_bases2 = vec! {mpk.g2};
+        com_bases2.append(&mut self.public.Y2.clone());
+
+        CSMultiParams { pub_bases1: com_bases1, pub_bases2: com_bases2}
+    }
+
     /// extract unblinded public key
     pub fn get_public_key(&self, mpk: &PublicParams<E>) -> PublicKey<E> {
         PublicKey::from_secret(mpk, &self.secret)
@@ -532,13 +542,8 @@ mod tests {
             message1.push(Fr::rand(&mut rng));
             message2.push(Fr::rand(&mut rng));
         }
-        let mut com_bases1 = vec! {mpk.g1};
-        com_bases1.append(&mut keypair.public.Y1.clone());
 
-        let mut com_bases2 = vec! {mpk.g2};
-        com_bases2.append(&mut keypair.public.Y2.clone());
-
-        let com_params = CSMultiParams { pub_bases1: com_bases1, pub_bases2: com_bases2};
+        let com_params = keypair.generate_cs_multi_params(&mpk);
         let t = Fr::rand(rng);
         let com = com_params.commit(&message1, &t);
 
