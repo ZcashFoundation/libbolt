@@ -109,7 +109,7 @@ impl<E: Engine> ParamsUL<E> {
         let m = E::Fr::rand(rng);
 
         // D = H^m
-        let mut hm = self.com.h.clone();
+        let mut hm = self.com.h2.clone();
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             let signature = self.signatures.get(&decx[i].to_string()).unwrap();
@@ -119,7 +119,7 @@ impl<E: Engine> ParamsUL<E> {
             proofStates.push(proofState);
 
             let ui = self.u.pow(i as u32);
-            let mut aux = self.com.g.clone();
+            let mut aux = self.com.g2.clone();
             for j in 0..self.kp.public.Y2.len() {
                 let mut muiti = proofStates[i].t[j].clone();
                 muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
@@ -183,15 +183,15 @@ impl<E: Engine> ParamsUL<E> {
     }
 
     fn verify_part1(&self, proof: &ProofUL<E>) -> bool {
-        let mut D = proof.comm.c.clone();
+        let mut D = proof.comm.c2.clone();
         D.mul_assign(proof.ch);
         D.negate();
-        let mut hzr = self.com.h.clone();
+        let mut hzr = self.com.h2.clone();
         hzr.mul_assign(proof.zr);
         D.add_assign(&hzr);
         for i in 0..self.l as usize {
             let ui = self.u.pow(i as u32);
-            let mut aux = self.com.g.clone();
+            let mut aux = self.com.g2.clone();
             for j in 0..self.kp.public.Y2.len() {
                 let mut muizsigi = proof.sigProofs[i].zsig[j];
                 muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
