@@ -128,7 +128,8 @@ impl<E: Engine> CSMultiParams<E> {
     pub fn setup_gen_params<R: Rng>(rng: &mut R, len: usize) -> Self {
         let mut p1: Vec<E::G1> = Vec::new();
         let mut p2: Vec<E::G2> = Vec::new();
-        for i in 0..len {
+        // 1 extra base element for the random parameter
+        for i in 0..len + 1 {
             p1.push(E::G1::rand(rng));
             p2.push(E::G2::rand(rng));
         }
@@ -142,11 +143,11 @@ impl<E: Engine> CSMultiParams<E> {
         let mut c2 = self.pub_bases2[0].clone();
         c1.mul_assign(r.clone());
         c2.mul_assign(r.clone());
-        for i in 1..x.len() {
-            let mut basis1 = self.pub_bases1[i];
+        for i in 0..x.len() {
+            let mut basis1 = self.pub_bases1[i+1];
             basis1.mul_assign(x[i]);
             c1.add_assign(&basis1);
-            let mut basis2 = self.pub_bases2[i];
+            let mut basis2 = self.pub_bases2[i+1];
             basis2.mul_assign(x[i]);
             c2.add_assign(&basis2);
         }
@@ -162,11 +163,11 @@ impl<E: Engine> CSMultiParams<E> {
         let mut dc2 = self.pub_bases2[0].clone();
         dc1.mul_assign(r.clone());
         dc2.mul_assign(r.clone());
-        for i in 1..l {
-            let mut basis1 = self.pub_bases1[i];
+        for i in 0..l {
+            let mut basis1 = self.pub_bases1[i+1];
             basis1.mul_assign(x[i]);
             dc1.add_assign(&basis1);
-            let mut basis2 = self.pub_bases2[i];
+            let mut basis2 = self.pub_bases2[i+1];
             basis2.mul_assign(x[i]);
             dc2.add_assign(&basis2);
         }

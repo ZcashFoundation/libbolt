@@ -289,8 +289,8 @@ impl<E: Engine> BlindKeyPair<E> {
 
         let mut com1 = com.c1.clone();
         let mut H1 = self.public.X1.clone();
-        H1.add_assign(&com1); // (X * com ^ g)
-        H1.mul_assign(u); // com ^ u (blinding factor)
+        H1.add_assign(&com1); // (X * com)
+        H1.mul_assign(u); // (X * com) ^ u (blinding factor)
 
         Signature { h: h1, H: H1 }
     }
@@ -304,7 +304,8 @@ impl<E: Engine> BlindKeyPair<E> {
     /// verifiable with standard signature scheme.
     pub fn unblind(&self, bf: &E::Fr, signature: &Signature<E>) -> Signature<E> {
         let mut H = signature.h;
-        let inv_bf = bf.inverse().unwrap();
+        let mut inv_bf = bf.clone();
+        inv_bf.negate();
 
         // sigma2 / sigma1 ^ t
         H.mul_assign(inv_bf);
@@ -412,6 +413,30 @@ mod tests {
     }
 
     #[test]
+    fn blind_unblind_works() {
+        let mut rng = &mut rand::thread_rng();
+
+        let l = 5;
+        let mpk = setup(&mut rng);
+        let keypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+
+        let mut message1 : Vec<Fr> = Vec::new();
+
+        for i in 0..l {
+            message1.push(Fr::rand(&mut rng));
+        }
+
+        let signature = keypair.sign(rng, &message1);
+        let r = Fr::rand(rng);
+        let blind_sig = keypair.blind(rng, &r, &signature);
+        let signature1 = keypair.unblind(&r, &blind_sig);
+
+        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message1, &signature1), true);
+        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message1, &blind_sig), false);
+        assert_eq!(keypair.verify(&mpk, &message1, &r, &blind_sig), true);
+    }
+
+    #[test]
     fn blind_sign_and_verify_works() {
         let mut rng = &mut rand::thread_rng();
 
@@ -444,12 +469,11 @@ mod tests {
 
         let t1 = Fr::rand(&mut rng);
 
-        assert_eq!(keypair.verify(&mpk,&message1, &t,&unblinded_sig), true);
-        assert_eq!(keypair.verify(&mpk,&message1, &t, &signature), true);
-        assert_eq!(keypair.verify(&mpk,&message2, &t,&unblinded_sig), false);
-        assert_eq!(keypair.verify(&mpk,&message2, &t,&signature), false);
-        assert_eq!(keypair.verify(&mpk,&message1, &t1,&unblinded_sig), false);
-        assert_eq!(keypair.verify(&mpk,&message1, &t1,&signature), false);
+        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk,&message1, &unblinded_sig), true);
+        assert_eq!(keypair.verify(&mpk,&message1, &t,  &signature), true);
+        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk,&message2, &unblinded_sig), false);
+        assert_eq!(keypair.verify(&mpk,&message2, &t, &signature), false);
+        assert_eq!(keypair.verify(&mpk,&message1, &t1, &signature), false);
     }
 
 }
