@@ -123,7 +123,7 @@ decommit(csp, cm, msg) -> bool where
 impl<E: Engine> CSMultiParams<E> {
     /*
     Implements the setup algorithm for the Pedersen92 commitment scheme over
-    a vector of messages.
+    a vector of messages of length len.
     */
     pub fn setup_gen_params<R: Rng>(rng: &mut R, len: usize) -> Self {
         let mut p1: Vec<E::G1> = Vec::new();
@@ -136,8 +136,7 @@ impl<E: Engine> CSMultiParams<E> {
         return CSMultiParams { pub_bases1: p1, pub_bases2: p2 };
     }
 
-    pub fn commit<R: Rng>(&self, rng: &mut R, x: &Vec<E::Fr>, r: &E::Fr) -> Commitment<E> {
-        //let r = R.unwrap_or(Fr::random(rng));
+    pub fn commit(&self, x: &Vec<E::Fr>, r: &E::Fr) -> Commitment<E> {
         // c = g1^m1 * ... * gn^mn * h^r
         let mut c1 = self.pub_bases1[0].clone();
         let mut c2 = self.pub_bases2[0].clone();
@@ -151,14 +150,12 @@ impl<E: Engine> CSMultiParams<E> {
             basis2.mul_assign(x[i]);
             c2.add_assign(&basis2);
         }
-        // return (c, r) <- r
         Commitment { c1, c2 }
     }
 
     pub fn decommit(&self, cm: &Commitment<E>, x: &Vec<E::Fr>, r: &E::Fr) -> bool {
         let l = x.len();
         // pub_base[0] => h, x[0] => r
-        // check that cm.r == x[0]
         let mut dc1 = self.pub_bases1[0].clone();
         let mut dc2 = self.pub_bases2[0].clone();
         dc1.mul_assign(r.clone());
@@ -207,7 +204,7 @@ mod tests {
             m.push(Fr::rand(rng));
         }
         let r = Fr::rand(rng);
-        let c = csp.commit(rng, &m, &r);
+        let c = csp.commit(&m, &r);
 
         assert_eq!(csp.decommit(&c, &m, &r), true);
         let mut r1 = r.clone();
