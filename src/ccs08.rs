@@ -279,17 +279,17 @@ impl<E: Engine> RPPublicParams<E> {
         }
         //TODO: optimize u?
         let logb = (b as f64).log2();
-        if logb != 0.0 {
-            let u = (logb / logb.log2()) as i64;
-            if u != 0 {
-                let l = (b as f64).log(u as f64).ceil() as i64;
-                let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l);
-                return RPPublicParams { p: params_out, a, b };
-            } else {
-                panic!("u is zero");
+        let loglogb = logb.log2();
+        if loglogb > 0.0 {
+            let mut u = (logb / loglogb) as i64;
+            if u < 2 {
+                u = 2;
             }
+            let l = (b as f64).log(u as f64).ceil() as i64;
+            let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l);
+            return RPPublicParams { p: params_out, a, b };
         } else {
-            panic!("log(b) is zero");
+            panic!("log(log(b)) is zero");
         }
     }
 
@@ -475,9 +475,9 @@ mod tests {
         let public_params = RPPublicParams::<Bls12>::setup(rng, 2, 10);
         assert_eq!(public_params.a, 2);
         assert_eq!(public_params.b, 10);
-        assert_eq!(public_params.p.signatures.len(), 10);
-        assert_eq!(public_params.p.u, 10 / ((10 as f64).log10() as i64));
-        assert_eq!(public_params.p.l, ((10 / (10 / ((10 as f64).log10() as i64))) as f64).ceil() as i64);
+        assert_eq!(public_params.p.signatures.len(), 2);
+        assert_eq!(public_params.p.u, 2);
+        assert_eq!(public_params.p.l, 4);
         for (m, s) in public_params.p.signatures {
             assert_eq!(public_params.p.kp.verify(&public_params.p.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &s), true);
         }
@@ -491,14 +491,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "u is zero")]
-    fn setup_wrong_b() {
-        let rng = &mut rand::thread_rng();
-        RPPublicParams::<Bls12>::setup(rng, -1, 0);
-    }
-
-    #[test]
-    #[should_panic(expected = "log(b) is zero")]
+    #[should_panic(expected = "log(log(b)) is zero")]
     fn setup_wrong_logb() {
         let rng = &mut rand::thread_rng();
         RPPublicParams::<Bls12>::setup(rng, -1, 1);
