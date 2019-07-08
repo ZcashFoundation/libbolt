@@ -341,7 +341,7 @@ fn convert_int_to_fr(value: i32) -> Fr {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RefundMessage {
     pub msgtype: String, // purpose type of message
-    #[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
+    //#[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
     pub wpk: secp256k1::PublicKey,
     pub balance: usize, // the balance
     #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_option", deserialize_with = "serialization_wrappers::deserialize_optional_fr")]
@@ -391,7 +391,7 @@ impl RefundMessage {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RevokedMessage {
     pub msgtype: String,
-    #[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
+    //#[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
     pub wpk: secp256k1::PublicKey,
     #[serde(serialize_with = "serialization_wrappers::serialize_fixed_byte_array_option", deserialize_with = "serialization_wrappers::deserialize_optional_fixed_64_byte_array")]
     pub sig: Option<[u8; 64]> // represents revocation token serialized compact bytes
@@ -688,9 +688,7 @@ pub mod bidirectional {
         sk: clsigs::SecretKeyD, // the secret key for the signature scheme (Is it possible to make this a generic field?)
         #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
         cid: Fr, // channel Id
-        #[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
         wpk: secp256k1::PublicKey, // signature verification key
-        #[serde(deserialize_with = "serialization_wrappers::deserialize_secret_key")]
         wsk: secp256k1::SecretKey, // signature signing key
         #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
         h_wpk: Fr,
@@ -729,7 +727,6 @@ pub mod bidirectional {
     // part of channel state
     #[derive(Clone, Serialize, Deserialize)]
     pub struct PubKeyMap {
-        #[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
         wpk: secp256k1::PublicKey,
         revoke_token: Option<secp256k1::Signature>
     }
@@ -821,7 +818,6 @@ pub mod bidirectional {
         proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
         #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
         old_com_base: G2,
-        #[serde(deserialize_with = "serialization_wrappers::deserialize_public_key")]
         wpk: secp256k1::PublicKey, // verification key for old wallet
         wallet_sig: clsigs::SignatureD, // blinded signature for old wallet
         pub bal_proof: BalanceProof
@@ -830,7 +826,7 @@ pub mod bidirectional {
     #[derive(Serialize, Deserialize)]
     pub struct RevokeToken {
         message: RevokedMessage,
-        #[serde(deserialize_with = "serialization_wrappers::deserialize_secp_signature")]
+        //#[serde(deserialize_with = "serialization_wrappers::deserialize_secp_signature")]
         pub signature: secp256k1::Signature
     }
 
