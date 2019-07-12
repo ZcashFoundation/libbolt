@@ -38,6 +38,15 @@ struct ParamsUL<E: Engine> {
     l: i64,
 }
 
+#[derive(Clone)]
+struct ProofULState<E: Engine> {
+    decx: Vec<i64>,
+    proofStates: Vec<ProofState<E>>,
+    V: Vec<Signature<E>>,
+    D: E::G1,
+    m: E::Fr,
+}
+
 /**
 proofUL contains the necessary elements for the ZK range proof with range [0,u^l).
 */
@@ -48,6 +57,14 @@ struct ProofUL<E: Engine> {
     comm: Commitment<E>,
     sigProofs: Vec<SignatureProof<E>>,
     zr: E::Fr,
+}
+
+#[derive(Clone)]
+pub struct RangeProofState<E: Engine> {
+    com1: Commitment<E>,
+    ps1: ProofULState<E>,
+    com2: Commitment<E>,
+    ps2: ProofULState<E>,
 }
 
 /**
@@ -93,6 +110,19 @@ impl<E: Engine> ParamsUL<E> {
         prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L).
     */
     pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr, C: Commitment<E>) -> ProofUL<E> {
+        let proofUlState = self.prove_ul_commitment(rng, x);
+
+        // Fiat-Shamir heuristic
+        let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
+        for state in proofUlState.proofStates.clone() {
+            a.push(state.a);
+        }
+        let c = hash::<E>(a, vec!(proofUlState.D.clone()));
+
+        self.prove_ul_response(r, C, &proofUlState, c)
+    }
+
+    fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i64) -> ProofULState<E> {
         if x > self.u.pow(self.l as u32) || x < 0 {
             panic!("x is not within the range.");
         }
@@ -100,7 +130,6 @@ impl<E: Engine> ParamsUL<E> {
 
         // Initialize variables
         let mut proofStates = Vec::<ProofState<E>>::with_capacity(self.l as usize);
-        let mut sigProofs = Vec::<SignatureProof<E>>::with_capacity(self.l as usize);
         let mut V = Vec::<Signature<E>>::with_capacity(self.l as usize);
         let mut D = E::G1::zero();
         let m = E::Fr::rand(rng);
@@ -125,35 +154,30 @@ impl<E: Engine> ParamsUL<E> {
             D.add_assign(&aux);
         }
         D.add_assign(&hm);
+        ProofULState { decx, proofStates, V, D, m }
+    }
 
-        // Fiat-Shamir heuristic
-        let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
-        for state in proofStates.clone() {
-            a.push(state.a);
-        }
-        let c = hash::<E>(a, D.clone());
-
-        let mut zr = m.clone();
+    fn prove_ul_response(&self, r: E::Fr, C: Commitment<E>, proofUlState: &ProofULState<E>, c: E::Fr) -> ProofUL<E> {
+        let mut sigProofs = Vec::<SignatureProof<E>>::with_capacity(self.l as usize);
+        let mut zr = proofUlState.m.clone();
         let mut rc = r.clone();
         rc.mul_assign(&c);
         zr.add_assign(&rc);
         for i in 0..self.l as usize {
-            let mut dx = E::Fr::from_str(&decx[i].to_string()).unwrap();
+            let mut dx = E::Fr::from_str(&proofUlState.decx[i].to_string()).unwrap();
 
-            let proof = self.kp.prove_response(&proofStates[i].clone(), c, &mut vec! {dx});
+            let proof = self.kp.prove_response(&proofUlState.proofStates[i].clone(), c, &mut vec! {dx});
 
             sigProofs.push(proof);
         }
-
-        return ProofUL { V, D, comm: C, sigProofs, zr };
+        ProofUL { V: proofUlState.V.clone(), D: proofUlState.D.clone(), comm: C, sigProofs, zr }
     }
 
     /**
         verify_ul is used to validate the ZKRP proof. It returns true iff the proof is valid.
     */
-    pub fn verify_ul(&self, proof: &ProofUL<E>) -> bool {
+    pub fn verify_ul(&self, proof: &ProofUL<E>, ch: E::Fr) -> bool {
         // D == C^c.h^ zr.g^zsig ?
-        let ch = self.compute_challenge(&proof);
         let r1 = self.verify_part1(&proof, ch.clone());
         let r2 = self.verify_part2(&proof, ch.clone());
         r1 && r2
@@ -164,7 +188,7 @@ impl<E: Engine> ParamsUL<E> {
         for sigProof in proof.sigProofs.clone() {
             a.push(sigProof.a);
         }
-        hash::<E>(a, proof.D.clone())
+        hash::<E>(a, vec!(proof.D.clone()))
     }
 
     fn verify_part2(&self, proof: &ProofUL<E>, challenge: E::Fr) -> bool {
@@ -198,7 +222,7 @@ impl<E: Engine> ParamsUL<E> {
     }
 }
 
-fn hash<E: Engine>(a: Vec<E::Fqk>, D: E::G1) -> E::Fr {
+fn hash<E: Engine>(a: Vec<E::Fqk>, D: Vec<E::G1>) -> E::Fr {
     // create a Sha256 object
     let mut a_vec: Vec<u8> = Vec::new();
     for a_el in a {
@@ -206,7 +230,9 @@ fn hash<E: Engine>(a: Vec<E::Fqk>, D: E::G1) -> E::Fr {
     }
 
     let mut x_vec: Vec<u8> = Vec::new();
-    x_vec.extend(format!("{}", D).bytes());
+    for d_el in D {
+        x_vec.extend(format!("{}", d_el).bytes());
+    }
     a_vec.extend(x_vec);
 
     util::hash_to_fr::<E>(a_vec)
@@ -256,11 +282,23 @@ impl<E: Engine> RPPublicParams<E> {
         Prove method is responsible for generating the zero knowledge range proof.
     */
     pub fn prove<R: Rng>(&self, rng: &mut R, x: i64, C: Commitment<E>, r: E::Fr) -> RangeProof<E> {
+        let rpState = self.prove_commitment(rng, x, C);
+
+        let mut a = Vec::<E::Fqk>::with_capacity(self.p.l as usize);
+        for i in 0..rpState.ps1.proofStates.len() {
+            a.push(rpState.ps1.proofStates[i].a);
+            a.push(rpState.ps2.proofStates[i].a);
+        }
+        let ch = hash::<E>(a, vec!(rpState.ps1.D.clone(), rpState.ps2.D.clone()));
+
+        self.prove_ul_response(r, &rpState, ch)
+    }
+
+    fn prove_commitment<R: Rng>(&self, rng: &mut R, x: i64, C: Commitment<E>) -> RangeProofState<E> {
         if x > self.b || x < self.a {
             panic!("x is not within the range.");
         }
         let ul = self.p.u.pow(self.p.l as u32);
-
         // x - b + ul
         let xb = x - self.b + ul;
         let mut gb = self.p.csParams.g.clone();
@@ -272,8 +310,7 @@ impl<E: Engine> RPPublicParams<E> {
         let mut comXB = C.clone();
         comXB.c.add_assign(&gb);
         comXB.c.add_assign(&gul);
-        let first = self.p.prove_ul(rng, xb, r.clone(), comXB);
-
+        let firstState = self.p.prove_ul_commitment(rng, xb);
         // x - a
         let xa = x - self.a;
         let mut ga = self.p.csParams.g.clone();
@@ -282,18 +319,30 @@ impl<E: Engine> RPPublicParams<E> {
         ga.mul_assign(a.into_repr());
         let mut comXA = C.clone();
         comXA.c.add_assign(&ga);
-        let second = self.p.prove_ul(rng, xa, r.clone(), comXA);
+        let secondState = self.p.prove_ul_commitment(rng, xa);
+        RangeProofState{com1: comXB, ps1: firstState, com2: comXA, ps2: secondState}
+    }
 
-        return RangeProof { p1: first, p2: second };
+    fn prove_ul_response(&self, r: E::Fr, rpState: &RangeProofState<E>, ch: E::Fr) -> RangeProof<E> {
+        let first = self.p.prove_ul_response(r.clone(), rpState.com1.clone(), &rpState.ps1, ch.clone());
+        let second = self.p.prove_ul_response(r.clone(), rpState.com2.clone(), &rpState.ps2, ch.clone());
+        RangeProof { p1: first, p2: second }
     }
 
     /**
         Verify is responsible for validating the range proof.
     */
     pub fn verify(&self, proof: RangeProof<E>) -> bool {
-        let first = self.p.verify_ul(&proof.p1);
-        let second = self.p.verify_ul(&proof.p2);
-        return first && second;
+        let mut a = Vec::<E::Fqk>::with_capacity(self.p.l as usize);
+        for i in 0..proof.p1.sigProofs.len() {
+            a.push(proof.p1.sigProofs[i].a);
+            a.push(proof.p2.sigProofs[i].a);
+        }
+        let ch = hash::<E>(a, vec!(proof.p1.D.clone(), proof.p2.D.clone()));
+
+        let first = self.p.verify_ul(&proof.p1, ch.clone());
+        let second = self.p.verify_ul(&proof.p2, ch.clone());
+        first && second
     }
 }
 
@@ -380,7 +429,8 @@ mod tests {
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = params.csParams.commit(rng, modx, Some(fr.clone()));
         let proof = params.prove_ul(rng, 10, fr, C);
-        assert_eq!(params.verify_ul(&proof), true);
+        let ch = params.compute_challenge(&proof);
+        assert_eq!(params.verify_ul(&proof, ch), true);
     }
 
     #[test]
@@ -521,9 +571,9 @@ mod tests {
         let state4 = kp.prove_commitment(rng, &params, &sig);
         let a = vec! {state.a, state1.a, state2.a};
         let a2 = vec! {state3.a, state4.a};
-        assert_eq!(hash::<Bls12>(a.clone(), D.clone()).is_zero(), false);
-        assert_ne!(hash::<Bls12>(a2.clone(), D.clone()), hash::<Bls12>(a.clone(), D.clone()));
-        assert_ne!(hash::<Bls12>(a.clone(), D2.clone()), hash::<Bls12>(a.clone(), D.clone()));
-        assert_ne!(hash::<Bls12>(a2.clone(), D2.clone()), hash::<Bls12>(a.clone(), D.clone()));
+        assert_eq!(hash::<Bls12>(a.clone(), vec!(D.clone())).is_zero(), false);
+        assert_ne!(hash::<Bls12>(a2.clone(), vec!(D.clone())), hash::<Bls12>(a.clone(), vec!(D.clone())));
+        assert_ne!(hash::<Bls12>(a.clone(), vec!(D2.clone())), hash::<Bls12>(a.clone(), vec!(D.clone())));
+        assert_ne!(hash::<Bls12>(a2.clone(), vec!(D2.clone())), hash::<Bls12>(a.clone(), vec!(D.clone())))
     }
 }
