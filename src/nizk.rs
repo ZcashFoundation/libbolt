@@ -10,6 +10,7 @@ use ff::PrimeField;
 use util::hash_g2_to_fr;
 use commit_scheme::commit;
 use wallet::Wallet;
+use ccs08::{RPPublicParams, RangeProof};
 
 #[derive(Clone)]
 struct Proof<E: Engine> {
@@ -18,10 +19,14 @@ struct Proof<E: Engine> {
     T: E::G1,
     D: E::G1,
     z: Vec<E::Fr>,
+    rpParamsBC: RPPublicParams<E>,
+    rpBC: RangeProof<E>,
+    rpParamsBM: RPPublicParams<E>,
+    rpBM: RangeProof<E>,
 }
 
 fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
-                            oldWallet: Wallet<E>, newWallet: Wallet<E>, rPrime: E::Fr, paymentToken: &Signature<E>,
+                            oldWallet: Wallet<E>, newWallet: Wallet<E>, newWalletCom: Commitment<E>, rPrime: E::Fr, paymentToken: &Signature<E>,
                             mpk: &PublicParams<E>, kp: &BlindKeyPair<E>) -> Proof<E> {
     //Commitment phase
     //Commit linear relationship
@@ -46,6 +51,12 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
         gt.mul_assign(ti.into_repr());
         D.add_assign(&gt);
     }
+
+    //commit range proof
+    let rpParamsBC = RPPublicParams::setup(rng, 0, std::i32::MAX as i64, comParams.clone());
+    let rpParamsBM = RPPublicParams::setup(rng, 0, std::i32::MAX as i64, comParams.clone());
+    let rpStateBC = rpParamsBC.prove_commitment(rng, newWallet.bc.clone() as i64, newWalletCom.clone(), 3);
+    let rpStateBM = rpParamsBM.prove_commitment(rng, newWallet.bm.clone() as i64, newWalletCom.clone(), 4);
 
     //Compute challenge
     let challenge = hash::<E>(proofState.a, T, D);
@@ -75,13 +86,23 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
     z.push(z0);
     let newWalletVec = newWallet.as_fr_vec();
     for i in 1..t.len() {
-        let mut zi = newWalletVec[i-1].clone();
+        let mut zi = newWalletVec[i - 1].clone();
         zi.mul_assign(&challenge);
         zi.add_assign(&t[i]);
         z.push(zi);
     }
 
-    Proof { sig: proofState.blindSig, sigProof, T, D, z }
+    //response range proof
+    let mut rpRandom = rPrime.clone();
+    rpRandom.add_assign(&newWallet.pkc);
+    rpRandom.add_assign(&newWallet.wpk);
+    let mut rpRandom2 = rpRandom.clone();
+    rpRandom.add_assign(&newWalletVec[3].clone());
+    rpRandom2.add_assign(&newWalletVec[2].clone());
+    let rpBC = rpParamsBC.prove_response(rpRandom, &rpStateBC, challenge.clone());
+    let rpBM = rpParamsBM.prove_response(rpRandom2, &rpStateBM, challenge.clone());
+
+    Proof { sig: proofState.blindSig, sigProof, T, D, z, rpParamsBC, rpBC, rpParamsBM, rpBM }
 }
 
 fn verify<E: Engine>(proof: Proof<E>, epsilon: E::Fr, com1: &Commitment<E>, com2: &Commitment<E>,
@@ -129,9 +150,13 @@ fn verify<E: Engine>(proof: Proof<E>, epsilon: E::Fr, com1: &Commitment<E>, com2
         base.mul_assign(proof.z[i].into_repr());
         x.add_assign(&base);
     }
-    let r3 = x == comc;
+    let r2 = x == comc;
 
-    r && r1 && r3
+    //verify range proofs
+    let r3 = proof.rpParamsBC.verify(proof.rpBC, challenge.clone(), 3);
+    let r4 = proof.rpParamsBM.verify(proof.rpBM, challenge.clone(), 4);
+
+    r && r1 && r2 && r3 && r4
 }
 
 fn hash<E: Engine>(a: E::Fqk, T: E::G1, D: E::G1) -> E::Fr {
@@ -167,16 +192,18 @@ mod tests {
         let mpk = setup(rng);
         let keypair = BlindKeyPair::<Bls12>::generate(rng, &mpk, 4);
         let comParams = keypair.generate_cs_multi_params(&mpk);
-        let wallet1 = Wallet {pkc, wpk, bc, bm};
+        let wallet1 = Wallet { pkc, wpk, bc, bm };
         let commitment1 = comParams.commit(&wallet1.as_fr_vec(), &r);
-        let wallet2 = Wallet {pkc, wpk: wpkprime, bc: bc2, bm: bm2};
+        let wallet2 = Wallet { pkc, wpk: wpkprime, bc: bc2, bm: bm2 };
         let commitment2 = comParams.commit(&wallet2.as_fr_vec(), &rprime);
         let blindPaymentToken = keypair.sign_blind(rng, &mpk, commitment1.clone());
         let paymentToken = keypair.unblind(&r, &blindPaymentToken);
 
-        let proof = prove(rng, &comParams, r, wallet1, wallet2, rprime, &paymentToken, &mpk, &keypair);
+        let proof = prove(rng, &comParams, r, wallet1, wallet2,
+                          commitment2.clone(), rprime, &paymentToken, &mpk, &keypair);
 
-        assert_eq!(verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment1, &commitment2, wpk, &comParams, &mpk, &keypair.public), true);
+        assert_eq!(verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment1,
+                          &commitment2, wpk, &comParams, &mpk, &keypair.public), true);
     }
 
     #[test]
@@ -198,28 +225,27 @@ mod tests {
         let mpk = setup(rng);
         let keypair = BlindKeyPair::<Bls12>::generate(rng, &mpk, 4);
         let comParams = keypair.generate_cs_multi_params(&mpk);
-        let wallet1 = Wallet {pkc, wpk, bc, bm};
-        let wallet2 = Wallet::<Bls12> {pkc, wpk: wpkprime, bc: bc2, bm: bm2};
+        let wallet1 = Wallet { pkc, wpk, bc, bm };
+        let wallet2 = Wallet::<Bls12> { pkc, wpk: wpkprime, bc: bc2, bm: bm2 };
 
         let mut bc2Prime = bc.clone();
-        let wallet3 = Wallet {pkc, wpk: wpkprime, bc: bc2Prime, bm: bm2};
+        let wallet3 = Wallet { pkc, wpk: wpkprime, bc: bc2Prime, bm: bm2 };
         let commitment1 = comParams.commit(&wallet1.as_fr_vec().clone(), &r);
         let commitment2 = comParams.commit(&wallet3.as_fr_vec(), &rprime);
         let blindPaymentToken = keypair.sign_blind(rng, &mpk, commitment1.clone());
         let paymentToken = keypair.unblind(&r, &blindPaymentToken);
-        let proof = prove(rng, &comParams, r, wallet1.clone(), wallet3, rprime, &paymentToken, &mpk, &keypair);
+        let proof = prove(rng, &comParams, r, wallet1.clone(), wallet3, commitment2.clone(), rprime, &paymentToken, &mpk, &keypair);
         assert_eq!(verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment1, &commitment2, wpk, &comParams, &mpk, &keypair.public), false);
 
         let mut bm2Prime = bm.clone();
-        let wallet4 = Wallet {pkc, wpk: wpkprime, bc: bc2, bm: bm2Prime};
+        let wallet4 = Wallet { pkc, wpk: wpkprime, bc: bc2, bm: bm2Prime };
         let commitment2 = comParams.commit(&wallet4.as_fr_vec(), &rprime);
-        let proof = prove(rng, &comParams, r, wallet1.clone(), wallet4, rprime, &paymentToken, &mpk, &keypair);
+        let proof = prove(rng, &comParams, r, wallet1.clone(), wallet4, commitment2.clone(), rprime, &paymentToken, &mpk, &keypair);
         assert_eq!(verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment1, &commitment2, wpk, &comParams, &mpk, &keypair.public), false);
 
-        let wallet5 = Wallet {pkc: Fr::rand(rng), wpk: wpkprime, bc: bc2, bm: bm2};
+        let wallet5 = Wallet { pkc: Fr::rand(rng), wpk: wpkprime, bc: bc2, bm: bm2 };
         let commitment2 = comParams.commit(&wallet5.as_fr_vec(), &rprime);
-        let proof = prove(rng, &comParams, r, wallet1.clone(), wallet5, rprime, &paymentToken, &mpk, &keypair);
+        let proof = prove(rng, &comParams, r, wallet1.clone(), wallet5, commitment2.clone(), rprime, &paymentToken, &mpk, &keypair);
         assert_eq!(verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment1, &commitment2, wpk, &comParams, &mpk, &keypair.public), false);
-
     }
 }
