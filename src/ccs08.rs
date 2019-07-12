@@ -47,7 +47,6 @@ struct ProofUL<E: Engine> {
     D: E::G1,
     comm: Commitment<E>,
     sigProofs: Vec<SignatureProof<E>>,
-    ch: E::Fr,
     zr: E::Fr,
 }
 
@@ -149,7 +148,7 @@ impl<E: Engine> ParamsUL<E> {
             sigProofs.push(proof);
         }
 
-        return ProofUL { V, D, comm: C, sigProofs, ch: c, zr };
+        return ProofUL { V, D, comm: C, sigProofs, zr };
     }
 
     /**
@@ -157,34 +156,33 @@ impl<E: Engine> ParamsUL<E> {
     */
     pub fn verify_ul(&self, proof: &ProofUL<E>) -> bool {
         // D == C^c.h^ zr.g^zsig ?
-        let r = self.verify_challenge(&proof);
-        let r1 = self.verify_part1(&proof);
-        let r2 = self.verify_part2(&proof);
-        r && r1 && r2
+        let ch = self.compute_challenge(&proof);
+        let r1 = self.verify_part1(&proof, ch.clone());
+        let r2 = self.verify_part2(&proof, ch.clone());
+        r1 && r2
     }
 
-    fn verify_challenge(&self, proof: &ProofUL<E>) -> bool {
+    fn compute_challenge(&self, proof: &ProofUL<E>) -> E::Fr {
         let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
         for sigProof in proof.sigProofs.clone() {
             a.push(sigProof.a);
         }
-        let c = hash::<E>(a, proof.D.clone());
-        proof.ch == c
+        hash::<E>(a, proof.D.clone())
     }
 
-    fn verify_part2(&self, proof: &ProofUL<E>) -> bool {
+    fn verify_part2(&self, proof: &ProofUL<E>, challenge: E::Fr) -> bool {
         let mut r2 = true;
         for i in 0..self.l as usize {
-            let subResult = self.kp.public.verify_proof(&self.mpk, proof.V[i].clone(), proof.sigProofs[i].clone(), proof.ch);
+            let subResult = self.kp.public.verify_proof(&self.mpk, proof.V[i].clone(), proof.sigProofs[i].clone(), challenge);
 
             r2 = r2 && subResult;
         }
         r2
     }
 
-    fn verify_part1(&self, proof: &ProofUL<E>) -> bool {
+    fn verify_part1(&self, proof: &ProofUL<E>, challenge: E::Fr) -> bool {
         let mut D = proof.comm.c.clone();
-        D.mul_assign(proof.ch);
+        D.mul_assign(challenge);
         D.negate();
         let mut hzr = self.com.h.clone();
         hzr.mul_assign(proof.zr);
@@ -332,7 +330,8 @@ mod tests {
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
         let fr = Fr::rand(rng);
         let proof = params.prove_ul(rng, 10, fr);
-        assert_eq!(params.verify_part1(&proof), true);
+        let ch = params.compute_challenge(&proof);
+        assert_eq!(params.verify_part1(&proof, ch), true);
     }
 
     #[test]
@@ -341,7 +340,8 @@ mod tests {
         let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
         let fr = Fr::rand(rng);
         let proof = params.prove_ul(rng, 10, fr);
-        assert_eq!(params.verify_part2(&proof), true);
+        let ch = params.compute_challenge(&proof);
+        assert_eq!(params.verify_part2(&proof, ch), true);
     }
 
     #[test]
