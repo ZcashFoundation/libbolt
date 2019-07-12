@@ -294,7 +294,7 @@ impl<E: Engine> RPPublicParams<E> {
         self.prove_ul_response(r, &rpState, ch)
     }
 
-    fn prove_commitment<R: Rng>(&self, rng: &mut R, x: i64, C: Commitment<E>) -> RangeProofState<E> {
+    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, x: i64, C: Commitment<E>) -> RangeProofState<E> {
         if x > self.b || x < self.a {
             panic!("x is not within the range.");
         }
@@ -323,7 +323,7 @@ impl<E: Engine> RPPublicParams<E> {
         RangeProofState{com1: comXB, ps1: firstState, com2: comXA, ps2: secondState}
     }
 
-    fn prove_ul_response(&self, r: E::Fr, rpState: &RangeProofState<E>, ch: E::Fr) -> RangeProof<E> {
+    pub fn prove_ul_response(&self, r: E::Fr, rpState: &RangeProofState<E>, ch: E::Fr) -> RangeProof<E> {
         let first = self.p.prove_ul_response(r.clone(), rpState.com1.clone(), &rpState.ps1, ch.clone());
         let second = self.p.prove_ul_response(r.clone(), rpState.com2.clone(), &rpState.ps2, ch.clone());
         RangeProof { p1: first, p2: second }
