@@ -311,13 +311,10 @@ impl<E: Engine> BlindKeyPair<E> {
     }
 
     pub fn generate_cs_multi_params(&self, mpk: &PublicParams<E>) -> CSMultiParams<E> {
-        let mut com_bases1 = vec! {mpk.g1};
-        com_bases1.append(&mut self.public.Y1.clone());
+        let mut com_bases = vec! {mpk.g1};
+        com_bases.append(&mut self.public.Y1.clone());
 
-        let mut com_bases2 = vec! {mpk.g2};
-        com_bases2.append(&mut self.public.Y2.clone());
-
-        CSMultiParams { pub_bases1: com_bases1, pub_bases2: com_bases2}
+        CSMultiParams { pub_bases: com_bases}
     }
 
     /// extract unblinded public key
@@ -336,7 +333,7 @@ impl<E: Engine> BlindKeyPair<E> {
         let mut h1 = mpk.g1;
         h1.mul_assign(u); // g1 ^ u
 
-        let mut com1 = com.c1.clone();
+        let mut com1 = com.c.clone();
         let mut H1 = self.public.X1.clone();
         H1.add_assign(&com1); // (X * com)
         H1.mul_assign(u); // (X * com) ^ u (blinding factor)

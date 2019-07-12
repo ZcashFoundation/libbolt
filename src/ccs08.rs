@@ -44,7 +44,7 @@ proofUL contains the necessary elements for the ZK range proof with range [0,u^l
 #[derive(Clone)]
 struct ProofUL<E: Engine> {
     V: Vec<Signature<E>>,
-    D: E::G2,
+    D: E::G1,
     comm: Commitment<E>,
     sigProofs: Vec<SignatureProof<E>>,
     ch: E::Fr,
@@ -105,11 +105,11 @@ impl<E: Engine> ParamsUL<E> {
         let mut proofStates = Vec::<ProofState<E>>::with_capacity(self.l as usize);
         let mut sigProofs = Vec::<SignatureProof<E>>::with_capacity(self.l as usize);
         let mut V = Vec::<Signature<E>>::with_capacity(self.l as usize);
-        let mut D = E::G2::zero();
+        let mut D = E::G1::zero();
         let m = E::Fr::rand(rng);
 
         // D = H^m
-        let mut hm = self.com.h2.clone();
+        let mut hm = self.com.h.clone();
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             let signature = self.signatures.get(&decx[i].to_string()).unwrap();
@@ -119,8 +119,8 @@ impl<E: Engine> ParamsUL<E> {
             proofStates.push(proofState);
 
             let ui = self.u.pow(i as u32);
-            let mut aux = self.com.g2.clone();
-            for j in 0..self.kp.public.Y2.len() {
+            let mut aux = self.com.g.clone();
+            for j in 0..self.kp.public.Y1.len() {
                 let mut muiti = proofStates[i].t[j].clone();
                 muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
                 aux.mul_assign(muiti);
@@ -183,16 +183,16 @@ impl<E: Engine> ParamsUL<E> {
     }
 
     fn verify_part1(&self, proof: &ProofUL<E>) -> bool {
-        let mut D = proof.comm.c2.clone();
+        let mut D = proof.comm.c.clone();
         D.mul_assign(proof.ch);
         D.negate();
-        let mut hzr = self.com.h2.clone();
+        let mut hzr = self.com.h.clone();
         hzr.mul_assign(proof.zr);
         D.add_assign(&hzr);
         for i in 0..self.l as usize {
             let ui = self.u.pow(i as u32);
-            let mut aux = self.com.g2.clone();
-            for j in 0..self.kp.public.Y2.len() {
+            let mut aux = self.com.g.clone();
+            for j in 0..self.kp.public.Y1.len() {
                 let mut muizsigi = proof.sigProofs[i].zsig[j];
                 muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
                 aux.mul_assign(muizsigi);
@@ -203,7 +203,7 @@ impl<E: Engine> ParamsUL<E> {
     }
 }
 
-fn hash<E: Engine>(a: Vec<E::Fqk>, D: E::G2) -> E::Fr {
+fn hash<E: Engine>(a: Vec<E::Fqk>, D: E::G1) -> E::Fr {
     // create a Sha256 object
     let mut a_vec: Vec<u8> = Vec::new();
     for a_el in a {
@@ -291,7 +291,7 @@ impl<E: Engine> RPPublicParams<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pairing::bls12_381::{Bls12, G1, G2, Fq12, Fr};
+    use pairing::bls12_381::{Bls12, G1, Fq12, Fr};
     use time::PreciseTime;
     use std::ops::Add;
     use core::mem;
@@ -462,8 +462,8 @@ mod tests {
     #[test]
     fn hash_works() {
         let rng = &mut rand::thread_rng();
-        let D = G2::rand(rng);
-        let D2 = G2::rand(rng);
+        let D = G1::rand(rng);
+        let D2 = G1::rand(rng);
         let params = setup::<ThreadRng, Bls12>(rng);
         let kp = BlindKeyPair::generate(rng, &params, 2);
         let m1 = Fr::rand(rng);

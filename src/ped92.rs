@@ -5,22 +5,18 @@ use ff::Rand;
 
 #[derive(Clone)]
 pub struct CSParams<E: Engine> {
-    pub g1: E::G1,
-    pub g2: E::G2,
-    pub h1: E::G1,
-    pub h2: E::G2,
+    pub g: E::G1,
+    pub h: E::G1,
 }
 
 #[derive(Clone)]
 pub struct Commitment<E: Engine> {
-    pub c1: E::G1,
-    pub c2: E::G2
+    pub c: E::G1,
 }
 
 #[derive(Clone)]
 pub struct CSMultiParams<E: Engine> {
-    pub pub_bases1: Vec<E::G1>,
-    pub pub_bases2: Vec<E::G2>
+    pub pub_bases: Vec<E::G1>,
 }
 
 //impl<E: Engine> fmt::Display for CSParams<E> {
@@ -63,12 +59,9 @@ impl<E: Engine> CSParams<E> {
 Implements the setup algorithm for the Pedersen92 commitment scheme
 */
     pub fn setup<R: Rng>(rng: &mut R) -> Self {
-        let g1 = E::G1::rand(rng);
-        let g2 = E::G2::rand(rng);
-        let h1 = E::G1::rand(rng);
-        let h2 = E::G2::rand(rng);
-        let csp = CSParams { g1, g2, h1, h2 };
-        return csp;
+        let g = E::G1::rand(rng);
+        let h = E::G1::rand(rng);
+        CSParams { g, h }
     }
 
     /*
@@ -81,20 +74,13 @@ commit(pk, msg) -> cm where
         let r = R.unwrap_or(E::Fr::rand(rng));
 
         // c = g^m * h^r
-        let mut c1 = self.g1.clone();
-        c1.mul_assign(m.clone());
-        let mut h1 = self.h1.clone();
-        h1.mul_assign(r.clone());
-        c1.add_assign(&h1);
+        let mut c = self.g.clone();
+        c.mul_assign(m.clone());
+        let mut h = self.h.clone();
+        h.mul_assign(r.clone());
+        c.add_assign(&h);
 
-        // c = g^m * h^r
-        let mut c2 = self.g2.clone();
-        c2.mul_assign(m);
-        let mut h2 = self.h2.clone();
-        h2.mul_assign(r);
-        c2.add_assign(&h2);
-
-        Commitment { c1, c2 }
+        Commitment { c }
     }
 
     /*
@@ -104,18 +90,12 @@ decommit(csp, cm, msg) -> bool where
 - outputs T/F for whether the cm is a valid commitment to the msg
 */
     pub fn decommit(&self, cm: &Commitment<E>, m: &E::Fr, r: &E::Fr) -> bool {
-        let mut dm1 = self.g1.clone();
-        dm1.mul_assign(m.clone());
-        let mut h1 = self.h1.clone();
-        h1.mul_assign(r.clone());
-        dm1.add_assign(&h1);
-
-        let mut dm2 = self.g2.clone();
-        dm2.mul_assign(m.clone());
-        let mut h2 = self.h2.clone();
-        h2.mul_assign(r.clone());
-        dm2.add_assign(&h2);
-        return dm2 == cm.c2 && dm1 == cm.c1;
+        let mut dm = self.g.clone();
+        dm.mul_assign(m.clone());
+        let mut h = self.h.clone();
+        h.mul_assign(r.clone());
+        dm.add_assign(&h);
+        dm == cm.c
     }
 }
 
@@ -126,49 +106,37 @@ impl<E: Engine> CSMultiParams<E> {
     a vector of messages of length len.
     */
     pub fn setup_gen_params<R: Rng>(rng: &mut R, len: usize) -> Self {
-        let mut p1: Vec<E::G1> = Vec::new();
-        let mut p2: Vec<E::G2> = Vec::new();
+        let mut p: Vec<E::G1> = Vec::new();
         // 1 extra base element for the random parameter
         for i in 0..len + 1 {
-            p1.push(E::G1::rand(rng));
-            p2.push(E::G2::rand(rng));
+            p.push(E::G1::rand(rng));
         }
-        return CSMultiParams { pub_bases1: p1, pub_bases2: p2 };
+        CSMultiParams { pub_bases: p }
     }
 
     pub fn commit(&self, x: &Vec<E::Fr>, r: &E::Fr) -> Commitment<E> {
         // c = g1^m1 * ... * gn^mn * h^r
-        let mut c1 = self.pub_bases1[0].clone();
-        let mut c2 = self.pub_bases2[0].clone();
-        c1.mul_assign(r.clone());
-        c2.mul_assign(r.clone());
+        let mut c = self.pub_bases[0].clone();
+        c.mul_assign(r.clone());
         for i in 0..x.len() {
-            let mut basis1 = self.pub_bases1[i+1];
-            basis1.mul_assign(x[i]);
-            c1.add_assign(&basis1);
-            let mut basis2 = self.pub_bases2[i+1];
-            basis2.mul_assign(x[i]);
-            c2.add_assign(&basis2);
+            let mut basis = self.pub_bases[i+1];
+            basis.mul_assign(x[i]);
+            c.add_assign(&basis);
         }
-        Commitment { c1, c2 }
+        Commitment { c }
     }
 
     pub fn decommit(&self, cm: &Commitment<E>, x: &Vec<E::Fr>, r: &E::Fr) -> bool {
         let l = x.len();
         // pub_base[0] => h, x[0] => r
-        let mut dc1 = self.pub_bases1[0].clone();
-        let mut dc2 = self.pub_bases2[0].clone();
-        dc1.mul_assign(r.clone());
-        dc2.mul_assign(r.clone());
+        let mut dc = self.pub_bases[0].clone();
+        dc.mul_assign(r.clone());
         for i in 0..l {
-            let mut basis1 = self.pub_bases1[i+1];
-            basis1.mul_assign(x[i]);
-            dc1.add_assign(&basis1);
-            let mut basis2 = self.pub_bases2[i+1];
-            basis2.mul_assign(x[i]);
-            dc2.add_assign(&basis2);
+            let mut basis = self.pub_bases[i+1];
+            basis.mul_assign(x[i]);
+            dc.add_assign(&basis);
         }
-        return dc2 == cm.c2 && dc1 == cm.c1;
+        return dc == cm.c;
     }
 }
 
