@@ -26,7 +26,7 @@ This must be computed in a trusted setup.
 struct ParamsUL<E: Engine> {
     pub mpk: PublicParams<E>,
     pub signatures: HashMap<String, Signature<E>>,
-    pub com: CSParams<E>,
+    pub csParams: CSParams<E>,
     kp: BlindKeyPair<E>,
     // u determines the amount of signatures we need in the public params.
     // Each signature can be compressed to just 1 field element of 256 bits.
@@ -76,7 +76,7 @@ impl<E: Engine> ParamsUL<E> {
         The value of u should be roughly b/log(b), but we can choose smaller values in
         order to get smaller parameters, at the cost of having worse performance.
     */
-    pub fn setup_ul<R: Rng>(rng: &mut R, u: i64, l: i64) -> Self {
+    pub fn setup_ul<R: Rng>(rng: &mut R, u: i64, l: i64, csParams: CSParams<E>) -> Self {
         let mpk = setup(rng);
         let kp = BlindKeyPair::<E>::generate(rng, &mpk, 1);
 
@@ -86,19 +86,17 @@ impl<E: Engine> ParamsUL<E> {
             signatures.insert(i.to_string(), sig_i);
         }
 
-        let com = CSParams::setup(rng);
-        return ParamsUL { mpk, signatures, com, kp, u, l };
+        return ParamsUL { mpk, signatures, csParams, kp, u, l };
     }
 
     /**
         prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L).
     */
-    pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr) -> ProofUL<E> {
+    pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr, C: Commitment<E>) -> ProofUL<E> {
         if x > self.u.pow(self.l as u32) || x < 0 {
             panic!("x is not within the range.");
         }
         let decx = decompose(x, self.u, self.l);
-        let modx = E::Fr::from_str(&(x.to_string())).unwrap();
 
         // Initialize variables
         let mut proofStates = Vec::<ProofState<E>>::with_capacity(self.l as usize);
@@ -108,7 +106,7 @@ impl<E: Engine> ParamsUL<E> {
         let m = E::Fr::rand(rng);
 
         // D = H^m
-        let mut hm = self.com.h.clone();
+        let mut hm = self.csParams.h.clone();
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             let signature = self.signatures.get(&decx[i].to_string()).unwrap();
@@ -118,7 +116,7 @@ impl<E: Engine> ParamsUL<E> {
             proofStates.push(proofState);
 
             let ui = self.u.pow(i as u32);
-            let mut aux = self.com.g.clone();
+            let mut aux = self.csParams.g.clone();
             for j in 0..self.kp.public.Y1.len() {
                 let mut muiti = proofStates[i].t[j].clone();
                 muiti.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
@@ -128,7 +126,6 @@ impl<E: Engine> ParamsUL<E> {
         }
         D.add_assign(&hm);
 
-        let C = self.com.commit(rng, modx, Some(r));
         // Fiat-Shamir heuristic
         let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
         for state in proofStates.clone() {
@@ -184,12 +181,12 @@ impl<E: Engine> ParamsUL<E> {
         let mut D = proof.comm.c.clone();
         D.mul_assign(challenge);
         D.negate();
-        let mut hzr = self.com.h.clone();
+        let mut hzr = self.csParams.h.clone();
         hzr.mul_assign(proof.zr);
         D.add_assign(&hzr);
         for i in 0..self.l as usize {
             let ui = self.u.pow(i as u32);
-            let mut aux = self.com.g.clone();
+            let mut aux = self.csParams.g.clone();
             for j in 0..self.kp.public.Y1.len() {
                 let mut muizsigi = proof.sigProofs[i].zsig[j];
                 muizsigi.mul_assign(&E::Fr::from_str(&ui.to_string()).unwrap());
@@ -233,7 +230,7 @@ impl<E: Engine> RPPublicParams<E> {
     /**
         Setup receives integers a and b, and configures the parameters for the rangeproof scheme.
     */
-    pub fn setup<R: Rng>(rng: &mut R, a: i64, b: i64) -> Self {
+    pub fn setup<R: Rng>(rng: &mut R, a: i64, b: i64, csParams: CSParams<E>) -> Self {
         // Compute optimal values for u and l
         if a > b {
             panic!("a must be less than or equal to b");
@@ -247,7 +244,8 @@ impl<E: Engine> RPPublicParams<E> {
                 u = 2;
             }
             let l = (b as f64).log(u as f64).ceil() as i64;
-            let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l);
+
+            let params_out: ParamsUL<E> = ParamsUL::<E>::setup_ul(rng, u, l, csParams.clone());
             return RPPublicParams { p: params_out, a, b };
         } else {
             panic!("log(log(b)) is zero");
@@ -257,20 +255,34 @@ impl<E: Engine> RPPublicParams<E> {
     /**
         Prove method is responsible for generating the zero knowledge range proof.
     */
-    pub fn prove<R: Rng>(&self, rng: &mut R, x: i64) -> RangeProof<E> {
+    pub fn prove<R: Rng>(&self, rng: &mut R, x: i64, C: Commitment<E>, r: E::Fr) -> RangeProof<E> {
         if x > self.b || x < self.a {
             panic!("x is not within the range.");
         }
         let ul = self.p.u.pow(self.p.l as u32);
-        let r = E::Fr::rand(rng);
 
         // x - b + ul
         let xb = x - self.b + ul;
-        let first = self.p.prove_ul(rng, xb, r);
+        let mut gb = self.p.csParams.g.clone();
+        let mut b = E::Fr::from_str(&(self.b.to_string())).unwrap();
+        b.negate();
+        gb.mul_assign(b.into_repr());
+        let mut gul = self.p.csParams.g.clone();
+        gul.mul_assign(E::Fr::from_str(&(ul.to_string())).unwrap().into_repr());
+        let mut comXB = C.clone();
+        comXB.c.add_assign(&gb);
+        comXB.c.add_assign(&gul);
+        let first = self.p.prove_ul(rng, xb, r.clone(), comXB);
 
         // x - a
         let xa = x - self.a;
-        let second = self.p.prove_ul(rng, xa, r);
+        let mut ga = self.p.csParams.g.clone();
+        let mut a = E::Fr::from_str(&(self.a.to_string())).unwrap();
+        a.negate();
+        ga.mul_assign(a.into_repr());
+        let mut comXA = C.clone();
+        comXA.c.add_assign(&ga);
+        let second = self.p.prove_ul(rng, xa, r.clone(), comXA);
 
         return RangeProof { p1: first, p2: second };
     }
@@ -298,7 +310,9 @@ mod tests {
     #[test]
     fn setup_ul_works() {
         let rng = &mut rand::thread_rng();
-        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
+        let csParams = CSParams::setup(rng);
+
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3, csParams);
         assert_eq!(params.signatures.len(), 2);
         for (m, s) in params.signatures {
             assert_eq!(params.kp.verify(&params.mpk, &vec! {Fr::from_str(m.to_string().as_str()).unwrap()}, &Fr::zero(), &s), true);
@@ -308,9 +322,13 @@ mod tests {
     #[test]
     fn prove_ul_works() {
         let rng = &mut rand::thread_rng();
-        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
+        let csParams = CSParams::setup(rng);
+
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4, csParams);
         let fr = Fr::rand(rng);
-        let proof = params.prove_ul(rng, 10, fr);
+        let modx = Fr::from_str(&(10.to_string())).unwrap();
+        let C = params.csParams.commit(rng, modx, Some(fr.clone()));
+        let proof = params.prove_ul(rng, 10, fr, C);
         assert_eq!(proof.V.len(), 4);
         assert_eq!(proof.sigProofs.len(), 4);
     }
@@ -319,17 +337,23 @@ mod tests {
     #[should_panic(expected = "x is not within the range")]
     fn prove_ul_not_in_range() {
         let rng = &mut rand::thread_rng();
-        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3);
+        let csParams = CSParams::setup(rng);
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 3, csParams);
         let fr = Fr::rand(rng);
-        params.prove_ul(rng, 100, fr);
+        let modx = Fr::from_str(&(100.to_string())).unwrap();
+        let C = params.csParams.commit(rng, modx, Some(fr.clone()));
+        params.prove_ul(rng, 100, fr, C);
     }
 
     #[test]
     fn prove_and_verify_part1_ul_works() {
         let rng = &mut rand::thread_rng();
-        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
+        let csParams = CSParams::setup(rng);
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4, csParams);
         let fr = Fr::rand(rng);
-        let proof = params.prove_ul(rng, 10, fr);
+        let modx = Fr::from_str(&(10.to_string())).unwrap();
+        let C = params.csParams.commit(rng, modx, Some(fr.clone()));
+        let proof = params.prove_ul(rng, 10, fr, C);
         let ch = params.compute_challenge(&proof);
         assert_eq!(params.verify_part1(&proof, ch), true);
     }
@@ -337,9 +361,12 @@ mod tests {
     #[test]
     fn prove_and_verify_part2_ul_works() {
         let rng = &mut rand::thread_rng();
-        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
+        let csParams = CSParams::setup(rng);
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4, csParams);
         let fr = Fr::rand(rng);
-        let proof = params.prove_ul(rng, 10, fr);
+        let modx = Fr::from_str(&(10.to_string())).unwrap();
+        let C = params.csParams.commit(rng, modx, Some(fr.clone()));
+        let proof = params.prove_ul(rng, 10, fr, C);
         let ch = params.compute_challenge(&proof);
         assert_eq!(params.verify_part2(&proof, ch), true);
     }
@@ -347,17 +374,24 @@ mod tests {
     #[test]
     fn prove_and_verify_ul_works() {
         let rng = &mut rand::thread_rng();
-        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4);
+        let csParams = CSParams::setup(rng);
+        let params = ParamsUL::<Bls12>::setup_ul(rng, 2, 4, csParams);
         let fr = Fr::rand(rng);
-        let proof = params.prove_ul(rng, 10, fr);
+        let modx = Fr::from_str(&(10.to_string())).unwrap();
+        let C = params.csParams.commit(rng, modx, Some(fr.clone()));
+        let proof = params.prove_ul(rng, 10, fr, C);
         assert_eq!(params.verify_ul(&proof), true);
     }
 
     #[test]
     fn prove_and_verify_works() {
         let rng = &mut rand::thread_rng();
-        let params = RPPublicParams::<Bls12>::setup(rng, 2, 25);
-        let proof = params.prove(rng, 10);
+        let csParams = CSParams::setup(rng);
+        let params = RPPublicParams::<Bls12>::setup(rng, 2, 25, csParams);
+        let fr = Fr::rand(rng);
+        let modx = Fr::from_str(&(10.to_string())).unwrap();
+        let C = params.p.csParams.commit(rng, modx, Some(fr.clone()));
+        let proof = params.prove(rng, 10, C, fr);
         assert_eq!(params.verify(proof), true);
     }
 
@@ -365,8 +399,12 @@ mod tests {
     #[should_panic(expected = "x is not within the range")]
     fn prove_not_in_range() {
         let rng = &mut rand::thread_rng();
-        let params = RPPublicParams::<Bls12>::setup(rng, 2, 25);
-        let proof = params.prove(rng, 26);
+        let csParams = CSParams::setup(rng);
+        let params = RPPublicParams::<Bls12>::setup(rng, 2, 25, csParams);
+        let fr = Fr::rand(rng);
+        let modx = Fr::from_str(&(26.to_string())).unwrap();
+        let C = params.p.csParams.commit(rng, modx, Some(fr.clone()));
+        let proof = params.prove(rng, 26, C, fr);
     }
 
     #[test]
@@ -385,12 +423,16 @@ mod tests {
             let x = rng.gen_range(a, b);
 
             let sSetup = PreciseTime::now();
-            let params = RPPublicParams::<Bls12>::setup(rng, a, b);
+            let csParams = CSParams::setup(rng);
+            let params = RPPublicParams::<Bls12>::setup(rng, a, b, csParams);
             averageSetup = averageSetup.add(sSetup.to(PreciseTime::now()));
             averageSetupSize += mem::size_of_val(&params);
 
             let sProve = PreciseTime::now();
-            let proof = params.prove(rng, x);
+            let fr = Fr::rand(rng);
+            let modx = Fr::from_str(&(x.to_string())).unwrap();
+            let C = params.p.csParams.commit(rng, modx, Some(fr.clone()));
+            let proof = params.prove(rng, x, C, fr);
             averageProve = averageProve.add(sProve.to(PreciseTime::now()));
             averageProofSize += mem::size_of_val(&proof);
 
@@ -434,7 +476,8 @@ mod tests {
     #[test]
     fn setup_works() {
         let rng = &mut rand::thread_rng();
-        let public_params = RPPublicParams::<Bls12>::setup(rng, 2, 10);
+        let csParams = CSParams::setup(rng);
+        let public_params = RPPublicParams::<Bls12>::setup(rng, 2, 10, csParams);
         assert_eq!(public_params.a, 2);
         assert_eq!(public_params.b, 10);
         assert_eq!(public_params.p.signatures.len(), 2);
@@ -449,14 +492,16 @@ mod tests {
     #[should_panic(expected = "a must be less than or equal to b")]
     fn setup_wrong_a_and_b() {
         let rng = &mut rand::thread_rng();
-        RPPublicParams::<Bls12>::setup(rng, 10, 2);
+        let csParams = CSParams::setup(rng);
+        RPPublicParams::<Bls12>::setup(rng, 10, 2, csParams);
     }
 
     #[test]
     #[should_panic(expected = "log(log(b)) is zero")]
     fn setup_wrong_logb() {
         let rng = &mut rand::thread_rng();
-        RPPublicParams::<Bls12>::setup(rng, -2, -1);
+        let csParams = CSParams::setup(rng);
+        RPPublicParams::<Bls12>::setup(rng, -2, -1, csParams);
     }
 
     #[test]
