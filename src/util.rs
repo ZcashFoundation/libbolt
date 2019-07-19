@@ -28,6 +28,29 @@ pub fn hash_to_fr<E: Engine>(mut byteVec: Vec<u8>) -> E::Fr {
     return result.unwrap();
 }
 
+pub fn hash_pubkey_to_fr<E: Engine>(wpk: &secp256k1::PublicKey) -> E::Fr {
+    let x_slice = wpk.serialize_uncompressed();
+    let sha2_digest = sha512::hash(&x_slice);
+
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    let hexresult = fmt_bytes_to_int(hash_buf);
+    let result = E::Fr::from_str(&hexresult);
+    return result.unwrap();
+}
+
+pub fn convert_int_to_fr<E: Engine>(value: i32) -> E::Fr {
+    if value > 0 {
+        return E::Fr::from_str(value.to_string().as_str()).unwrap();
+    } else {
+        // negative value
+        let value2 = value * -1;
+        let res = E::Fr::from_str(value2.to_string().as_str()).unwrap();
+        // TODO: look at how to do negation
+        return res;
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

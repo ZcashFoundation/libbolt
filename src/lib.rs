@@ -68,6 +68,7 @@ pub mod clsigs;
 pub mod ccs08;
 pub mod commit_scheme;
 pub mod ped92;
+pub mod channels;
 pub mod clproto;
 pub mod serialization_wrappers;
 pub mod nizk;
@@ -2141,6 +2142,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn bidirectional_payment_basics_work() {
         let pp = bidirectional::setup(true);
 
@@ -2185,6 +2187,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn bidirectional_payment_negative_payment_works() {
         let pp = bidirectional::setup(true);
 
@@ -2274,6 +2277,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn third_party_payment_basics_work() {
         let pp = bidirectional::setup(true);
 

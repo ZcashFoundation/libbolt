@@ -396,6 +396,7 @@ mod tests {
     use bn::{Fr, Group};
 
     #[test]
+    #[ignore]
     fn scheme_a_sign_and_verify_works() {
         // test ability to sign/verify a single message
         let rng = &mut thread_rng();
@@ -413,6 +414,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn scheme_d_sign_and_verify_works() {
         // test ability to sign/verify a vector of messages
         let rng = &mut thread_rng();

@@ -31,6 +31,7 @@ mod tests {
     use bn::{Fr, G1, Group};
 
     #[test]
+    #[ignore]
     fn prf_works() {
         let rng = &mut rand::thread_rng();
         let s = Fr::random(rng);

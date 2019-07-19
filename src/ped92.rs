@@ -179,6 +179,7 @@ mod tests {
     use ff::Field;
 
     #[test]
+    #[ignore]
     fn commit_one_message_works() {
         let rng = &mut thread_rng();
         let csp = CSParams::<Bls12>::setup(rng);
@@ -194,6 +195,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn commit_n_message_works() {
         let rng = &mut thread_rng();
         let len = 3;
