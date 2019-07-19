@@ -39,34 +39,34 @@ struct ParamsUL<E: Engine> {
 }
 
 #[derive(Clone)]
-struct ProofULState<E: Engine> {
-    decx: Vec<i64>,
-    proofStates: Vec<ProofState<E>>,
-    V: Vec<Signature<E>>,
-    D: E::G1,
-    m: E::Fr,
-    s: Vec<E::Fr>,
+pub struct ProofULState<E: Engine> {
+    pub decx: Vec<i64>,
+    pub proofStates: Vec<ProofState<E>>,
+    pub V: Vec<Signature<E>>,
+    pub D: E::G1,
+    pub m: E::Fr,
+    pub s: Vec<E::Fr>,
 }
 
 /**
 proofUL contains the necessary elements for the ZK range proof with range [0,u^l).
 */
 #[derive(Clone)]
-struct ProofUL<E: Engine> {
-    V: Vec<Signature<E>>,
-    D: E::G1,
-    comm: Commitment<E>,
-    sigProofs: Vec<SignatureProof<E>>,
-    zr: E::Fr,
-    zs: Vec<E::Fr>,
+pub struct ProofUL<E: Engine> {
+    pub V: Vec<Signature<E>>,
+    pub D: E::G1,
+    pub comm: Commitment<E>,
+    pub sigProofs: Vec<SignatureProof<E>>,
+    pub zr: E::Fr,
+    pub zs: Vec<E::Fr>,
 }
 
 #[derive(Clone)]
 pub struct RangeProofState<E: Engine> {
-    com1: Commitment<E>,
-    ps1: ProofULState<E>,
-    com2: Commitment<E>,
-    ps2: ProofULState<E>,
+    pub com1: Commitment<E>,
+    pub ps1: ProofULState<E>,
+    pub com2: Commitment<E>,
+    pub ps2: ProofULState<E>,
 }
 
 /**
@@ -74,8 +74,8 @@ RangeProof contains the necessary elements for the ZK range proof.
 */
 #[derive(Clone)]
 pub struct RangeProof<E: Engine> {
-    p1: ProofUL<E>,
-    p2: ProofUL<E>,
+    pub p1: ProofUL<E>,
+    pub p2: ProofUL<E>,
 }
 
 /**

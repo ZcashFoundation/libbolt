@@ -14,15 +14,15 @@ use ccs08::{RPPublicParams, RangeProof};
 
 #[derive(Clone)]
 struct Proof<E: Engine> {
-    sig: Signature<E>,
-    sigProof: SignatureProof<E>,
-    T: E::G1,
-    D: E::G1,
-    z: Vec<E::Fr>,
-    rpParamsBC: RPPublicParams<E>,
-    rpBC: RangeProof<E>,
-    rpParamsBM: RPPublicParams<E>,
-    rpBM: RangeProof<E>,
+    pub sig: Signature<E>,
+    pub sigProof: SignatureProof<E>,
+    pub T: E::G1,
+    pub D: E::G1,
+    pub z: Vec<E::Fr>,
+    pub rpParamsBC: RPPublicParams<E>,
+    pub rpBC: RangeProof<E>,
+    pub rpParamsBM: RPPublicParams<E>,
+    pub rpBM: RangeProof<E>,
 }
 
 fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
@@ -60,7 +60,7 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
 
     //Compute challenge
     //TODO: add commitment of range proofs
-    let challenge = hash::<E>(proofState.a, T, D);
+    let challenge = hash::<E>(proofState.a, vec!{T, D, rpStateBC.ps1.D, rpStateBC.ps2.D, rpStateBM.ps1.D, rpStateBM.ps2.D});
 
     //Response phase
     //response for signature
@@ -103,7 +103,7 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
 fn verify<E: Engine>(proof: Proof<E>, epsilon: E::Fr, com1: &Commitment<E>, com2: &Commitment<E>,
                      wpk: E::Fr, comParams: &CSMultiParams<E>, mpk: &PublicParams<E>, pk: &BlindPublicKey<E>) -> bool {
     //compute challenge
-    let challenge = hash::<E>(proof.sigProof.a, proof.T, proof.D);
+    let challenge = hash::<E>(proof.sigProof.a, vec!{proof.T, proof.D, proof.rpBC.p1.D, proof.rpBC.p2.D, proof.rpBM.p1.D, proof.rpBM.p2.D});
 
     //verify linear relationship
     let mut gWpk = comParams.pub_bases[2].clone();
@@ -154,11 +154,12 @@ fn verify<E: Engine>(proof: Proof<E>, epsilon: E::Fr, com1: &Commitment<E>, com2
     r && r1 && r2 && r3 && r4
 }
 
-fn hash<E: Engine>(a: E::Fqk, T: E::G1, D: E::G1) -> E::Fr {
+fn hash<E: Engine>(a: E::Fqk, T: Vec<E::G1>) -> E::Fr {
     let mut x_vec: Vec<u8> = Vec::new();
     x_vec.extend(format!("{}", a).bytes());
-    x_vec.extend(format!("{}", T).bytes());
-    x_vec.extend(format!("{}", D).bytes());
+    for t in T {
+        x_vec.extend(format!("{}", t).bytes());
+    }
 
     util::hash_to_fr::<E>(x_vec)
 }
