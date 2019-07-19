@@ -274,6 +274,7 @@ mod tests {
     use debug_g2_in_hex;
 
     #[test]
+    #[ignore]
     fn efficient_protocols_for_cl_signatures() {
         let rng = &mut rand::thread_rng();
 

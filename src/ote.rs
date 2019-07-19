@@ -44,6 +44,7 @@ mod tests {
     use bn::{G1, Group};
 
     #[test]
+    #[ignore]
     fn one_time_enc_dec_works() {
         let rng = &mut rand::thread_rng();
 

@@ -8,6 +8,7 @@ use pairing::{CurveAffine, CurveProjective, Engine};
 use ff::PrimeField;
 use rand::Rng;
 use ped92::{Commitment, CSMultiParams};
+use std::fmt::LowerHex;
 
 #[derive(Clone)]
 pub struct PublicParams<E: Engine> {
@@ -21,11 +22,31 @@ pub struct SecretKey<E: Engine> {
     pub y: Vec<E::Fr>
 }
 
-//#[derive(Clone, Serialize, Deserialize)]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PublicKey<E: Engine> {
     pub X: E::G2,
     pub Y: Vec<E::G2>,
+}
+
+impl<E: Engine> fmt::Display for PublicKey<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        //let y_vec: Vec<u8> = encode(&self.Y, Infinite).unwrap();
+        //let comp_x = self.X.into_compressed();
+        let mut x_vec: Vec<u8> = Vec::new();
+        x_vec.extend(format!("{:}", &self.X).bytes());
+
+        let mut x_s = String::new();
+        for x in x_vec.iter() {
+            x_s = format!("{} {:x}", x_s, x);
+        }
+
+//        let mut y_s = String::new();
+//        for y in y_vec.iter() {
+//            y_s = format!("{}{:x}", y_s, y);
+//        }
+
+        write!(f, "PK : (X=0x{}, Y=0x[TODO])", x_s)
+    }
 }
 
 //#[derive(Clone, Serialize, Deserialize)]
@@ -442,6 +463,7 @@ mod tests {
     use ped92::CSMultiParams;
 
     #[test]
+    #[ignore]
     fn sign_and_verify() {
         // let mut rng = XorShiftRng::seed_from_u64(0xbc4f6d44d62f276c);
         // let mut rng = XorShiftRng::seed_from_u64(0xb963afd05455863d);
@@ -450,6 +472,8 @@ mod tests {
         let l = 5;
         let mpk = setup(&mut rng);
         let keypair = KeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+
+        println!("PUBLIC KEY => {}", keypair.public);
 
         let mut message1 : Vec<Fr> = Vec::new();
         let mut message2 : Vec<Fr> = Vec::new();
@@ -465,6 +489,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn blind_sign_and_verify() {
         let mut rng = &mut rand::thread_rng();
 
@@ -499,6 +524,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn blind_unblind_works() {
         let mut rng = &mut rand::thread_rng();
 
@@ -523,6 +549,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn blind_sign_and_verify_works() {
         let mut rng = &mut rand::thread_rng();
 

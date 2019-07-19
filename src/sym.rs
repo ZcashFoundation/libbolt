@@ -59,6 +59,7 @@ mod tests {
     use rand::{Rng, thread_rng};
 
     #[test]
+    #[ignore]
     fn symenc_dec_works() {
         init_mod();
         // SymKeyEnc tests
@@ -79,6 +80,7 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[ignore]
     fn symenc_dec_should_fail() {
         init_mod();
         // SymKeyEnc tests

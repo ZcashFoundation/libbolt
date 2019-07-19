@@ -189,6 +189,7 @@ mod tests {
     use bn::{Fr, Group};
 
     #[test]
+    #[ignore]
     fn commit_one_message_works() {
         let rng = &mut thread_rng();
         let pk = ped92_setup();
@@ -203,6 +204,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn commit_n_message_works() {
         let rng = &mut thread_rng();
         let len = 3;
