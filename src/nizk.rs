@@ -53,10 +53,10 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
     }
 
     //commit range proof
-    let rpParamsBC = RPPublicParams::setup(rng, 0, std::i32::MAX as i64, comParams.clone());
-    let rpParamsBM = RPPublicParams::setup(rng, 0, std::i32::MAX as i64, comParams.clone());
-    let rpStateBC = rpParamsBC.prove_commitment(rng, newWallet.bc.clone() as i64, newWalletCom.clone(), 3);
-    let rpStateBM = rpParamsBM.prove_commitment(rng, newWallet.bm.clone() as i64, newWalletCom.clone(), 4);
+    let rpParamsBC = RPPublicParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
+    let rpParamsBM = RPPublicParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
+    let rpStateBC = rpParamsBC.prove_commitment(rng, newWallet.bc.clone(), newWalletCom.clone(), 3);
+    let rpStateBM = rpParamsBM.prove_commitment(rng, newWallet.bm.clone(), newWalletCom.clone(), 4);
 
     //Compute challenge
     //TODO: add commitment of range proofs
