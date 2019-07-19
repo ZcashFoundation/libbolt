@@ -59,6 +59,7 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
     let rpStateBM = rpParamsBM.prove_commitment(rng, newWallet.bm.clone() as i64, newWalletCom.clone(), 4);
 
     //Compute challenge
+    //TODO: add commitment of range proofs
     let challenge = hash::<E>(proofState.a, T, D);
 
     //Response phase
@@ -93,14 +94,8 @@ fn prove<R: Rng, E: Engine>(rng: &mut R, comParams: &CSMultiParams<E>, r: E::Fr,
     }
 
     //response range proof
-    let mut rpRandom = rPrime.clone();
-    rpRandom.add_assign(&newWallet.pkc);
-    rpRandom.add_assign(&newWallet.wpk);
-    let mut rpRandom2 = rpRandom.clone();
-    rpRandom.add_assign(&newWalletVec[3].clone());
-    rpRandom2.add_assign(&newWalletVec[2].clone());
-    let rpBC = rpParamsBC.prove_response(rpRandom, &rpStateBC, challenge.clone());
-    let rpBM = rpParamsBM.prove_response(rpRandom2, &rpStateBM, challenge.clone());
+    let rpBC = rpParamsBC.prove_response(rPrime.clone(), &rpStateBC, challenge.clone(), 3, vec!{newWalletVec[0], newWalletVec[1], newWalletVec[3]});
+    let rpBM = rpParamsBM.prove_response(rPrime.clone(), &rpStateBM, challenge.clone(), 4, vec!{newWalletVec[0], newWalletVec[1], newWalletVec[2]});
 
     Proof { sig: proofState.blindSig, sigProof, T, D, z, rpParamsBC, rpBC, rpParamsBM, rpBM }
 }
