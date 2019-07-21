@@ -142,7 +142,7 @@ impl<E: Engine> ParamsUL<E> {
         hm.mul_assign(m);
         for i in 0..self.l as usize {
             let signature = self.signatures.get(&decx[i].to_string()).unwrap();
-            let proofState = self.kp.prove_commitment(rng, &self.mpk, &signature);
+            let proofState = self.kp.prove_commitment(rng, &self.mpk, &signature, None, None);
 
             V.push(proofState.blindSig.clone());
             proofStates.push(proofState);
@@ -642,11 +642,11 @@ mod tests {
         let m1 = Fr::rand(rng);
         let m2 = Fr::rand(rng);
         let sig = kp.sign(rng, &vec! {m1, m2});
-        let state = kp.prove_commitment(rng, &params, &sig);
-        let state1 = kp.prove_commitment(rng, &params, &sig);
-        let state2 = kp.prove_commitment(rng, &params, &sig);
-        let state3 = kp.prove_commitment(rng, &params, &sig);
-        let state4 = kp.prove_commitment(rng, &params, &sig);
+        let state = kp.prove_commitment(rng, &params, &sig, None, None);
+        let state1 = kp.prove_commitment(rng, &params, &sig, None, None);
+        let state2 = kp.prove_commitment(rng, &params, &sig, None, None);
+        let state3 = kp.prove_commitment(rng, &params, &sig, None, None);
+        let state4 = kp.prove_commitment(rng, &params, &sig, None, None);
         let a = vec! {state.a, state1.a, state2.a};
         let a2 = vec! {state3.a, state4.a};
         assert_eq!(hash::<Bls12>(a.clone(), vec!(D.clone())).is_zero(), false);

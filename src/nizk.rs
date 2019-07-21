@@ -55,9 +55,6 @@ impl<E: Engine> NIZKPublicParams<E> {
         h.mul_assign(t2);
         T.add_assign(&h);
 
-        //commit signature
-        let proofState = self.keypair.prove_commitment(rng, &self.mpk, &paymentToken);
-
         //commit commitment
         let mut D = E::G1::zero();
         let mut t = Vec::<E::Fr>::with_capacity(self.comParams.pub_bases.len() - 1);
@@ -68,6 +65,9 @@ impl<E: Engine> NIZKPublicParams<E> {
             gt.mul_assign(ti.into_repr());
             D.add_assign(&gt);
         }
+
+        //commit signature
+        let proofState = self.keypair.prove_commitment(rng, &self.mpk, &paymentToken, Some(t[1..].to_vec()), Some(t[0].clone()));
 
         //commit range proof
         let rpStateBC = self.rpParamsBC.prove_commitment(rng, newWallet.bc.clone(), newWalletCom.clone(), 3);
