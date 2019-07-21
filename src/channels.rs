@@ -187,7 +187,7 @@ impl<E: Engine> CustomerWallet<E> {
         }
     }
 
-    pub fn generate_proof(&mut self, csprng: &mut R) {
+    pub fn generate_proof<R: Rng>(&mut self, csprng: &mut R) {
 
     }
 }

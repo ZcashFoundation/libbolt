@@ -375,7 +375,6 @@ impl<E: Engine> RPPublicParams<E> {
         Verify is responsible for validating the range proof.
     */
     pub fn verify(&self, proof: RangeProof<E>, ch: E::Fr, k: usize) -> bool {
-        //TODO: add verification of commitment
         let first = self.p.verify_ul(&proof.p1, ch.clone(), k);
         let second = self.p.verify_ul(&proof.p2, ch.clone(), k);
         first & &second
