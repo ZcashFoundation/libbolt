@@ -14,11 +14,12 @@ use pairing::{Engine, CurveProjective};
 use pairing::bls12_381::{Bls12};
 use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
 use ped92::{CSParams, Commitment, CSMultiParams};
-use util::{hash_pubkey_to_fr, convert_int_to_fr};
+use util::{hash_pubkey_to_fr, convert_int_to_fr, CommitmentProof};
 use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Display;
 use serde::{Serialize, Deserialize};
+use serialization_wrappers::WalletCommitmentAndParamsWrapper;
 
 #[derive(Clone, Serialize, Deserialize)]
 struct PubKeyMap {
@@ -135,14 +136,15 @@ impl<E: Engine> ChannelState<E> {
 /// Customer wallet consists of a keypair (NEW)
 ///
 pub struct CustomerWallet<E: Engine> {
-    pk_c: secp256k1::PublicKey,
+    pub pk_c: secp256k1::PublicKey,
     sk_c: secp256k1::SecretKey,
     cust_balance: i32, //
     merch_balance: i32,
-    wpk: secp256k1::PublicKey, // keypair bound to the wallet
+    pub wpk: secp256k1::PublicKey, // keypair bound to the wallet
     wsk: secp256k1::SecretKey,
     r: E::Fr, // randomness used to form the commitment
-    w_com: Commitment<E> // commitment to the current state of the wallet
+    w_vec: Vec<E::Fr>, // vector of field elements that represent wallet
+    pub w_com: Commitment<E>, // commitment to the current state of the wallet
 }
 
 impl<E: Engine> CustomerWallet<E> {
@@ -183,12 +185,14 @@ impl<E: Engine> CustomerWallet<E> {
             wpk: wpk,
             wsk: wsk,
             r: r,
-            w_com: w_com
+            w_com: w_com,
+            w_vec: wallet
         }
     }
 
-    pub fn generate_proof<R: Rng>(&mut self, csprng: &mut R) {
-
+    // generate nizk proof of knowledge of commitment opening
+    pub fn generate_proof<R: Rng>(&mut self, csprng: &mut R, channel_token: &ChannelToken<E>) -> CommitmentProof<E> {
+        return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c1, &self.w_vec, &self.r);
     }
 }
 
@@ -231,15 +235,47 @@ impl<E: Engine> MerchantWallet<E> {
             is_initialized: false
         }
     }
+
+    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>) -> Signature<E> {
+        let is_valid = util::verify(&self.comParams, &com.c1, &com_proof);
+        let cp = channel.cp.as_ref().unwrap();
+        if is_valid {
+            println!("Commitment PoK is valid!");
+            let pay_token = self.keypair.sign_blind(csprng, &cp.cl_mpk, com.clone());
+            return pay_token;
+        }
+        panic!("Failed to verify PoK of commitment opening");
+    }
 }
 
-//trait CustomerEstablishChannel<E: Engine> {
+///
+///
+///
+//trait IssueInitCloseToken<E: Engine> {
 //    // customer generates initial commitment for wallet and send to merchant
-//    fn init_wallet_open() -> CommitmentProof;
-//    // customer obtains the close signature for wallet
-//    fn verify_close_sig_phase2() -> bool;
+//    fn generate_proof(&self) -> CommitmentProof<E>;
+//
+//    // unblind the close token and verify the signature is valid
+//    fn verify_close_token(&self) -> bool;
 //}
 //
+//impl<E: Engine> IssueInitCloseToken for CustomerWallet<E> {
+//    fn generate_proof(&self) -> CommitmentProof<E> {
+//
+//    }
+//
+//    fn verify_close_token(&self) -> bool {
+//
+//    }
+//}
+//
+//// customer obtains the close signature for wallet
+//fn verify_proof() -> cl::Signature<E> {
+//
+//}
+
+
+
 //trait MerchantEstablishChannel<E: Engine> {
 //    // verifies the commitment proof and channel token
 //    fn init_wallet_close() -> cl::Signature<E>;
@@ -264,10 +300,6 @@ mod tests {
         // run setup to generate the public parameters
         channel.setup(&mut rng); // or load_setup params
 
-        // generate keys for each party
-        // let cust_kp = channel.keygen(rng,String::from("Customer A"));
-
-
         let b0_cust = 100;
         let b0_merch = 20;
         // each party executes the init algorithm on the agreed initial challenge balance
@@ -283,8 +315,10 @@ mod tests {
         let mut cust_wallet = CustomerWallet::<Bls12>::new(rng, &mut channel, &mut channel_token, b0_cust, b0_merch);
 
         // lets establish the channel
-        let cust_init_proof = cust_wallet.generate_proof(rng);
+        let cust_com_proof = cust_wallet.generate_proof(rng, &mut channel_token);
 
+        // should return a blind signature or close token
+        let pay_token = merch_wallet.verify_proof(rng, &channel, &cust_wallet.w_com, &cust_com_proof);
 
         println!("Done!");
     }

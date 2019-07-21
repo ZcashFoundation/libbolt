@@ -1,6 +1,17 @@
+use super::*;
 use sodiumoxide::crypto::hash::sha512;
-use pairing::Engine;
+use pairing::{Engine, CurveProjective};
 use ff::PrimeField;
+use rand::Rng;
+use ped92::CSMultiParams;
+
+pub fn hash_g1_to_fr<E: Engine>(x: &Vec<E::G1>) -> E::Fr {
+    let mut x_vec: Vec<u8> = Vec::new();
+    for i in x.iter() {
+        x_vec.extend(format!("{}", i).bytes());
+    }
+    hash_to_fr::<E>(x_vec)
+}
 
 pub fn hash_g2_to_fr<E: Engine>(x: &E::G2) -> E::Fr {
     let mut x_vec: Vec<u8> = Vec::new();
@@ -50,6 +61,71 @@ pub fn convert_int_to_fr<E: Engine>(value: i32) -> E::Fr {
         return res;
     }
 }
+
+pub struct CommitmentProof<E: Engine> {
+    pub T: E::G1,
+    pub z: Vec<E::Fr>
+}
+
+impl<E: Engine> CommitmentProof<E> {
+    pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr) -> Self {
+        let mut Tvals = E::G1::zero();
+        let mut t = Vec::<E::Fr>::with_capacity(com_params.pub_bases1.len() - 1);
+        for g in com_params.pub_bases1.clone() {
+            let ti = E::Fr::rand(csprng);
+            t.push(ti);
+            let mut gt = g.clone();
+            gt.mul_assign(ti.into_repr());
+            Tvals.add_assign(&gt);
+        }
+
+        // compute the challenge
+        let x: Vec<E::G1> = vec![Tvals, com.clone()];
+        let challenge = hash_g1_to_fr::<E>(&x);
+
+        // compute the response
+        let mut z: Vec<E::Fr> = Vec::new();
+        let mut z0 = r.clone();
+        z0.mul_assign(&challenge);
+        z0.add_assign(&t[0]);
+        z.push(z0);
+
+        for i in 1..t.len() {
+            let mut zi = wallet[i - 1].clone();
+            zi.mul_assign(&challenge);
+            zi.add_assign(&t[i]);
+            z.push(zi);
+        }
+
+        CommitmentProof {
+            T: Tvals, z: z
+        }
+    }
+}
+
+///
+/// Verify PoK for the opening of a commitment
+///
+pub fn verify<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>) -> bool {
+
+    let mut comc = com.clone();
+    let T = proof.T.clone();
+    let xvec: Vec<E::G1> = vec![T, comc];
+    let challenge = hash_g1_to_fr::<E>(&xvec);
+
+    comc.mul_assign(challenge.into_repr());
+    comc.add_assign(&T);
+
+    let mut x = E::G1::zero();
+    for i in 0..proof.z.len() {
+        let mut base = com_params.pub_bases1[i].clone();
+        base.mul_assign(proof.z[i].into_repr());
+        x.add_assign(&base);
+    }
+
+    return comc == x;
+}
+
 
 
 #[cfg(test)]
