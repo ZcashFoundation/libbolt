@@ -112,7 +112,7 @@ impl<E: Engine> ParamsUL<E> {
         prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L).
     */
     pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i32, r: E::Fr, C: Commitment<E>, k: usize, otherM: Vec<E::Fr>) -> ProofUL<E> {
-        let proofUlState = self.prove_ul_commitment(rng, x, k);
+        let proofUlState = self.prove_ul_commitment(rng, x, k, None, None);
 
         // Fiat-Shamir heuristic
         let mut a = Vec::<E::Fqk>::with_capacity(self.l as usize);
@@ -124,7 +124,7 @@ impl<E: Engine> ParamsUL<E> {
         self.prove_ul_response(r, C, &proofUlState, c, k, otherM)
     }
 
-    fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i32, k: usize) -> ProofULState<E> {
+    fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i32, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
         if x > self.u.pow(self.l as u32) || x < 0 {
             panic!("x is not within the range.");
         }
@@ -135,7 +135,7 @@ impl<E: Engine> ParamsUL<E> {
         let mut V = Vec::<Signature<E>>::with_capacity(self.l as usize);
         let mut s = Vec::<E::Fr>::with_capacity(self.csParams.pub_bases.len() - 2);
         let mut D = E::G1::zero();
-        let m = E::Fr::rand(rng);
+        let m = mOptional.unwrap_or(E::Fr::rand(rng));
 
         // D = H^m
         let mut hm = self.csParams.pub_bases[0].clone();
@@ -156,10 +156,17 @@ impl<E: Engine> ParamsUL<E> {
             }
             D.add_assign(&aux);
         }
+
+        let sVec = sOptional.unwrap_or(Vec::<E::Fr>::with_capacity(0));
         for i in 1..self.csParams.pub_bases.len() {
             if i != k {
                 let mut g = self.csParams.pub_bases[i].clone();
-                let s1 = E::Fr::rand(rng);
+                let s1: E::Fr;
+                if sVec.len() >= i {
+                    s1 = sVec[i-1];
+                } else {
+                    s1 = E::Fr::rand(rng);
+                }
                 s.push(s1);
                 g.mul_assign(s1);
                 D.add_assign(&g);
@@ -177,7 +184,7 @@ impl<E: Engine> ParamsUL<E> {
         rc.mul_assign(&c);
         zr.add_assign(&rc);
         for i in 0..self.l as usize {
-            let mut dx = E::Fr::from_str(&proofUlState.decx[i].to_string()).unwrap();
+            let dx = E::Fr::from_str(&proofUlState.decx[i].to_string()).unwrap();
 
             let proof = self.kp.prove_response(&proofUlState.proofStates[i].clone(), c, &mut vec! {dx});
 
@@ -186,7 +193,7 @@ impl<E: Engine> ParamsUL<E> {
 
         let mut zs = Vec::<E::Fr>::with_capacity(self.csParams.pub_bases.len() - 2);
         for i in 1..self.csParams.pub_bases.len() {
-            let mut j: usize;
+            let j: usize;
             if i < k {
                 j = i - 1;
             } else if i > k {
@@ -248,7 +255,7 @@ impl<E: Engine> ParamsUL<E> {
             D.add_assign(&aux);
         }
         for i in 1..self.csParams.pub_bases.len() {
-            let mut j: usize;
+            let j: usize;
             if i < k {
                 j = i - 1;
             } else if i > k {
@@ -324,7 +331,7 @@ impl<E: Engine> RPPublicParams<E> {
         Prove method is responsible for generating the zero knowledge range proof.
     */
     pub fn prove<R: Rng>(&self, rng: &mut R, x: i32, C: Commitment<E>, r: E::Fr, k: usize, otherM: Vec<E::Fr>) -> RangeProof<E> {
-        let rpState = self.prove_commitment(rng, x, C, k);
+        let rpState = self.prove_commitment(rng, x, C, k, None, None);
 
         let mut a = Vec::<E::Fqk>::with_capacity(self.p.l as usize);
         for i in 0..rpState.ps1.proofStates.len() {
@@ -336,7 +343,7 @@ impl<E: Engine> RPPublicParams<E> {
         self.prove_response(r, &rpState, ch, k, otherM)
     }
 
-    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, x: i32, C: Commitment<E>, k: usize) -> RangeProofState<E> {
+    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, x: i32, C: Commitment<E>, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> RangeProofState<E> {
         if x > self.b || x < self.a {
             panic!("x is not within the range.");
         }
@@ -352,7 +359,7 @@ impl<E: Engine> RPPublicParams<E> {
         let mut comXB = C.clone();
         comXB.c.add_assign(&gb);
         comXB.c.add_assign(&gul);
-        let firstState = self.p.prove_ul_commitment(rng, xb, k);
+        let firstState = self.p.prove_ul_commitment(rng, xb, k, sOptional.clone(), mOptional.clone());
         // x - a
         let xa = x - self.a;
         let mut ga = self.p.csParams.pub_bases[k].clone();
@@ -361,7 +368,7 @@ impl<E: Engine> RPPublicParams<E> {
         ga.mul_assign(a.into_repr());
         let mut comXA = C.clone();
         comXA.c.add_assign(&ga);
-        let secondState = self.p.prove_ul_commitment(rng, xa, k);
+        let secondState = self.p.prove_ul_commitment(rng, xa, k, sOptional.clone(), mOptional.clone());
         RangeProofState { com1: comXB, ps1: firstState, com2: comXA, ps2: secondState }
     }
 
