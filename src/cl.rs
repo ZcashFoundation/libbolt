@@ -13,13 +13,13 @@ use std::fmt::LowerHex;
 #[derive(Clone)]
 pub struct PublicParams<E: Engine> {
     pub g1: E::G1,
-    pub g2: E::G2
+    pub g2: E::G2,
 }
 
 #[derive(Clone)]
 pub struct SecretKey<E: Engine> {
     pub x: E::Fr,
-    pub y: Vec<E::Fr>
+    pub y: Vec<E::Fr>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -61,19 +61,19 @@ pub struct BlindPublicKey<E: Engine> {
 #[derive(Clone)]
 pub struct Signature<E: Engine> {
     pub h: E::G1,
-    pub H: E::G1
+    pub H: E::G1,
 }
 
 #[derive(Clone)]
 pub struct KeyPair<E: Engine> {
     pub secret: SecretKey<E>,
-    pub public: PublicKey<E>
+    pub public: PublicKey<E>,
 }
 
 #[derive(Clone)]
 pub struct BlindKeyPair<E: Engine> {
     pub secret: SecretKey<E>,
-    pub public: BlindPublicKey<E>
+    pub public: BlindPublicKey<E>,
 }
 
 #[derive(Clone)]
@@ -83,7 +83,7 @@ pub struct ProofState<E: Engine> {
     pub t: Vec<E::Fr>,
     pub tt: E::Fr,
     pub a: E::Fqk,
-    pub blindSig: Signature<E>
+    pub blindSig: Signature<E>,
 }
 
 #[derive(Clone)]
@@ -91,14 +91,14 @@ pub struct SignatureProof<E: Engine> {
     pub zx: E::Fr,
     pub zsig: Vec<E::Fr>,
     pub zv: E::Fr,
-    pub a: E::Fqk
+    pub a: E::Fqk,
 }
 
 
 impl<E: Engine> SecretKey<E> {
     pub fn generate<R: Rng>(csprng: &mut R, l: usize) -> Self {
         let mut y: Vec<E::Fr> = Vec::new();
-        for i in 0 .. l {
+        for i in 0..l {
             let _y = E::Fr::rand(csprng);
             y.push(_y);
         }
@@ -111,7 +111,7 @@ impl<E: Engine> SecretKey<E> {
         let mut s = E::Fr::zero();
         // check vector length first
         assert_eq!(self.y.len(), message.len());
-        for i in 0 .. message.len() {
+        for i in 0..message.len() {
             // s = s + (self.y[i] * message[i]);
             let mut res_yi = self.y[i];
             res_yi.mul_assign(&message[i]);
@@ -143,7 +143,6 @@ impl<E: Engine> SecretKey<E> {
         H1.mul_assign(r);
         Signature { h: h1, H: H1 }
     }
-
 }
 
 
@@ -186,7 +185,7 @@ impl<E: Engine> SecretKey<E> {
 impl<E: Engine> PublicKey<E> {
     pub fn from_secret(mpk: &PublicParams<E>, secret: &SecretKey<E>) -> Self {
         let mut Y: Vec<E::G2> = Vec::new();
-        for i in 0 .. secret.y.len() {
+        for i in 0..secret.y.len() {
             // Y[i] = g2 ^ y[i]
             let mut g2 = mpk.g2;
             g2.mul_assign(secret.y[i]);
@@ -197,13 +196,13 @@ impl<E: Engine> PublicKey<E> {
         X.mul_assign(secret.x);
         PublicKey {
             X: X,
-            Y: Y
+            Y: Y,
         }
     }
 
     pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
         let mut L = E::G2::zero();
-        for i in 0 .. self.Y.len() {
+        for i in 0..self.Y.len() {
             // L = L + self.Y[i].mul(message[i]);
             let mut Y = self.Y[i];
             Y.mul_assign(message[i]); // Y_i ^ m_i
@@ -218,7 +217,7 @@ impl<E: Engine> PublicKey<E> {
     }
 }
 
-impl<E: Engine> BlindPublicKey<E>  {
+impl<E: Engine> BlindPublicKey<E> {
     pub fn from_secret(mpk: &PublicParams<E>, secret: &SecretKey<E>) -> Self {
         let mut Y1: Vec<E::G1> = Vec::new();
         let mut Y2: Vec<E::G2> = Vec::new();
@@ -241,7 +240,7 @@ impl<E: Engine> BlindPublicKey<E>  {
             X1: X1,
             X2: X2,
             Y1: Y1,
-            Y2: Y2
+            Y2: Y2,
         }
     }
 
@@ -250,7 +249,7 @@ impl<E: Engine> BlindPublicKey<E>  {
         let l = self.Y2.len();
         assert_eq!(message.len(), l + 1);
 
-        for i in 0 .. l {
+        for i in 0..l {
             // L = L + self.Y[i].mul(message[i]);
             let mut Y = self.Y2[i];
             Y.mul_assign(message[i]); // Y_i ^ m_i
@@ -288,9 +287,7 @@ impl<E: Engine> BlindPublicKey<E>  {
         g.mul_assign(&p.a);
         gx == g
     }
-
 }
-
 
 
 pub fn setup<R: Rng, E: Engine>(csprng: &mut R) -> PublicParams<E> {
@@ -332,13 +329,10 @@ impl<E: Engine> BlindKeyPair<E> {
     }
 
     pub fn generate_cs_multi_params(&self, mpk: &PublicParams<E>) -> CSMultiParams<E> {
-        let mut com_bases1 = vec! {mpk.g1};
-        com_bases1.append(&mut self.public.Y1.clone());
+        let mut com_bases = vec! {mpk.g1};
+        com_bases.append(&mut self.public.Y1.clone());
 
-        let mut com_bases2 = vec! {mpk.g2};
-        com_bases2.append(&mut self.public.Y2.clone());
-
-        CSMultiParams { pub_bases1: com_bases1, pub_bases2: com_bases2}
+        CSMultiParams { pub_bases: com_bases }
     }
 
     /// extract unblinded public key
@@ -357,7 +351,7 @@ impl<E: Engine> BlindKeyPair<E> {
         let mut h1 = mpk.g1;
         h1.mul_assign(u); // g1 ^ u
 
-        let mut com1 = com.c1.clone();
+        let mut com1 = com.c.clone();
         let mut H1 = self.public.X1.clone();
         H1.add_assign(&com1); // (X * com)
         H1.mul_assign(u); // (X * com) ^ u (blinding factor)
@@ -394,16 +388,19 @@ impl<E: Engine> BlindKeyPair<E> {
 
     /// prove knowledge of a signature: commitment phase
     /// returns the proof state, including commitment a and a blind signature blindSig
-    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, mpk: &PublicParams<E>, signature: &Signature<E>) -> ProofState<E> {
+    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, mpk: &PublicParams<E>, signature: &Signature<E>,
+                                    tOptional: Option<Vec<E::Fr>>, ttOptional: Option<E::Fr>) -> ProofState<E> {
         let v = E::Fr::rand(rng);
         let blindSig = self.blind(rng, &v, signature);
         let s = E::Fr::rand(rng);
-        let mut t = Vec::<E::Fr>::with_capacity(self.public.Y2.len());
-        let tt = E::Fr::rand(rng);
+        let mut t = tOptional.unwrap_or(Vec::<E::Fr>::with_capacity(self.public.Y2.len()));
+        let tt = ttOptional.unwrap_or(E::Fr::rand(rng));
         let mut gx = E::pairing(blindSig.h, self.public.X2);
         gx = gx.pow(s.into_repr());
         for j in 0..self.public.Y2.len() {
-            t.push(E::Fr::rand(rng));
+            if t.len() == j {
+                t.push(E::Fr::rand(rng));
+            }
             let mut gy = E::pairing(blindSig.h, self.public.Y2[j]);
             gy = gy.pow(t[j].into_repr());
             gx.mul_assign(&gy);
@@ -429,7 +426,7 @@ impl<E: Engine> BlindKeyPair<E> {
         let mut vic = ps.v.clone();
         vic.mul_assign(&challenge);
         zv.add_assign(&vic);
-        SignatureProof {zsig, zx, zv, a: ps.a }
+        SignatureProof { zsig, zx, zv, a: ps.a }
     }
 }
 
@@ -461,7 +458,7 @@ mod tests {
 
     use ff::Rand;
     use pairing::bls12_381::{Bls12, Fr};
-    use rand::{SeedableRng};
+    use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use ped92::CSMultiParams;
 
@@ -478,8 +475,8 @@ mod tests {
 
         println!("PUBLIC KEY => {}", keypair.public);
 
-        let mut message1 : Vec<Fr> = Vec::new();
-        let mut message2 : Vec<Fr> = Vec::new();
+        let mut message1: Vec<Fr> = Vec::new();
+        let mut message2: Vec<Fr> = Vec::new();
 
         for i in 0..l {
             message1.push(Fr::rand(&mut rng));
@@ -502,8 +499,8 @@ mod tests {
 
         let public_key = keypair.get_public_key(&mpk);
 
-        let mut message1 : Vec<Fr> = Vec::new();
-        let mut message2 : Vec<Fr> = Vec::new();
+        let mut message1: Vec<Fr> = Vec::new();
+        let mut message2: Vec<Fr> = Vec::new();
 
         for i in 0..l {
             message1.push(Fr::rand(&mut rng));
@@ -515,15 +512,15 @@ mod tests {
         assert_eq!(public_key.verify(&mpk, &message2, &sig), false);
 
         let t = Fr::rand(&mut rng);
-        let blind_sig = keypair.blind(&mut rng, &t,&sig);
+        let blind_sig = keypair.blind(&mut rng, &t, &sig);
 
         // pick another blinding factor
         let t1 = Fr::rand(&mut rng);
 
         // verify blind signatures and provide blinding factor as input
-        assert_eq!(keypair.verify(&mpk,&message1, &t,&blind_sig), true);
-        assert_eq!(keypair.verify(&mpk,&message2, &t,&blind_sig), false);
-        assert_eq!(keypair.verify(&mpk,&message1, &t1,&blind_sig), false);
+        assert_eq!(keypair.verify(&mpk, &message1, &t, &blind_sig), true);
+        assert_eq!(keypair.verify(&mpk, &message2, &t, &blind_sig), false);
+        assert_eq!(keypair.verify(&mpk, &message1, &t1, &blind_sig), false);
     }
 
     #[test]
@@ -535,7 +532,7 @@ mod tests {
         let mpk = setup(&mut rng);
         let keypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
 
-        let mut message1 : Vec<Fr> = Vec::new();
+        let mut message1: Vec<Fr> = Vec::new();
 
         for i in 0..l {
             message1.push(Fr::rand(&mut rng));
@@ -562,8 +559,8 @@ mod tests {
 
         let public_key = keypair.get_public_key(&mpk);
 
-        let mut message1 : Vec<Fr> = Vec::new();
-        let mut message2 : Vec<Fr> = Vec::new();
+        let mut message1: Vec<Fr> = Vec::new();
+        let mut message2: Vec<Fr> = Vec::new();
 
         for i in 0..l {
             message1.push(Fr::rand(&mut rng));
@@ -580,11 +577,11 @@ mod tests {
 
         let t1 = Fr::rand(&mut rng);
 
-        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk,&message1, &unblinded_sig), true);
-        assert_eq!(keypair.verify(&mpk,&message1, &t,  &signature), true);
-        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk,&message2, &unblinded_sig), false);
-        assert_eq!(keypair.verify(&mpk,&message2, &t, &signature), false);
-        assert_eq!(keypair.verify(&mpk,&message1, &t1, &signature), false);
+        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message1, &unblinded_sig), true);
+        assert_eq!(keypair.verify(&mpk, &message1, &t, &signature), true);
+        assert_eq!(keypair.get_public_key(&mpk).verify(&mpk, &message2, &unblinded_sig), false);
+        assert_eq!(keypair.verify(&mpk, &message2, &t, &signature), false);
+        assert_eq!(keypair.verify(&mpk, &message1, &t1, &signature), false);
     }
 
     #[test]
@@ -597,19 +594,18 @@ mod tests {
 
         let public_key = keypair.get_public_key(&mpk);
 
-        let mut message1 : Vec<Fr> = Vec::new();
+        let mut message1: Vec<Fr> = Vec::new();
 
         for i in 0..l {
             message1.push(Fr::rand(&mut rng));
         }
 
         let sig = keypair.sign(&mut rng, &message1);
-        let proof_state = keypair.prove_commitment(rng, &mpk, &sig);
+        let proof_state = keypair.prove_commitment(rng, &mpk, &sig, None, None);
         let challenge = Fr::rand(&mut rng);
         let proof = keypair.prove_response(&proof_state.clone(), challenge, &mut message1);
 
         assert_eq!(keypair.public.verify_proof(&mpk, proof_state.blindSig, proof, challenge), true);
     }
-
 }
 

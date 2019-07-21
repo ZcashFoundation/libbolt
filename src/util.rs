@@ -70,8 +70,8 @@ pub struct CommitmentProof<E: Engine> {
 impl<E: Engine> CommitmentProof<E> {
     pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr) -> Self {
         let mut Tvals = E::G1::zero();
-        let mut t = Vec::<E::Fr>::with_capacity(com_params.pub_bases1.len() - 1);
-        for g in com_params.pub_bases1.clone() {
+        let mut t = Vec::<E::Fr>::with_capacity(com_params.pub_bases.len() - 1);
+        for g in com_params.pub_bases.clone() {
             let ti = E::Fr::rand(csprng);
             t.push(ti);
             let mut gt = g.clone();
@@ -118,7 +118,7 @@ pub fn verify<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &Com
 
     let mut x = E::G1::zero();
     for i in 0..proof.z.len() {
-        let mut base = com_params.pub_bases1[i].clone();
+        let mut base = com_params.pub_bases[i].clone();
         base.mul_assign(proof.z[i].into_repr());
         x.add_assign(&base);
     }

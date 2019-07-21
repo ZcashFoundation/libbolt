@@ -192,7 +192,7 @@ impl<E: Engine> CustomerWallet<E> {
 
     // generate nizk proof of knowledge of commitment opening
     pub fn generate_proof<R: Rng>(&mut self, csprng: &mut R, channel_token: &ChannelToken<E>) -> CommitmentProof<E> {
-        return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c1, &self.w_vec, &self.r);
+        return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.w_vec, &self.r);
     }
 }
 
@@ -237,7 +237,7 @@ impl<E: Engine> MerchantWallet<E> {
     }
 
     pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>) -> Signature<E> {
-        let is_valid = util::verify(&self.comParams, &com.c1, &com_proof);
+        let is_valid = util::verify(&self.comParams, &com.c, &com_proof);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
             println!("Commitment PoK is valid!");
