@@ -67,11 +67,11 @@ impl<E: Engine> NIZKPublicParams<E> {
         }
 
         //commit signature
-        let proofState = self.keypair.prove_commitment(rng, &self.mpk, &paymentToken, Some(t[1..].to_vec()), Some(t[0].clone()));
+        let proofState = self.keypair.prove_commitment(rng, &self.mpk, &paymentToken, Some(vec!(t[1])), None);
 
         //commit range proof
-        let rpStateBC = self.rpParamsBC.prove_commitment(rng, newWallet.bc.clone(), newWalletCom.clone(), 3);
-        let rpStateBM = self.rpParamsBM.prove_commitment(rng, newWallet.bm.clone(), newWalletCom.clone(), 4);
+        let rpStateBC = self.rpParamsBC.prove_commitment(rng, newWallet.bc.clone(), newWalletCom.clone(), 3, Some(t[1..].to_vec()), Some(t[0].clone()));
+        let rpStateBM = self.rpParamsBM.prove_commitment(rng, newWallet.bm.clone(), newWalletCom.clone(), 4, Some(t[1..].to_vec()), Some(t[0].clone()));
 
         //Compute challenge
         let challenge = NIZKPublicParams::<E>::hash(proofState.a, vec! {T, D, rpStateBC.ps1.D, rpStateBC.ps2.D, rpStateBM.ps1.D, rpStateBM.ps2.D});
@@ -146,7 +146,7 @@ impl<E: Engine> NIZKPublicParams<E> {
         let r = commitment == g2;
 
         //verify knowledge of signature
-        let r1 = self.keypair.public.verify_proof(&self.mpk, proof.sig, proof.sigProof, challenge);
+        let r1 = self.keypair.public.verify_proof(&self.mpk, proof.sig, proof.sigProof.clone(), challenge);
 
         //verify knowledge of commitment
         let mut comc = com2.c.clone();
@@ -161,10 +161,30 @@ impl<E: Engine> NIZKPublicParams<E> {
         let r2 = x == comc;
 
         //verify range proofs
-        let r3 = self.rpParamsBC.verify(proof.rpBC, challenge.clone(), 3);
-        let r4 = self.rpParamsBM.verify(proof.rpBM, challenge.clone(), 4);
+        let r3 = self.rpParamsBC.verify(proof.rpBC.clone(), challenge.clone(), 3);
+        let r4 = self.rpParamsBM.verify(proof.rpBM.clone(), challenge.clone(), 4);
 
-        r && r1 && r2 && r3 && r4
+        let mut r5 = proof.z[3] == proof.sigProof.zsig[0];
+        r5 = r5 && proof.z[2] == proof.rpBC.p1.zr;
+        r5 = r5 && proof.z[2] == proof.rpBC.p2.zr;
+        r5 = r5 && proof.z[2] == proof.rpBM.p1.zr;
+        r5 = r5 && proof.z[2] == proof.rpBM.p2.zr;
+        for i in 3..proof.z.len() {
+            if i == 5 {
+                r5 = r5 && proof.z[i] == proof.rpBM.p1.zs[i-3];
+                r5 = r5 && proof.z[i] == proof.rpBM.p2.zs[i-3].clone();
+            } else if i == 6 {
+                r5 = r5 && proof.z[i] == proof.rpBC.p1.zs[i-4].clone();
+                r5 = r5 && proof.z[i] == proof.rpBC.p2.zs[i-4].clone();
+            } else {
+                r5 = r5 && proof.z[i] == proof.rpBC.p1.zs[i-3].clone();
+                r5 = r5 && proof.z[i] == proof.rpBC.p2.zs[i-3].clone();
+                r5 = r5 && proof.z[i] == proof.rpBM.p1.zs[i-3].clone();
+                r5 = r5 && proof.z[i] == proof.rpBM.p2.zs[i-3].clone();
+            }
+        }
+
+        r && r1 && r2 && r3 && r4 && r5
     }
 
     fn hash(a: E::Fqk, T: Vec<E::G1>) -> E::Fr {
@@ -234,7 +254,7 @@ mod tests {
         let wallet1 = Wallet { pkc, wpk, bc, bm };
         let wallet2 = Wallet::<Bls12> { pkc, wpk: wpkprime, bc: bc2, bm: bm2 };
 
-        let mut bc2Prime = bc.clone();
+        let bc2Prime = bc.clone();
         let wallet3 = Wallet { pkc, wpk: wpkprime, bc: bc2Prime, bm: bm2 };
         let commitment1 = pubParams.comParams.commit(&wallet1.as_fr_vec().clone(), &r);
         let commitment2 = pubParams.comParams.commit(&wallet3.as_fr_vec(), &rprime);
@@ -243,7 +263,7 @@ mod tests {
         let proof = pubParams.prove(rng, r, wallet1.clone(), wallet3, commitment2.clone(), rprime, &paymentToken);
         assert_eq!(pubParams.verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment1, &commitment2, wpk), false);
 
-        let mut bm2Prime = bm.clone();
+        let bm2Prime = bm.clone();
         let wallet4 = Wallet { pkc, wpk: wpkprime, bc: bc2, bm: bm2Prime };
         let commitment2 = pubParams.comParams.commit(&wallet4.as_fr_vec(), &rprime);
         let proof = pubParams.prove(rng, r, wallet1.clone(), wallet4, commitment2.clone(), rprime, &paymentToken);
