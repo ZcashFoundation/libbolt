@@ -198,24 +198,36 @@ impl<E: Engine> CustomerWallet<E> {
         return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.r);
     }
 
-    pub fn verify_tokens(&self, channel: &ChannelState<E>, close_token: &Signature<E>, pay_token: &Signature<E>) -> bool {
+    pub fn verify_close_token(&self, channel: &ChannelState<E>, close_token: &Signature<E>) -> bool {
+        // add a prefix to the wallet for close-message
+        let close_wallet = self.wallet.with_msg(String::from("close"));
+        let cp = channel.cp.as_ref().unwrap();
+        let mpk = cp.pub_params.mpk.clone();
+
+        // TODO: will need to support an extra base to verify the close-msg wallet
+        let is_close_valid = cp.pub_params.keypair.verify(&mpk, &close_wallet, &self.r, &close_token);
+        if is_close_valid {
+            let pk = cp.pub_params.keypair.get_public_key(&mpk);
+            let unblind_close_token = cp.pub_params.keypair.unblind(&self.r, &close_token);
+
+        }
+
+        panic!("Channel establish - Verification failed for close token!");
+    }
+
+    pub fn verify_pay_token(&self, channel: &ChannelState<E>, pay_token: &Signature<E>) -> bool {
         // unblind and verify signature
         let cp = channel.cp.as_ref().unwrap();
         let mpk = cp.pub_params.mpk.clone();
         let wallet = self.wallet.as_fr_vec();
-        // add a prefix to the wallet for close-message
-        let close_wallet = self.wallet.with_msg(String::from("close"));
 
         let is_pay_valid = cp.pub_params.keypair.verify(&mpk, &wallet, &self.r, &pay_token);
-        // TODO: will need to support an extra base to verify the close-msg wallet
-        //let is_close_valid = cp.pub_params.keypair.verify(&mpk, &close_wallet, &self.r, &close_token);
 
         if is_pay_valid {
             let unblind_pay_token = cp.pub_params.keypair.unblind(&self.r, &pay_token);
             let pk = cp.pub_params.keypair.get_public_key(&mpk);
             return pk.verify(&mpk, &wallet, &unblind_pay_token);
         }
-        //let unblind_close_token = cp.pub_params.keypair.unblind(&self.r, &close_token);
 
         panic!("Channel establish - Verification failed for pay token!") ;
     }
@@ -278,7 +290,7 @@ impl<E: Engine> MerchantWallet<E> {
 ///
 ///
 ///
-//trait IssueInitCloseToken<E: Engine> {
+//trait IssueCloseToken<E: Engine> {
 //    // customer generates initial commitment for wallet and send to merchant
 //    fn generate_proof(&self) -> CommitmentProof<E>;
 //
@@ -286,12 +298,12 @@ impl<E: Engine> MerchantWallet<E> {
 //    fn verify_close_token(&self) -> bool;
 //}
 //
-//impl<E: Engine> IssueInitCloseToken for CustomerWallet<E> {
+//impl<E: Engine> IssueCloseToken for CustomerWallet<E> {
 //    fn generate_proof(&self) -> CommitmentProof<E> {
 //
 //    }
 //
-//    fn verify_close_token(&self) -> bool {
+//    fn verify_token(&self) -> bool {
 //
 //    }
 //}
@@ -319,7 +331,7 @@ mod tests {
     use rand_xorshift::XorShiftRng;
 
     #[test]
-    fn init_channel() {
+    fn init_channel_works() {
         println!("Initializing channels...");
         let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
         let mut rng = &mut rand::thread_rng();
@@ -344,13 +356,21 @@ mod tests {
         // lets establish the channel
         let cust_com_proof = cust_wallet.generate_proof(rng, &mut channel_token);
 
-        // should return a blind signature or close token
+        // first return the close token, then wait for escrow-tx confirmation
+        // then send the pay-token after confirmation
         let (close_token, pay_token) = merch_wallet.verify_proof(rng, &channel, &cust_wallet.w_com, &cust_com_proof);
 
         // unblind tokens and verify signatures
-        assert!(cust_wallet.verify_tokens(&channel, &close_token, &pay_token));
+        assert!(cust_wallet.verify_pay_token(&channel, &pay_token));
+
+        //assert!(cust_wallet.verify_close_token(&channel, &close_token));
 
         println!("Done!");
+    }
+
+    fn pay_protocol_works() {
+
+        //
     }
 
 }
