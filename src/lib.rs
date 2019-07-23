@@ -60,9 +60,7 @@ use ff::{Rand, Field};
 
 use serde::{Serialize, Deserialize};
 
-pub mod prf;
 pub mod sym;
-pub mod ote;
 pub mod cl;
 pub mod clsigs;
 pub mod ccs08;
@@ -2042,13 +2040,6 @@ mod benches {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    #[ignore]
-    fn unidirectional_payment_basics_work() {
-        // TODO: finish me
-        assert!(true);
-    }
 
     fn setup_new_channel_helper(pp: &bidirectional::PublicParams, channel: &mut bidirectional::ChannelState,
                                 init_cust_bal: i32, init_merch_bal: i32)

@@ -16,7 +16,7 @@ pub struct Commitment<E: Engine> {
 
 #[derive(Clone)]
 pub struct CSMultiParams<E: Engine> {
-    pub pub_bases: Vec<E::G1>,
+    pub pub_bases: Vec<E::G1>
 }
 
 //impl<E: Engine> fmt::Display for CSParams<E> {
@@ -111,6 +111,8 @@ impl<E: Engine> CSMultiParams<E> {
         for i in 0..len + 1 {
             p.push(E::G1::rand(rng));
         }
+        // extra base used when extending a commitment
+        // p.push(E::G1::rand(rng));
         CSMultiParams { pub_bases: p }
     }
 
@@ -124,6 +126,16 @@ impl<E: Engine> CSMultiParams<E> {
             c.add_assign(&basis);
         }
         Commitment { c }
+    }
+
+    pub fn extend_commit(&self, com: &Commitment<E>, x: &E::Fr) -> Commitment<E> {
+        // c = com * gn+1 ^ x
+        let len = self.pub_bases.len();
+        let mut c = self.pub_bases[len-1].clone();
+        c.mul_assign(x.clone());
+        c.add_assign(&com.c);
+
+        return Commitment { c };
     }
 
     pub fn decommit(&self, cm: &Commitment<E>, x: &Vec<E::Fr>, r: &E::Fr) -> bool {
