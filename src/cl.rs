@@ -415,7 +415,7 @@ impl<E: Engine> BlindKeyPair<E> {
     /// returns a proof that can be send to the verifier together with the challenge and the blind signature
     pub fn prove_response(&self, ps: &ProofState<E>, challenge: E::Fr, message: &mut Vec<E::Fr>) -> SignatureProof<E> {
         let mut zsig = ps.t.clone();
-        for i in 0..zsig.len() {
+        for i in 0..message.len() {
             let mut message1 = message[i];
             message1.mul_assign(&challenge);
             zsig[i].add_assign(&message1);
