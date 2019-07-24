@@ -101,7 +101,7 @@ impl<E: Engine> ChannelState<E> {
     /// setup - generate public parameters for bidirectional payment channels
     ///
     pub fn setup<R: Rng>(&mut self, csprng: &mut R) {
-        let pubParams = NIZKPublicParams::<E>::setup(csprng);
+        let pubParams = NIZKPublicParams::<E>::setup(csprng, 4);
         let l = 4;
         let n = 32; // bitsize: 32-bit (0, 2^32-1)
         let num_rand_values = 1;
@@ -171,7 +171,7 @@ impl<E: Engine> CustomerWallet<E> {
         // randomness for commitment
         let r = E::Fr::rand(csprng);
         // initialize wallet vector
-        let wallet = Wallet {  pkc: pk_h, wpk: wpk_h, bc: cust_bal, bm: merch_bal };
+        let wallet = Wallet {  pkc: pk_h, wpk: wpk_h, bc: cust_bal, bm: merch_bal, close: None };
 
         let w_com = channel_token.comParams.commit(&wallet.as_fr_vec(), &r);
 

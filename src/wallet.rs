@@ -11,11 +11,16 @@ pub struct Wallet<E: Engine> {
     pub wpk: E::Fr,
     pub bc: i32,
     pub bm: i32,
+    pub close: Option<E::Fr>,
 }
 
 impl<E: Engine> Wallet<E> {
     pub fn as_fr_vec(&self) -> Vec<E::Fr> {
-        vec!(self.pkc, self.wpk, E::Fr::from_str(&self.bc.to_string()).unwrap(), E::Fr::from_str(&self.bm.to_string()).unwrap())
+        if self.close.is_some() {
+            vec!(self.pkc, self.wpk, E::Fr::from_str(&self.bc.to_string()).unwrap(), E::Fr::from_str(&self.bm.to_string()).unwrap(), self.close.unwrap())
+        } else {
+            vec!(self.pkc, self.wpk, E::Fr::from_str(&self.bc.to_string()).unwrap(), E::Fr::from_str(&self.bm.to_string()).unwrap())
+        }
     }
 
     pub fn with_msg(&self, msg: String) -> Vec<E::Fr> {
