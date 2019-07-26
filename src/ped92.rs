@@ -111,8 +111,6 @@ impl<E: Engine> CSMultiParams<E> {
         for i in 0..len + 1 {
             p.push(E::G1::rand(rng));
         }
-        // extra base used when extending a commitment
-        // p.push(E::G1::rand(rng));
         CSMultiParams { pub_bases: p }
     }
 
@@ -192,5 +190,32 @@ mod tests {
         let mut r1 = r.clone();
         r1.add_assign(&Fr::one());
         assert_eq!(csp.decommit(&c, &m, &r1), false);
+    }
+
+    #[test]
+    fn commit_variable_messages_works() {
+        let rng = &mut thread_rng();
+        let len = 5;
+        let csp = CSMultiParams::<Bls12>::setup_gen_params(rng, len);
+
+        let mut m1: Vec<Fr> = Vec::new();
+        for i in 0..len-1 {
+            m1.push(Fr::rand(rng));
+        }
+        let extra_m = Fr::rand(rng);
+        let r = Fr::rand(rng);
+
+        let c1 = csp.commit(&m1, &r);
+
+        assert_eq!(csp.decommit(&c1, &m1, &r), true);
+        let mut r1 = r.clone();
+        r1.add_assign(&Fr::one());
+        assert_eq!(csp.decommit(&c1, &m1, &r1), false);
+
+        // let's add another message
+        let mut m2 = m1.clone();
+        m2.push(extra_m);
+        let c2 = csp.commit(&m2, &r);
+        assert_eq!(csp.decommit(&c2, &m2, &r), true);
     }
 }

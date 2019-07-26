@@ -16,11 +16,26 @@ pub struct PublicParams<E: Engine> {
     pub g2: E::G2,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SecretKey<E: Engine> {
     pub x: E::Fr,
     pub y: Vec<E::Fr>,
 }
+
+impl<E: Engine> fmt::Display for SecretKey<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+
+        let mut y_str = String::new();
+        let mut i = 0;
+        for y in self.y.iter() {
+            y_str = format!("{}\n{} => {}", y_str, i, y);
+            i += 1;
+        }
+
+        write!(f, "SK : \nx={},\ny=[{}\n]", self.x, y_str)
+    }
+}
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PublicKey<E: Engine> {
@@ -30,22 +45,15 @@ pub struct PublicKey<E: Engine> {
 
 impl<E: Engine> fmt::Display for PublicKey<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        //let y_vec: Vec<u8> = encode(&self.Y, Infinite).unwrap();
-        //let comp_x = self.X.into_compressed();
-        let mut x_vec: Vec<u8> = Vec::new();
-        x_vec.extend(format!("{:}", &self.X).bytes());
 
-        let mut x_s = String::new();
-        for x in x_vec.iter() {
-            x_s = format!("{} {:x}", x_s, x);
+        let mut y_s = String::new();
+        let mut i = 0;
+        for y in self.Y.iter() {
+            y_s = format!("{}\n{} => {}", y_s, i, y);
+            i += 1;
         }
 
-//        let mut y_s = String::new();
-//        for y in y_vec.iter() {
-//            y_s = format!("{}{:x}", y_s, y);
-//        }
-
-        write!(f, "PK : (X=0x{}, Y=0x[TODO])", x_s)
+        write!(f, "PK : \nX={},\nY=[{}\n]", self.X, y_s)
     }
 }
 
@@ -57,6 +65,24 @@ pub struct BlindPublicKey<E: Engine> {
     pub Y1: Vec<E::G1>,
     pub Y2: Vec<E::G2>,
 }
+
+impl<E: Engine> fmt::Display for BlindPublicKey<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+
+        let mut y1_str = String::new();
+        for y in self.Y1.iter() {
+            y1_str = format!("{}\n{}", y1_str, y);
+        }
+
+        let mut y2_str = String::new();
+        for y in self.Y2.iter() {
+            y2_str = format!("{}\n{}", y2_str, y);
+        }
+
+        write!(f, "Blind PK : \nX1={},\nX2{},\nY1=[{}\n],\nY2=[{}\n]", self.X1, self.X2, y1_str, y2_str)
+    }
+}
+
 
 #[derive(Clone)]
 pub struct Signature<E: Engine> {
@@ -145,43 +171,9 @@ impl<E: Engine> SecretKey<E> {
     }
 }
 
-
-//impl<E: Engine> PublicKey<E> {
-//    pub fn encode(&self) -> Vec<u8> {
-//        let mut output_buf = Vec::new();
-//        let x_vec: Vec<u8> = encode(&self.X, Infinite).unwrap();
-//
-//        output_buf.extend(x_vec);
-//        for i in 0 .. self.Y.len() {
-//            let yi_vec: Vec<u8> = encode(&self.Y[i], Infinite).unwrap();
-//            output_buf.extend(yi_vec);
-//        }
-//        return output_buf;
-//    }
-//}
-
-//impl fmt::Display for PublicKey {
-//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//        let a_vec: Vec<u8> = encode(&self.X, Infinite).unwrap();
-//
-//        let mut a_s = String::new();
-//        for x in a_vec.iter() {
-//            a_s = format!("{}{:x}", a_s, x);
-//        }
-//
-//        let mut Y = String::new();
-//
-//        for i in 0 .. self.Y.len() {
-//            let b_vec: Vec<u8> = encode(&self.Y, Infinite).unwrap();
-//            let mut b_s = String::new();
-//            for y in b_vec.iter() {
-//                b_s = format!("{}{:x}", b_s, y);
-//            }
-//        }
-//        write!(f, "PublicKey : (\nX = 0x{},\n{}\n)", a_s, Y)
-//    }
-//}
-
+///
+/// Interface for CL PS signature variant
+///
 impl<E: Engine> PublicKey<E> {
     pub fn from_secret(mpk: &PublicParams<E>, secret: &SecretKey<E>) -> Self {
         let mut Y: Vec<E::G2> = Vec::new();
@@ -202,7 +194,14 @@ impl<E: Engine> PublicKey<E> {
 
     pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
         let mut L = E::G2::zero();
-        for i in 0..self.Y.len() {
+        let mut l = self.Y.len();
+
+        let l = match message.len() < l {
+            true => message.len(),
+            false => l
+        };
+
+        for i in 0..l {
             // L = L + self.Y[i].mul(message[i]);
             let mut Y = self.Y[i];
             Y.mul_assign(message[i]); // Y_i ^ m_i
@@ -217,6 +216,9 @@ impl<E: Engine> PublicKey<E> {
     }
 }
 
+///
+/// Interface for blind sigs based on CL PS variant
+///
 impl<E: Engine> BlindPublicKey<E> {
     pub fn from_secret(mpk: &PublicParams<E>, secret: &SecretKey<E>) -> Self {
         let mut Y1: Vec<E::G1> = Vec::new();
@@ -246,8 +248,19 @@ impl<E: Engine> BlindPublicKey<E> {
 
     pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
         let mut L = E::G2::zero();
-        let l = self.Y2.len();
-        assert_eq!(message.len(), l + 1);
+        let mut l = self.Y2.len();
+        assert!(message.len() <= l + 1);
+        let mut last_elem = l;
+
+        let last_elem = match l == message.len() {
+            true => message.len() - 1,
+            false => l
+        };
+
+        let l = match l == message.len() {
+            true => message.len() - 1,
+            false => l
+        };
 
         for i in 0..l {
             // L = L + self.Y[i].mul(message[i]);
@@ -257,14 +270,15 @@ impl<E: Engine> BlindPublicKey<E> {
         }
 
         // Y_(l+1) ^ t
-        let mut Yt = mpk.g2;
-        Yt.mul_assign(message[l]);
+        let mut Yt = mpk.g2.clone();
+        Yt.mul_assign(message[last_elem]);
         L.add_assign(&Yt);
 
-        let mut X2 = self.X2;
+        let mut X2 = self.X2.clone();
         X2.add_assign(&L); // X2 = X + L
         let lhs = E::pairing(signature.h, X2);
         let rhs = E::pairing(signature.H, mpk.g2);
+
         signature.h != E::G1::one() && lhs == rhs
     }
 
@@ -298,7 +312,7 @@ pub fn setup<R: Rng, E: Engine>(csprng: &mut R) -> PublicParams<E> {
 }
 
 ///
-/// KeyPair - implements the standard CL signature variant by Pointcheval-Sanders - Section 3.1
+/// KeyPair - implements the standard CL signature variant by PS - Section 3.1
 ///
 impl<E: Engine> KeyPair<E> {
     pub fn generate<R: Rng>(csprng: &mut R, mpk: &PublicParams<E>, l: usize) -> Self {
@@ -318,7 +332,7 @@ impl<E: Engine> KeyPair<E> {
 }
 
 ///
-/// BlindingKeyPair - implements the blinding signature scheme in Pointcheval-Sanders - Section 3.1.1
+/// BlindingKeyPair - implements the blinding signature scheme in PS - Section 3.1.1
 ///
 impl<E: Engine> BlindKeyPair<E> {
     /// generate public/private keypair given public params and size of vectors
@@ -430,27 +444,14 @@ impl<E: Engine> BlindKeyPair<E> {
     }
 }
 
-/*
+
 // display CL signature (PS)
-impl fmt::Display for SignaturePS {
+impl<E: Engine> fmt::Display for Signature<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let a_vec: Vec<u8> = encode(&self.h, Infinite).unwrap();
-        let b_vec: Vec<u8> = encode(&self.H, Infinite).unwrap();
-
-        let mut a_s = String::new();
-        for x in a_vec.iter() {
-            a_s = format!("{}{:x}", a_s, x);
-        }
-
-        let mut b_s = String::new();
-        for y in b_vec.iter() {
-            b_s = format!("{}{:x}", b_s, y);
-        }
-
-        write!(f, "SignaturePS : (\nh = 0x{},\nH = 0x{}\n)", a_s, b_s)
+        write!(f, "Signature : \n(h = {},\nH = {})", self.h, self.H)
     }
 }
-*/
+
 
 #[cfg(test)]
 mod tests {
@@ -463,7 +464,6 @@ mod tests {
     use ped92::CSMultiParams;
 
     #[test]
-    #[ignore]
     fn sign_and_verify() {
         // let mut rng = XorShiftRng::seed_from_u64(0xbc4f6d44d62f276c);
         // let mut rng = XorShiftRng::seed_from_u64(0xb963afd05455863d);
@@ -473,6 +473,7 @@ mod tests {
         let mpk = setup(&mut rng);
         let keypair = KeyPair::<Bls12>::generate(&mut rng, &mpk, l);
 
+        println!("SECRET KEY => {}", keypair.secret);
         println!("PUBLIC KEY => {}", keypair.public);
 
         let mut message1: Vec<Fr> = Vec::new();
@@ -484,12 +485,12 @@ mod tests {
         }
 
         let sig = keypair.sign(&mut rng, &message1);
+        println!("{}", sig);
         assert_eq!(keypair.verify(&mpk, &message1, &sig), true);
         assert_eq!(keypair.verify(&mpk, &message2, &sig), false);
     }
 
     #[test]
-    #[ignore]
     fn blind_sign_and_verify() {
         let mut rng = &mut rand::thread_rng();
 
@@ -524,7 +525,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn blind_unblind_works() {
         let mut rng = &mut rand::thread_rng();
 
@@ -549,7 +549,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn blind_sign_and_verify_works() {
         let mut rng = &mut rand::thread_rng();
 

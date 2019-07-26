@@ -70,11 +70,13 @@ pub struct CommitmentProof<E: Engine> {
 impl<E: Engine> CommitmentProof<E> {
     pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr) -> Self {
         let mut Tvals = E::G1::zero();
-        let mut t = Vec::<E::Fr>::with_capacity(com_params.pub_bases.len() - 1);
-        for g in com_params.pub_bases.clone() {
+        assert!(wallet.len() <= com_params.pub_bases.len());
+
+        let mut t = Vec::<E::Fr>::with_capacity( wallet.len()+1 );
+        for i in 0..wallet.len()+1 {
             let ti = E::Fr::rand(csprng);
             t.push(ti);
-            let mut gt = g.clone();
+            let mut gt = com_params.pub_bases[i].clone();
             gt.mul_assign(ti.into_repr());
             Tvals.add_assign(&gt);
         }
@@ -91,7 +93,7 @@ impl<E: Engine> CommitmentProof<E> {
         z.push(z0);
 
         for i in 1..t.len() {
-            let mut zi = wallet[i - 1].clone();
+            let mut zi = wallet[i-1].clone();
             zi.mul_assign(&challenge);
             zi.add_assign(&t[i]);
             z.push(zi);
@@ -110,9 +112,11 @@ pub fn verify<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &Com
 
     let mut comc = com.clone();
     let T = proof.T.clone();
+
     let xvec: Vec<E::G1> = vec![T, comc];
     let challenge = hash_g1_to_fr::<E>(&xvec);
 
+    // compute the
     comc.mul_assign(challenge.into_repr());
     comc.add_assign(&T);
 

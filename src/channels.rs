@@ -35,7 +35,6 @@ struct PubKeyMap {
 pub struct ChannelParams<E: Engine> {
     pub pub_params: NIZKPublicParams<E>,
     l: usize, // messages for commitment
-    range_proof_bits: usize,
     extra_verify: bool // extra verification for certain points in the establish/pay protocol
 }
 
@@ -101,12 +100,11 @@ impl<E: Engine> ChannelState<E> {
     /// setup - generate public parameters for bidirectional payment channels
     ///
     pub fn setup<R: Rng>(&mut self, csprng: &mut R) {
-        let pubParams = NIZKPublicParams::<E>::setup(csprng, 4);
-        let l = 4;
-        let n = 32; // bitsize: 32-bit (0, 2^32-1)
+        let l = 5;
+        let pubParams = NIZKPublicParams::<E>::setup(csprng, l);
         let num_rand_values = 1;
 
-        let cp = ChannelParams { pub_params: pubParams, l: l, range_proof_bits: n, extra_verify: true };
+        let cp = ChannelParams { pub_params: pubParams, l: l, extra_verify: true };
         self.cp = Some(cp);
     }
 
@@ -204,12 +202,12 @@ impl<E: Engine> CustomerWallet<E> {
         let cp = channel.cp.as_ref().unwrap();
         let mpk = cp.pub_params.mpk.clone();
 
-        // TODO: will need to support an extra base to verify the close-msg wallet
         let is_close_valid = cp.pub_params.keypair.verify(&mpk, &close_wallet, &self.r, &close_token);
         if is_close_valid {
+            println!("verify_close_token - Blinded close token is valid!!");
             let pk = cp.pub_params.keypair.get_public_key(&mpk);
             let unblind_close_token = cp.pub_params.keypair.unblind(&self.r, &close_token);
-
+            return pk.verify(&mpk, &close_wallet, &unblind_close_token);
         }
 
         panic!("Channel establish - Verification failed for close token!");
@@ -222,15 +220,21 @@ impl<E: Engine> CustomerWallet<E> {
         let wallet = self.wallet.as_fr_vec();
 
         let is_pay_valid = cp.pub_params.keypair.verify(&mpk, &wallet, &self.r, &pay_token);
-
         if is_pay_valid {
+            println!("verify_pay_token - Blinded pay token is valid!!");
             let unblind_pay_token = cp.pub_params.keypair.unblind(&self.r, &pay_token);
             let pk = cp.pub_params.keypair.get_public_key(&mpk);
             return pk.verify(&mpk, &wallet, &unblind_pay_token);
         }
 
-        panic!("Channel establish - Verification failed for pay token!") ;
+        panic!("verify_pay_token - Channel establish - Verification failed for pay token!") ;
     }
+
+
+//    // for channel pay
+//    pub fn update_wallet(&self, channel: &ChannelState<E>, pay_token: &Signature<E>, amount: i32) -> (CommitmentProof<E>, secp256k1::PublicKey) {
+//
+//    }
 }
 
 ///
@@ -271,16 +275,25 @@ impl<E: Engine> MerchantWallet<E> {
         }
     }
 
+    pub fn issue_close_token<R: Rng>(&self, csprng: &mut R, cp: &ChannelParams<E>, com: &Commitment<E>) -> Signature<E> {
+        println!("issue_close_token => generating token");
+        let x = hash_to_fr::<E>(String::from("close").into_bytes() );
+        let close_com = self.comParams.extend_commit(com, &x);
+        return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, close_com);
+    }
+
+    pub fn issue_pay_token<R: Rng>(&self, csprng: &mut R, cp: &ChannelParams<E>, com: &Commitment<E>) -> Signature<E> {
+        println!("issue_pay_token => generating token");
+        return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, com.clone());
+    }
+
     pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>) -> (Signature<E>, Signature<E>) {
         let is_valid = util::verify(&self.comParams, &com.c, &com_proof);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
             println!("Commitment PoK is valid!");
-
-            let x = hash_to_fr::<E>(String::from("close").into_bytes() );
-            let close_com = self.comParams.extend_commit(com, &x);
-            let close_token = self.keypair.sign_blind(csprng, &cp.pub_params.mpk, close_com);
-            let pay_token = self.keypair.sign_blind(csprng, &cp.pub_params.mpk, com.clone());
+            let pay_token = self.issue_pay_token(csprng, cp, com);
+            let close_token = self.issue_close_token(csprng, cp, com);
             return (close_token, pay_token);
         }
         panic!("Failed to verify PoK of commitment opening");
@@ -363,11 +376,17 @@ mod tests {
         // unblind tokens and verify signatures
         assert!(cust_wallet.verify_pay_token(&channel, &pay_token));
 
-        //assert!(cust_wallet.verify_close_token(&channel, &close_token));
+        assert!(cust_wallet.verify_close_token(&channel, &close_token));
 
         println!("Done!");
+
+//        // pay protocol tests
+//        let amount = 10;
+//        let (new_cust_com_proof, wpk) = cust_wallet.update_wallet(&channel, amount);
+
     }
 
+    #[test]
     fn pay_protocol_works() {
 
         //
