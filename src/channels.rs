@@ -21,7 +21,7 @@ use std::fmt::Display;
 use serde::{Serialize, Deserialize};
 use serialization_wrappers::WalletCommitmentAndParamsWrapper;
 use std::ptr::hash;
-use nizk::NIZKPublicParams;
+use nizk::{NIZKPublicParams, Proof};
 use wallet::Wallet;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -100,7 +100,7 @@ impl<E: Engine> ChannelState<E> {
     /// setup - generate public parameters for bidirectional payment channels
     ///
     pub fn setup<R: Rng>(&mut self, csprng: &mut R) {
-        let l = 5;
+        let l = 4;
         let pubParams = NIZKPublicParams::<E>::setup(csprng, l);
         let num_rand_values = 1;
 
@@ -146,6 +146,9 @@ pub struct CustomerWallet<E: Engine> {
     r: E::Fr, // randomness used to form the commitment
     wallet: Wallet<E>, // vector of field elements that represent wallet
     pub w_com: Commitment<E>, // commitment to the current state of the wallet
+    index: i32,
+    close_tokens: HashMap<i32, Signature<E>>,
+    pay_tokens: HashMap<i32, Signature<E>>
 }
 
 impl<E: Engine> CustomerWallet<E> {
@@ -177,6 +180,9 @@ impl<E: Engine> CustomerWallet<E> {
 
         assert!(channel_token.is_init());
 
+        let mut ct_db= HashMap::new();
+        let mut pt_db= HashMap::new();
+
         println!("Customer wallet formed -> now returning the structure to the caller.");
         return CustomerWallet {
             pk_c: pk_c,
@@ -187,7 +193,10 @@ impl<E: Engine> CustomerWallet<E> {
             wsk: wsk,
             r: r,
             w_com: w_com,
-            wallet: wallet
+            wallet: wallet,
+            index: 1,
+            close_tokens: ct_db,
+            pay_tokens: pt_db
         }
     }
 
@@ -196,9 +205,9 @@ impl<E: Engine> CustomerWallet<E> {
         return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.r);
     }
 
-    pub fn verify_close_token(&self, channel: &ChannelState<E>, close_token: &Signature<E>) -> bool {
+    pub fn verify_close_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> bool {
         // add a prefix to the wallet for close-message
-        let close_wallet = self.wallet.with_msg(String::from("close"));
+        let close_wallet = self.wallet.with_close(String::from("close"));
         let cp = channel.cp.as_ref().unwrap();
         let mpk = cp.pub_params.mpk.clone();
 
@@ -207,13 +216,18 @@ impl<E: Engine> CustomerWallet<E> {
             println!("verify_close_token - Blinded close token is valid!!");
             let pk = cp.pub_params.keypair.get_public_key(&mpk);
             let unblind_close_token = cp.pub_params.keypair.unblind(&self.r, &close_token);
-            return pk.verify(&mpk, &close_wallet, &unblind_close_token);
+            let is_valid = pk.verify(&mpk, &close_wallet, &unblind_close_token);
+            if is_valid {
+                // record the unblinded close token
+                self.close_tokens.insert( self.index - 1, unblind_close_token);
+            }
+            return is_valid;
         }
 
         panic!("Channel establish - Verification failed for close token!");
     }
 
-    pub fn verify_pay_token(&self, channel: &ChannelState<E>, pay_token: &Signature<E>) -> bool {
+    pub fn verify_pay_token(&mut self, channel: &ChannelState<E>, pay_token: &Signature<E>) -> bool {
         // unblind and verify signature
         let cp = channel.cp.as_ref().unwrap();
         let mpk = cp.pub_params.mpk.clone();
@@ -224,18 +238,79 @@ impl<E: Engine> CustomerWallet<E> {
             println!("verify_pay_token - Blinded pay token is valid!!");
             let unblind_pay_token = cp.pub_params.keypair.unblind(&self.r, &pay_token);
             let pk = cp.pub_params.keypair.get_public_key(&mpk);
-            return pk.verify(&mpk, &wallet, &unblind_pay_token);
+            let is_valid = pk.verify(&mpk, &wallet, &unblind_pay_token);
+            if is_valid {
+                self.pay_tokens.insert(self.index - 1, unblind_pay_token);
+            }
+            return is_valid;
         }
 
         panic!("verify_pay_token - Channel establish - Verification failed for pay token!") ;
     }
 
+    // for channel pay
+    pub fn generate_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, amount: i32) -> (Proof<E>, Commitment<E>, secp256k1::PublicKey, CustomerWallet<E>) {
+        // 1 - chooose new wpk/wsk pair
+        let mut kp = secp256k1::Secp256k1::new();
+        kp.randomize(csprng);
+        let (new_wsk, new_wpk) = kp.generate_keypair(csprng);
+        let wpk_h = hash_pubkey_to_fr::<E>(&new_wpk);
 
-//    // for channel pay
-//    pub fn update_wallet(&self, channel: &ChannelState<E>, pay_token: &Signature<E>, amount: i32) -> (CommitmentProof<E>, secp256k1::PublicKey) {
-//
-//    }
+        // 2 - form new wallet and commitment
+        let new_cust_bal= self.cust_balance - amount;
+        let new_merch_bal = self.merch_balance + amount;
+        let new_r = E::Fr::rand(csprng);
+
+        let cp = channel.cp.as_ref().unwrap();
+        let new_wallet = Wallet {  pkc: self.wallet.pkc.clone(), wpk: wpk_h, bc: new_cust_bal, bm: new_merch_bal, close: None };
+        let new_wcom = cp.pub_params.comParams.commit(&new_wallet.as_fr_vec(), &new_r);
+
+        // 3 - generate new blinded and randomized pay token
+        let i = self.index - 1;
+        let mut prev_pay_token = self.pay_tokens.get(&i).unwrap();
+
+        println!("generate_payment - before generating proof!");
+        println!("OLD {}", &self.wallet);
+        println!("NEW {}", &new_wallet);
+        println!("{}", &prev_pay_token);
+
+        let pay_proof = cp.pub_params.prove(csprng, self.r.clone(), self.wallet.clone(), new_wallet.clone(),
+                          new_wcom.clone(), new_r, &prev_pay_token);
+        println!("generate_payment - after generating proof!");
+
+        // TODO: update internal state accordingly
+        let new_cw = CustomerWallet {
+            pk_c: self.pk_c.clone(),
+            sk_c: self.sk_c.clone(),
+            cust_balance: new_cust_bal,
+            merch_balance: new_merch_bal,
+            wpk: new_wpk,
+            wsk: new_wsk,
+            r: new_r,
+            w_com: new_wcom.clone(),
+            wallet: new_wallet.clone(),
+            index: self.index + 1, // increment index here
+            close_tokens: self.close_tokens.clone(),
+            pay_tokens: self.pay_tokens.clone()
+        };
+
+        println!("returning results...");
+        // return new_wcom,
+        return (pay_proof, new_wcom, self.wpk, new_cw);
+    }
 }
+
+impl<E: Engine> fmt::Display for CustomerWallet<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut content = String::new();
+        content = format!("pk = {}\n", &self.pk_c);
+        content = format!("{}sk = {}\n", content, &self.sk_c);
+        content = format!("{}cust-bal = {}\n", content, &self.cust_balance);
+        content = format!("{}merch-bal = {}\n", content, &self.merch_balance);
+        write!(f, "CustomerWallet : (\n{}\n)", &content)
+    }
+}
+
 
 ///
 /// Merchant wallet (NEW)
@@ -320,12 +395,6 @@ impl<E: Engine> MerchantWallet<E> {
 //
 //    }
 //}
-//
-//// customer obtains the close signature for wallet
-//fn verify_proof() -> cl::Signature<E> {
-//
-//}
-
 
 
 //trait MerchantEstablishChannel<E: Engine> {
@@ -380,10 +449,13 @@ mod tests {
 
         println!("Done!");
 
-//        // pay protocol tests
+        // pay protocol tests
 //        let amount = 10;
-//        let (new_cust_com_proof, wpk) = cust_wallet.update_wallet(&channel, amount);
-
+//        let (pay_proof, new_com, old_wpk, new_cw) = cust_wallet.generate_payment(rng, &channel, amount);
+//
+//        println!("{}", new_com);
+//        println!("wpk => {}", old_wpk);
+//        println!("{}", new_cw);
     }
 
     #[test]

@@ -249,6 +249,7 @@ impl<E: Engine> BlindPublicKey<E> {
     pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
         let mut L = E::G2::zero();
         let mut l = self.Y2.len();
+        println!("verify - m.len = {}, l = {}", message.len(), l);
         assert!(message.len() <= l + 1);
         let mut last_elem = l;
 

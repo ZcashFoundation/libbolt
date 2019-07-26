@@ -243,9 +243,6 @@ To contribute code improvements, please checkout the repository, make your chang
 
 Here are some TODOs (not in any particular order):
 
-* Serialization support for libbolt structures such as `CustomerWallet`, `PaymentProof`, and so on.
-* Support for other curves (e.g., pairing library from Zcash)
-* Finish unidirectional channel construction
 * Fix warnings
 * Add more unit tests for other dispute resolution scenarios and pay protocol (to ensure appopriate aborts), third-party test cases, etc.
 	

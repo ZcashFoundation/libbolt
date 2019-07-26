@@ -4,6 +4,7 @@ use super::*;
 use pairing::{Engine, CurveProjective};
 use ff::PrimeField;
 use util::hash_to_fr;
+use std::fmt;
 
 #[derive(Clone)]
 pub struct Wallet<E: Engine> {
@@ -23,10 +24,21 @@ impl<E: Engine> Wallet<E> {
         }
     }
 
-    pub fn with_msg(&self, msg: String) -> Vec<E::Fr> {
+    pub fn with_close(&mut self, msg: String) -> Vec<E::Fr> {
         let m = hash_to_fr::<E>(msg.into_bytes() );
-        let mut new_vec = self.as_fr_vec();
-        new_vec.push(m);
-        return new_vec;
+        self.close = Some(m.clone());
+        return self.as_fr_vec();
     }
 }
+
+impl<E: Engine> fmt::Display for Wallet<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.close.is_some() {
+            let close_str = self.close.unwrap();
+            write!(f, "Wallet : (\npkc={}\nwpk={}\nbc={}\nbm={}\nclose={}\n)", &self.pkc, &self.wpk, &self.bc, &self.bm, close_str)
+        } else {
+            write!(f, "Wallet : (\npkc={}\nwpk={}\nbc={}\nbm={}\nclose=None\n)", &self.pkc, &self.wpk, &self.bc, &self.bm)
+        }
+    }
+}
+

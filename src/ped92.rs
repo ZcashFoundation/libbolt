@@ -2,6 +2,7 @@
 use rand::{thread_rng, Rng};
 use pairing::{Engine, CurveProjective};
 use ff::Rand;
+use std::fmt;
 
 #[derive(Clone)]
 pub struct CSParams<E: Engine> {
@@ -14,45 +15,32 @@ pub struct Commitment<E: Engine> {
     pub c: E::G1,
 }
 
+
+
 #[derive(Clone)]
 pub struct CSMultiParams<E: Engine> {
     pub pub_bases: Vec<E::G1>
 }
 
-//impl<E: Engine> fmt::Display for CSParams<E> {
-//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//        let g_vec: Vec<u8> = encode(&self.g, Infinite).unwrap();
-//        let h_vec: Vec<u8> = encode(&self.h, Infinite).unwrap();
-//        let mut g_s = String::new();
-//        for x in g_vec.iter() {
-//            g_s = format!("{}{:x}", g_s, x);
-//        }
-//
-//        let mut h_s = String::new();
-//        for y in h_vec.iter() {
-//            h_s = format!("{}{:x}", h_s, y);
-//        }
-//
-//        write!(f, "CSP : (g=0x{}, h=0x{})", g_s, h_s)
-//    }
-//}
+impl<E: Engine> fmt::Display for CSMultiParams<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
-//impl<E: Engine> fmt::Display for Commitment<E> {
-//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//        let c_vec: Vec<u8> = encode(&self.c, Infinite).unwrap();
-//        let mut c_s = String::new();
-//        for x in c_vec.iter() {
-//            c_s = format!("{}{:x}", c_s, x);
-//        }
-//
-//        let d_vec: Vec<u8> = encode(&self.r, Infinite).unwrap();
-//        let mut d_s = String::new();
-//        for x in d_vec.iter() {
-//            d_s = format!("{}{:x}", d_s, x);
-//        }
-//        write!(f, "Commitment : (c=0x{}, r=0x{})", c_s, d_s)
-//    }
-//}
+        let mut y_str = String::new();
+        let mut i = 0;
+        for y in self.pub_bases.iter() {
+            y_str = format!("{}\n{} => {}", y_str, i, y);
+            i += 1;
+        }
+
+        write!(f, "CSMultiParams : (\n{}\n)", y_str)
+    }
+}
+
+impl<E: Engine> fmt::Display for Commitment<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Commitment : (c={})", &self.c)
+    }
+}
 
 impl<E: Engine> CSParams<E> {
     /*
