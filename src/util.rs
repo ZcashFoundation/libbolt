@@ -4,6 +4,7 @@ use pairing::{Engine, CurveProjective};
 use ff::PrimeField;
 use rand::Rng;
 use ped92::CSMultiParams;
+use secp256k1::{Signature, PublicKey};
 
 pub fn hash_g1_to_fr<E: Engine>(x: &Vec<E::G1>) -> E::Fr {
     let mut x_vec: Vec<u8> = Vec::new();
@@ -128,6 +129,62 @@ pub fn verify<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &Com
     }
 
     return comc == x;
+}
+
+pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::Fr {
+    let mut input_buf = Vec::new();
+    input_buf.extend_from_slice(prefix.as_bytes());
+    input_buf.extend_from_slice(buf);
+
+    let sha2_digest = sha512::hash(&input_buf.as_slice());
+
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    let hexresult = fmt_bytes_to_int(hash_buf);
+    let result = E::Fr::from_str(&hexresult);
+    return result.unwrap();
+}
+
+
+//#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+pub struct RevokedMessage {
+    pub msgtype: String,
+    pub wpk: secp256k1::PublicKey,
+    pub sig: Option<[u8; 64]> // represents revocation token serialized compact bytes
+}
+
+impl RevokedMessage {
+    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey, _sig: Option<[u8; 64]>) -> RevokedMessage {
+        RevokedMessage {
+            msgtype: _msgtype, wpk: _wpk, sig: _sig
+        }
+    }
+
+    pub fn hash<E: Engine>(&self) -> Vec<E::Fr> {
+        let mut v: Vec<E::Fr> = Vec::new();
+        let mut input_buf = Vec::new();
+        input_buf.extend_from_slice(self.msgtype.as_bytes());
+        v.push(hash_to_fr::<E>(input_buf));
+        v.push(hash_pubkey_to_fr::<E>(&self.wpk));
+
+        if !self.sig.is_none() {
+            v.push(hash_buffer_to_fr::<E>(&self.msgtype, &self.sig.unwrap()));
+        }
+        return v;
+    }
+
+    // return a message digest (32-bytes)
+    pub fn hash_to_slice(&self) -> [u8; 32] {
+        let mut input_buf = Vec::new();
+        input_buf.extend_from_slice(self.msgtype.as_bytes());
+        input_buf.extend_from_slice(&self.wpk.serialize_uncompressed());
+
+        let sha2_digest = sha512::hash(input_buf.as_slice());
+        let mut hash_buf: [u8; 32] = [0; 32];
+        hash_buf.copy_from_slice(&sha2_digest[0..32]);
+        return hash_buf;
+    }
 }
 
 

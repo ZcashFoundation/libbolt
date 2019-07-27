@@ -195,17 +195,20 @@ impl<E: Engine> PublicKey<E> {
     pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
         let mut L = E::G2::zero();
         let mut l = self.Y.len();
+        let diff = (l - message.len());
 
-        let l = match message.len() < l {
+        l = match diff > 0 {
             true => message.len(),
             false => l
         };
 
         for i in 0..l {
-            // L = L + self.Y[i].mul(message[i]);
-            let mut Y = self.Y[i];
-            Y.mul_assign(message[i]); // Y_i ^ m_i
-            L.add_assign(&Y); // L += Y_i ^m_i
+            if (i < message.len()) { // bounds check on message vector
+                // L = L + self.Y[i].mul(message[i]);
+                let mut Y = self.Y[i];
+                Y.mul_assign(message[i]); // Y_i ^ m_i
+                L.add_assign(&Y); // L += Y_i ^m_i
+            }
         }
 
         let mut X2 = self.X;
@@ -249,7 +252,7 @@ impl<E: Engine> BlindPublicKey<E> {
     pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
         let mut L = E::G2::zero();
         let mut l = self.Y2.len();
-        println!("verify - m.len = {}, l = {}", message.len(), l);
+        //println!("verify - m.len = {}, l = {}", message.len(), l);
         assert!(message.len() <= l + 1);
         let mut last_elem = l;
 
@@ -430,11 +433,16 @@ impl<E: Engine> BlindKeyPair<E> {
     /// returns a proof that can be send to the verifier together with the challenge and the blind signature
     pub fn prove_response(&self, ps: &ProofState<E>, challenge: E::Fr, message: &mut Vec<E::Fr>) -> SignatureProof<E> {
         let mut zsig = ps.t.clone();
+        let z_len = zsig.len();
+
         for i in 0..message.len() {
-            let mut message1 = message[i];
-            message1.mul_assign(&challenge);
-            zsig[i].add_assign(&message1);
+            if i < z_len {
+                let mut message1 = message[i];
+                message1.mul_assign(&challenge);
+                zsig[i].add_assign(&message1);
+            }
         }
+
         let mut zx = ps.s.clone();
         zx.add_assign(&challenge);
         let mut zv = ps.tt.clone();

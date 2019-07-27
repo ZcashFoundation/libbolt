@@ -105,11 +105,15 @@ impl<E: Engine> CSMultiParams<E> {
     pub fn commit(&self, x: &Vec<E::Fr>, r: &E::Fr) -> Commitment<E> {
         // c = g1^m1 * ... * gn^mn * h^r
         let mut c = self.pub_bases[0].clone();
+        let p_len = self.pub_bases.len();
         c.mul_assign(r.clone());
+        //println!("commit => x.len = {}, p.len = {}", x.len(), p_len);
         for i in 0..x.len() {
-            let mut basis = self.pub_bases[i+1];
-            basis.mul_assign(x[i]);
-            c.add_assign(&basis);
+            if (i < p_len) {
+                let mut basis = self.pub_bases[i + 1];
+                basis.mul_assign(x[i]);
+                c.add_assign(&basis);
+            }
         }
         Commitment { c }
     }
@@ -145,7 +149,6 @@ mod tests {
     use ff::Field;
 
     #[test]
-    #[ignore]
     fn commit_one_message_works() {
         let rng = &mut thread_rng();
         let csp = CSParams::<Bls12>::setup(rng);
@@ -161,7 +164,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn commit_n_message_works() {
         let rng = &mut thread_rng();
         let len = 3;
