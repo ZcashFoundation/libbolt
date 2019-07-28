@@ -187,7 +187,54 @@ impl RevokedMessage {
     }
 }
 
+// refund message
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CloseMessage<E: Engine> {
+    pub msgtype: String, // purpose type of message
+    pub wpk: secp256k1::PublicKey,
+    pub balance: usize, // the balance
+    pub r: Option<E::Fr>, // randomness from customer wallet
+    pub rt: Option<cl::Signature<E>> // refund token
+}
 
+impl<E: Engine> CloseMessage<E> {
+    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey,
+               _balance: usize, _r: Option<E::Fr>, _rt: Option<cl::Signature<E>>) -> CloseMessage<E> {
+        RefundMessage {
+            msgtype: _msgtype, wpk: _wpk, balance: _balance, r: _r, rt: _rt
+        }
+    }
+
+//    pub fn hash(&self) -> Vec<E::Fr> {
+//        let mut v: Vec<Fr> = Vec::new();
+//        let mut input_buf = Vec::new();
+//        input_buf.extend_from_slice(self.msgtype.as_bytes());
+//        v.push(convert_to_fr::<E>(&input_buf));
+//
+//        v.push(hash_pubkey_to_fr::<E>(&self.wpk));
+//
+//        // encoee the balance as a hex string
+//        let b = format!("{:x}", self.balance);
+//        let mut b_buf = Vec::new();
+//        b_buf.extend_from_slice(b.as_bytes());
+//        v.push(convert_to_fr(&b_buf));
+//
+//        //let r_vec: Vec<u8> = encode(&self.r, Infinite).unwrap();
+//        if !self.r.is_none() {
+//            v.push(self.r.unwrap().clone());
+//        }
+//
+//        if !self.rt.is_none() {
+//            let rt = {
+//                &self.rt.clone()
+//            };
+//            let rt_ref = rt.as_ref();
+//            v.push(rt_ref.unwrap().hash(&self.msgtype));
+//        }
+//
+//        return v;
+//    }
+}
 
 #[cfg(test)]
 mod tests {
