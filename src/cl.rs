@@ -90,6 +90,12 @@ pub struct Signature<E: Engine> {
     pub H: E::G1,
 }
 
+impl<E: Engine> PartialEq for Signature<E> {
+    fn eq(&self, other: &Signature<E>) -> bool {
+        self.h == other.h && self.H == other.H
+    }
+}
+
 #[derive(Clone)]
 pub struct KeyPair<E: Engine> {
     pub secret: SecretKey<E>,

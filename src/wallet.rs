@@ -24,6 +24,10 @@ impl<E: Engine> Wallet<E> {
         }
     }
 
+    pub fn without_close(&self) -> Vec<E::Fr> {
+        vec!(self.pkc, self.wpk, E::Fr::from_str(&self.bc.to_string()).unwrap(), E::Fr::from_str(&self.bm.to_string()).unwrap())
+    }
+
     pub fn with_close(&mut self, msg: String) -> Vec<E::Fr> {
         let m = hash_to_fr::<E>(msg.into_bytes() );
         self.close = Some(m.clone());

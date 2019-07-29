@@ -1,7 +1,7 @@
 // ped92.rs
 use rand::{thread_rng, Rng};
 use pairing::{Engine, CurveProjective};
-use ff::Rand;
+use ff::{Rand, Field};
 use std::fmt;
 
 #[derive(Clone)]
@@ -128,6 +128,19 @@ impl<E: Engine> CSMultiParams<E> {
         return Commitment { c };
     }
 
+    pub fn remove_commit(&self, com: &Commitment<E>, x: &E::Fr) -> Commitment<E> {
+        // c = com * gn+1 ^ x
+        let len = self.pub_bases.len();
+        let mut c = self.pub_bases[len-1].clone();
+        let xx = x.clone();
+        c.mul_assign(xx);
+        c.negate();
+        c.add_assign(&com.c);
+
+        return Commitment { c };
+    }
+
+
     pub fn decommit(&self, cm: &Commitment<E>, x: &Vec<E::Fr>, r: &E::Fr) -> bool {
         let l = x.len();
         // pub_base[0] => h, x[0] => r
@@ -208,4 +221,6 @@ mod tests {
         let c2 = csp.commit(&m2, &r);
         assert_eq!(csp.decommit(&c2, &m2, &r), true);
     }
+
+    // add tests for extend/remove commits dynamically
 }
