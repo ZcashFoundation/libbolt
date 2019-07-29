@@ -205,73 +205,6 @@ pub mod bidirectional {
     use util::RevokedMessage;
 
     //    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct ChannelToken {
-//        w_com: commit_scheme::Commitment,
-//        pk: cl::PublicKey,
-//        csp: commit_scheme::CSParams,
-//        third_party_pay: bool
-//    }
-//
-//    // proof of wallet signature, blind signature on wallet and common params for NIZK
-//    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct CustomerWalletProof {
-//        proof_cv: clproto::ProofCV, // proof of knowledge of committed values
-//        proof_vs: clproto::ProofVS, // proof of knowledge of valid signature
-//
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
-//        bal_com: G2, // old balance commitment
-//        blind_sig: cl::Signature, // a blind signature
-//        common_params: clproto::CommonParams, // common params for NIZK
-//    }
-//
-//    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct CustomerWallet {
-//        sk: cl::SecretKey, // the secret key for the signature scheme (Is it possible to make this a generic field?)
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
-//        cid: Fr, // channel Id
-//        wpk: secp256k1::PublicKey, // signature verification key
-//        wsk: secp256k1::SecretKey, // signature signing key
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
-//        h_wpk: Fr,
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_fr")]
-//        r: Fr, // random coins for commitment scheme
-//        pub balance: i32, // the balance for the user
-//        merchant_balance: i32,
-//        signature: Option<cl::Signature>,
-//        // proof of signature on wallet contents in zero-knowledge
-//        proof: Option<CustomerWalletProof>,
-//        refund_token: Option<cl::Signature>
-//    }
-//
-//    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct MerchSecretKey {
-//        sk: cl::SecretKey, // merchant signing key
-//        pub balance: i32
-//    }
-//
-//    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct InitCustomerData {
-//        pub channel_token: ChannelToken,
-//        pub csk: CustomerWallet,
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
-//        pub bases: Vec<G2>,
-//    }
-//
-//    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct InitMerchantData {
-//        pub channel_token: cl::PublicKey,
-//        pub csk: MerchSecretKey,
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable_vec", deserialize_with = "serialization_wrappers::deserialize_g_two_vec")]
-//        pub bases: Vec<G2>
-//    }
-//
-//    // part of channel state
-//    #[derive(Clone)]
-//    pub struct PubKeyMap {
-//        wpk: secp256k1::PublicKey,
-//        revoke_token: Option<secp256k1::Signature>
-//    }
-//
     #[derive(Clone)]
     pub struct ChannelclosureC<E: Engine> {
         pub message: wallet::Wallet<E>,
@@ -284,7 +217,6 @@ pub mod bidirectional {
         pub signature: cl::Signature<E>
     }
 
-
 //    #[derive(Clone, Serialize, Deserialize)]
 //    pub struct BalanceProof {
 //        third_party: bool,
@@ -296,19 +228,6 @@ pub mod bidirectional {
 //        vcom: Option<commit_scheme::Commitment>,
 //        proof_vcom: Option<clproto::ProofCV>,
 //        proof_vrange: Option<ProofVB>
-//    }
-//
-//    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct PaymentProof {
-//        proof2a: clproto::ProofCV, // PoK of committed values in new wallet
-//        //proof2b: clproto::ProofCV, // PoK of committed values in old wallet (minus wpk)
-//        proof2c: clproto::ProofVS, // PoK of old wallet signature (that includes wpk)
-//        proof3: ProofVB, // range proof that balance - balance_inc is between (0, val_max)
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
-//        old_com_base: G2,
-//        wpk: secp256k1::PublicKey, // verification key for old wallet
-//        wallet_sig: cl::Signature, // blinded signature for old wallet
-//        pub bal_proof: BalanceProof
 //    }
 
     #[derive(Clone)]
@@ -513,7 +432,7 @@ pub mod bidirectional {
 
     // for customer => on input a wallet w, it outputs a customer channel closure message
     ///
-    /// customer_refund - takes as input the public params, channel state, merchant's verification
+    /// customer_refund - takes as input the channel state, merchant's verification
     /// key, and customer wallet. Generates a channel closure message for customer.
     ///
     pub fn customer_refund<E: Engine>(channel_state: &ChannelState<E>, cust_wallet: &CustomerWallet<E>) -> bool { // ChannelclosureC
@@ -604,9 +523,8 @@ pub mod bidirectional {
 //    extern crate libc;
 //
 //    use bidirectional;
-//    use clsigs;
-//    use commit_scheme;
-//    use clproto;
+//    use ff::Rand;
+//    use pairing::bls12_381::{Bls12};
 //
 //    use serde::{Serialize, Deserialize};
 //
@@ -615,8 +533,54 @@ pub mod bidirectional {
 //    use std::str;
 //    use std::mem;
 //
-//    use bn::Fr;
+//    use serialization_wrappers;
 //
+//    fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
+//	where
+//	    T: Deserialize<'a>,
+//	{  // TODO make this a result with nice error handling
+//	    let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
+//	    let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+//	    serde_json::from_str(&string).unwrap()
+//	}
+//
+//    fn deserialize_optional_object<'a, T>(serialized: *mut c_char) -> Option<T>
+//    where
+//        T: Deserialize<'a>,
+//    {  // TODO make this a result with nice error handling
+//        let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
+//        let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+//        Some(serde_json::from_str(&string).unwrap())
+//    }
+//
+//
+//
+//    #[no_mangle]
+//    pub extern fn ffishim_free_string(pointer: *mut c_char) {
+//        unsafe{
+//            if pointer.is_null() { return }
+//            CString::from_raw(pointer)
+//        };
+//    }
+//
+//    #[no_mangle]
+//    pub extern fn ffishim_bidirectional_channelstate_new(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
+//        let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
+//        let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+//
+//        let mut tps = false;
+//        if third_party_support > 1 {
+//            tps = true;
+//        }
+//        let channel_state = bidirectional::ChannelState::<Bls12>::new(name.to_string(), tps);
+//        let ser = ["{\'state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
+//        let cser = CString::new(ser).unwrap();
+//        cser.into_raw()
+//    }
+//
+//}
+
+
 //    use serialization_wrappers;
 //
 //    fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
@@ -1117,10 +1081,10 @@ mod tests {
     use ff::Rand;
     use pairing::bls12_381::{Bls12};
 
-//    fn setup_new_channel_helper(pp: &bidirectional::PublicParams, channel: &mut bidirectional::ChannelState,
+//    fn setup_new_channel_helper(channel: &mut bidirectional::ChannelState,
 //                                init_cust_bal: i32, init_merch_bal: i32)
-//                              -> (cl::KeyPairD, bidirectional::InitMerchantData,
-//                                  cl::KeyPairD, bidirectional::InitCustomerData) {
+//                              -> (bidirectional::MerchantWallet,
+//                                  bidirectional::CustomerWallet) {
 //
 //        let b0_cust = init_cust_bal;
 //        let b0_merch = init_merch_bal;

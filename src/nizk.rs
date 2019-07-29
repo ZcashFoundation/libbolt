@@ -11,6 +11,7 @@ use util::hash_g2_to_fr;
 use commit_scheme::commit;
 use wallet::Wallet;
 use ccs08::{RPPublicParams, RangeProof};
+use serde::{Serialize, Deserialize};
 
 #[derive(Clone)]
 pub struct Proof<E: Engine> {

@@ -7,6 +7,28 @@ use ped92::CSMultiParams;
 use secp256k1::{Signature, PublicKey};
 use cl::Signature as clSignature;
 
+pub fn is_vec_fr_equal<E: Engine>(a: &Vec<E::Fr>, b: &Vec<E::Fr>) -> bool {
+    (a.len() == b.len()) &&
+        a.iter()
+         .zip(b)
+         .all(|(a, b)| a == b)
+}
+
+pub fn is_vec_g1_equal<E: Engine>(a: &Vec<E::G1>, b: &Vec<E::G1>) -> bool {
+    (a.len() == b.len()) &&
+        a.iter()
+         .zip(b)
+         .all(|(a, b)| a == b)
+}
+
+pub fn is_vec_g2_equal<E: Engine>(a: &Vec<E::G2>, b: &Vec<E::G2>) -> bool {
+    (a.len() == b.len()) &&
+        a.iter()
+         .zip(b)
+         .all(|(a, b)| a == b)
+}
+
+
 pub fn hash_g1_to_fr<E: Engine>(x: &Vec<E::G1>) -> E::Fr {
     let mut x_vec: Vec<u8> = Vec::new();
     for i in x.iter() {

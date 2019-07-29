@@ -1,8 +1,8 @@
 /*
  * Implement for Bolt protocols:
- * - initializing channel state and generating cust/merch wallets (almost done)
- * - establish protocol (WIP)
- * - pay protocol (WIP)
+ * - initializing channel state and generating cust/merch wallets
+ * - establish protocol
+ * - pay protocol
  * - channel close algorithms (WIP)
  */
 
@@ -31,7 +31,6 @@ pub struct PubKeyMap {
     pub revoke_token: Option<secp256k1::Signature>
 }
 
-//#[derive(Clone, Serialize, Deserialize)]
 #[derive(Clone)]
 pub struct ChannelParams<E: Engine> {
     pub pub_params: NIZKPublicParams<E>,
@@ -40,7 +39,6 @@ pub struct ChannelParams<E: Engine> {
 }
 
 
-//#[derive(Clone, Serialize, Deserialize)]
 #[derive(Clone)]
 pub struct ChannelState<E: Engine> {
     R: i32,

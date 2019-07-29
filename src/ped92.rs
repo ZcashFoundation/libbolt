@@ -3,6 +3,8 @@ use rand::{thread_rng, Rng};
 use pairing::{Engine, CurveProjective};
 use ff::{Rand, Field};
 use std::fmt;
+use util::is_vec_g1_equal;
+use serde::{Serialize, Deserialize};
 
 #[derive(Clone)]
 pub struct CSParams<E: Engine> {
@@ -15,12 +17,24 @@ pub struct Commitment<E: Engine> {
     pub c: E::G1,
 }
 
+impl<E: Engine> PartialEq for Commitment<E> {
+    fn eq(&self, other: &Commitment<E>) -> bool {
+        self.c == other.c
+    }
+}
 
 
 #[derive(Clone)]
 pub struct CSMultiParams<E: Engine> {
     pub pub_bases: Vec<E::G1>
 }
+
+impl<E: Engine> PartialEq for CSMultiParams<E> {
+    fn eq(&self, other: &CSMultiParams<E>) -> bool {
+        is_vec_g1_equal::<E>(&self.pub_bases, &other.pub_bases)
+    }
+}
+
 
 impl<E: Engine> fmt::Display for CSMultiParams<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

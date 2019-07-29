@@ -5,18 +5,27 @@ extern crate rand;
 
 use super::*;
 use pairing::{CurveAffine, CurveProjective, Engine};
-use ff::PrimeField;
+use ff::{PrimeField, ScalarEngine};
 use rand::Rng;
 use ped92::{Commitment, CSMultiParams};
 use std::fmt::LowerHex;
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use util;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PublicParams<E: Engine> {
     pub g1: E::G1,
     pub g2: E::G2,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+impl<E: Engine> PartialEq for PublicParams<E> {
+    fn eq(&self, other: &PublicParams<E>) -> bool {
+        self.g1 == other.g1 && self.g2 == other.g2
+    }
+}
+
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SecretKey<E: Engine> {
     pub x: E::Fr,
     pub y: Vec<E::Fr>,
@@ -36,8 +45,14 @@ impl<E: Engine> fmt::Display for SecretKey<E> {
     }
 }
 
+impl<E: Engine> PartialEq for SecretKey<E> {
+    fn eq(&self, other: &SecretKey<E>) -> bool {
+        self.x == other.x && util::is_vec_fr_equal::<E>(&self.y, &other.y)
+    }
+}
 
-#[derive(Clone, Serialize, Deserialize)]
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PublicKey<E: Engine> {
     pub X: E::G2,
     pub Y: Vec<E::G2>,
@@ -57,8 +72,14 @@ impl<E: Engine> fmt::Display for PublicKey<E> {
     }
 }
 
-//#[derive(Clone, Serialize, Deserialize)]
-#[derive(Clone)]
+impl<E: Engine> PartialEq for PublicKey<E> {
+    fn eq(&self, other: &PublicKey<E>) -> bool {
+        self.X == other.X && util::is_vec_g2_equal::<E>(&self.Y, &other.Y)
+    }
+}
+
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct BlindPublicKey<E: Engine> {
     pub X1: E::G1,
     pub X2: E::G2,
@@ -83,8 +104,15 @@ impl<E: Engine> fmt::Display for BlindPublicKey<E> {
     }
 }
 
+impl<E: Engine> PartialEq for BlindPublicKey<E> {
+    fn eq(&self, other: &BlindPublicKey<E>) -> bool {
+        self.X1 == other.X1 && self.X2 == other.X2 &&
+            util::is_vec_g1_equal::<E>(&self.Y1, &other.Y1) &&
+            util::is_vec_g2_equal::<E>(&self.Y2, &other.Y2)
+    }
+}
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Signature<E: Engine> {
     pub h: E::G1,
     pub H: E::G1,
@@ -96,11 +124,15 @@ impl<E: Engine> PartialEq for Signature<E> {
     }
 }
 
+//     #[serde(serialize_with = "secret_key_serialize_struct", deserialize_with = "")]
+
 #[derive(Clone)]
 pub struct KeyPair<E: Engine> {
     pub secret: SecretKey<E>,
     pub public: PublicKey<E>,
 }
+
+
 
 #[derive(Clone)]
 pub struct BlindKeyPair<E: Engine> {
@@ -341,6 +373,18 @@ impl<E: Engine> KeyPair<E> {
     }
 }
 
+//impl Serialize for KeyPair {
+//
+//    fn serialize<S: Serializer, E: Engine>(&self, serializer: &mut S) -> Result<(), S::Error>
+//    where
+//    {
+////        let mut state = serializer.serialize_struct("KeyPair", 2)?;
+////        state.serialize_field("public", &self.public)?;
+////        state.serialize_field("secret", &self.secret)?;
+//        Ok(serializer.serialize_struct(&self.public))
+//    }
+//}
+
 ///
 /// BlindingKeyPair - implements the blinding signature scheme in PS - Section 3.1.1
 ///
@@ -363,6 +407,23 @@ impl<E: Engine> BlindKeyPair<E> {
     pub fn get_public_key(&self, mpk: &PublicParams<E>) -> PublicKey<E> {
         PublicKey::from_secret(mpk, &self.secret)
     }
+
+//    pub fn export_pubkey(&self) -> Vec<u8> {
+//        return serde_json::to_vec(&self.public).unwrap();
+//    }
+//
+//    pub fn export_seckey(&self) -> Vec<u8> {
+//        return serde_json::to_vec(&self.secret).unwrap();
+//    }
+//
+//    pub fn import_pubkey(&mut self, bytes: &Vec<u8>) {
+//        // TODO: validate the public key
+//        self.public = serde_json::from_slice(&bytes).unwrap();
+//    }
+//
+//    pub fn import_seckey(&mut self, bytes: &Vec<u8>) {
+//        self.secret = serde_json::from_slice(&bytes).unwrap();
+//    }
 
     /// sign a vector of messages
     pub fn sign<R: Rng>(&self, csprng: &mut R, message: &Vec<E::Fr>) -> Signature<E> {
@@ -473,7 +534,7 @@ mod tests {
     use super::*;
 
     use ff::Rand;
-    use pairing::bls12_381::{Bls12, Fr};
+    use pairing::bls12_381::{Bls12, Fr, G1, G2};
     use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use ped92::CSMultiParams;
@@ -621,5 +682,68 @@ mod tests {
 
         assert_eq!(keypair.public.verify_proof(&mpk, proof_state.blindSig, proof, challenge), true);
     }
+
+    #[test]
+    fn test_cl_basic_serialize() {
+        let mut rng = &mut rand::thread_rng();
+
+        let l = 5;
+        let mpk = setup(&mut rng);
+        let keypair = KeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+        let blindkeypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+
+        let serialized = serde_json::to_vec(&mpk).unwrap();
+        //println!("serialized = {:?}", serialized.len());
+
+        let mpk_des: PublicParams<Bls12> = serde_json::from_slice(&serialized).unwrap();
+        //println!("{}", mpk_des);
+
+        //println!("SK => {}", &keypair.secret);
+        let sk_serialized = serde_json::to_vec(&keypair.secret).unwrap();
+        //println!("sk_serialized = {:?}", sk_serialized.len());
+
+        let sk_des: SecretKey<Bls12> = serde_json::from_slice(&sk_serialized).unwrap();
+        //println!("{}", sk_des);
+        assert_eq!(sk_des, keypair.secret);
+
+        //println!("PK => {}", &keypair.public);
+        let pk_serialized = serde_json::to_vec(&keypair.public).unwrap();
+        //println!("pk_serialized = {:?}", pk_serialized.len());
+
+        let pk_des: PublicKey<Bls12> = serde_json::from_slice(&pk_serialized).unwrap();
+        //assert_eq!(pk_des, keypair.public);
+
+        //println!("{}", &blindkeypair.public);
+        let bpk_ser = serde_json::to_vec(&blindkeypair.public).unwrap();
+        //println!("blind pk_ser = {:?}", bpk_ser.len());
+
+        let bpk_des: BlindPublicKey<Bls12> = serde_json::from_slice(&bpk_ser).unwrap();
+        assert_eq!(bpk_des, blindkeypair.public);
+
+        let unblind_pk = blindkeypair.get_public_key(&mpk);
+        //println!("{}", &unblind_pk);
+        let upk_serialized = serde_json::to_vec(&unblind_pk).unwrap();
+        //println!("upk_serialized = {:?}", upk_serialized.len());
+
+        let upk_des: PublicKey<Bls12> = serde_json::from_slice(&upk_serialized).unwrap();
+
+        assert_eq!(upk_des, unblind_pk);
+        assert_ne!(upk_des, keypair.public);
+    }
+
+//    #[test]
+//    fn test_cl_high_level() {
+//        let mut rng = &mut rand::thread_rng();
+//
+//        let l = 3;
+//        let mpk = setup(&mut rng);
+//        let keypair = KeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+//        let blindkeypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+//
+//        // focusing on high-level structures
+//        let keypair_serialized = serde_json::to_string(&keypair).unwrap();
+//        print("Keypair: {}", keypair_serialized);
+//
+//    }
 }
 
