@@ -31,7 +31,15 @@ pub struct PubKeyMap {
     pub revoke_token: Option<secp256k1::Signature>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct ChannelParams<E: Engine> {
     pub pub_params: NIZKPublicParams<E>,
     l: usize, // messages for commitment
@@ -39,7 +47,15 @@ pub struct ChannelParams<E: Engine> {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct ChannelState<E: Engine> {
     R: i32,
     tx_fee: i32,
@@ -50,7 +66,15 @@ pub struct ChannelState<E: Engine> {
     pub third_party: bool
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct ChannelToken<E: Engine> {
     pub pk_c: Option<secp256k1::PublicKey>, // pk_c
     pub blind_pk_m: cl::BlindPublicKey<E>, // PK_m

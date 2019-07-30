@@ -9,8 +9,11 @@ use ff::{PrimeField, ScalarEngine};
 use rand::Rng;
 use ped92::{Commitment, CSMultiParams};
 use std::fmt::LowerHex;
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::{Serialize, Deserialize};
+use serde::ser::{Serializer, SerializeStruct, SerializeSeq};
 use util;
+use ccs08;
+use bincode::serde::serialize;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PublicParams<E: Engine> {
@@ -124,17 +127,38 @@ impl<E: Engine> PartialEq for Signature<E> {
     }
 }
 
-//     #[serde(serialize_with = "secret_key_serialize_struct", deserialize_with = "")]
-
 #[derive(Clone)]
 pub struct KeyPair<E: Engine> {
     pub secret: SecretKey<E>,
     pub public: PublicKey<E>,
 }
 
+//#[derive(Clone, Serialize, Deserialize)]
+//#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+//<E as pairing::Engine>::G1: serde::Serialize, \
+//<E as pairing::Engine>::G2: serde::Serialize"
+//))]
+//#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+//<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+//<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+//))]
+//pub struct TestStruct<E: Engine> {
+//    pub mpk: PublicParams<E>,
+//    pub keypair: BlindKeyPair<E>,
+//    pub comParams: CSMultiParams<E>,
+//    pub rpParamsBC: ccs08::RPPublicParams<E>,
+//    pub rpParamsBM: ccs08::RPPublicParams<E>
+//}
 
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct BlindKeyPair<E: Engine> {
     pub secret: SecretKey<E>,
     pub public: BlindPublicKey<E>,
@@ -150,7 +174,7 @@ pub struct ProofState<E: Engine> {
     pub blindSig: Signature<E>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SignatureProof<E: Engine> {
     pub zx: E::Fr,
     pub zsig: Vec<E::Fr>,
@@ -373,18 +397,6 @@ impl<E: Engine> KeyPair<E> {
     }
 }
 
-//impl Serialize for KeyPair {
-//
-//    fn serialize<S: Serializer, E: Engine>(&self, serializer: &mut S) -> Result<(), S::Error>
-//    where
-//    {
-////        let mut state = serializer.serialize_struct("KeyPair", 2)?;
-////        state.serialize_field("public", &self.public)?;
-////        state.serialize_field("secret", &self.secret)?;
-//        Ok(serializer.serialize_struct(&self.public))
-//    }
-//}
-
 ///
 /// BlindingKeyPair - implements the blinding signature scheme in PS - Section 3.1.1
 ///
@@ -407,23 +419,6 @@ impl<E: Engine> BlindKeyPair<E> {
     pub fn get_public_key(&self, mpk: &PublicParams<E>) -> PublicKey<E> {
         PublicKey::from_secret(mpk, &self.secret)
     }
-
-//    pub fn export_pubkey(&self) -> Vec<u8> {
-//        return serde_json::to_vec(&self.public).unwrap();
-//    }
-//
-//    pub fn export_seckey(&self) -> Vec<u8> {
-//        return serde_json::to_vec(&self.secret).unwrap();
-//    }
-//
-//    pub fn import_pubkey(&mut self, bytes: &Vec<u8>) {
-//        // TODO: validate the public key
-//        self.public = serde_json::from_slice(&bytes).unwrap();
-//    }
-//
-//    pub fn import_seckey(&mut self, bytes: &Vec<u8>) {
-//        self.secret = serde_json::from_slice(&bytes).unwrap();
-//    }
 
     /// sign a vector of messages
     pub fn sign<R: Rng>(&self, csprng: &mut R, message: &Vec<E::Fr>) -> Signature<E> {
@@ -730,20 +725,5 @@ mod tests {
         assert_eq!(upk_des, unblind_pk);
         assert_ne!(upk_des, keypair.public);
     }
-
-//    #[test]
-//    fn test_cl_high_level() {
-//        let mut rng = &mut rand::thread_rng();
-//
-//        let l = 3;
-//        let mpk = setup(&mut rng);
-//        let keypair = KeyPair::<Bls12>::generate(&mut rng, &mpk, l);
-//        let blindkeypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
-//
-//        // focusing on high-level structures
-//        let keypair_serialized = serde_json::to_string(&keypair).unwrap();
-//        print("Keypair: {}", keypair_serialized);
-//
-//    }
 }
 

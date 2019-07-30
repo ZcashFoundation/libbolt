@@ -217,19 +217,6 @@ pub mod bidirectional {
         pub signature: cl::Signature<E>
     }
 
-//    #[derive(Clone, Serialize, Deserialize)]
-//    pub struct BalanceProof {
-//        third_party: bool,
-//        balance_increment: i32,
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
-//        w_com_pr_pr: G2,
-//        #[serde(serialize_with = "serialization_wrappers::serialize_generic_encodable", deserialize_with = "serialization_wrappers::deserialize_g_two")]
-//        old_bal_com: G2,
-//        vcom: Option<commit_scheme::Commitment>,
-//        proof_vcom: Option<clproto::ProofCV>,
-//        proof_vrange: Option<ProofVB>
-//    }
-
     #[derive(Clone)]
     pub struct Payment<E: Engine> {
         proof: Proof<E>,
@@ -518,67 +505,95 @@ pub mod bidirectional {
 //    }
 }
 
-//#[no_mangle]
-//pub mod ffishim {
-//    extern crate libc;
-//
-//    use bidirectional;
-//    use ff::Rand;
-//    use pairing::bls12_381::{Bls12};
-//
-//    use serde::{Serialize, Deserialize};
-//
-//    use libc::{c_char};
-//    use std::ffi::{CStr, CString};
-//    use std::str;
-//    use std::mem;
-//
-//    use serialization_wrappers;
-//
-//    fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
-//	where
-//	    T: Deserialize<'a>,
-//	{  // TODO make this a result with nice error handling
-//	    let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
-//	    let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-//	    serde_json::from_str(&string).unwrap()
-//	}
-//
-//    fn deserialize_optional_object<'a, T>(serialized: *mut c_char) -> Option<T>
-//    where
-//        T: Deserialize<'a>,
-//    {  // TODO make this a result with nice error handling
-//        let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
-//        let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-//        Some(serde_json::from_str(&string).unwrap())
-//    }
-//
-//
-//
+#[no_mangle]
+pub mod ffishim {
+    extern crate libc;
+
+    use bidirectional;
+    use ff::Rand;
+    use pairing::bls12_381::{Bls12};
+
+    use serde::{Serialize, Deserialize};
+
+    use libc::{c_uchar, c_char}; // c_char
+    use std::ffi::{CStr, CString};
+    use std::str;
+    use std::mem;
+
+    use serialization_wrappers;
+
+    fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
+	where
+	    T: Deserialize<'a>,
+	{  // TODO make this a result with nice error handling
+	    let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
+	    let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+	    serde_json::from_str(&string).unwrap()
+	}
+
+    fn deserialize_optional_object<'a, T>(serialized: *mut c_char) -> Option<T>
+    where
+        T: Deserialize<'a>,
+    {  // TODO make this a result with nice error handling
+        let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
+        let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+        Some(serde_json::from_str(&string).unwrap())
+    }
+
+
+
+    #[no_mangle]
+    pub extern fn ffishim_free_string(pointer: *mut c_char) {
+        unsafe{
+            if pointer.is_null() { return }
+            CString::from_raw(pointer)
+        };
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_channel_setup(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
+        let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
+        let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+
+        let mut tps = false;
+        if third_party_support > 1 {
+            tps = true;
+        }
+        let mut channel_state = bidirectional::ChannelState::<Bls12>::new(name.to_string(), tps);
+        let mut rng = &mut rand::thread_rng();
+
+        channel_state.setup(&mut rng);
+        let ser = ["{\'state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
 //    #[no_mangle]
-//    pub extern fn ffishim_free_string(pointer: *mut c_char) {
-//        unsafe{
-//            if pointer.is_null() { return }
-//            CString::from_raw(pointer)
-//        };
-//    }
+//    pub extern fn ffishim_bidirectional_channel_load(ser_channel_state: *mut c_char) -> *mut c_char {
 //
-//    #[no_mangle]
-//    pub extern fn ffishim_bidirectional_channelstate_new(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
-//        let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
-//        let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+//        let des_channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
 //
-//        let mut tps = false;
-//        if third_party_support > 1 {
-//            tps = true;
-//        }
-//        let channel_state = bidirectional::ChannelState::<Bls12>::new(name.to_string(), tps);
-//        let ser = ["{\'state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
+//        let keypair = bidirectional::keygen(&deserialized_pp);
+//        let ser = ["{\'state\':\'",serde_json::to_string(&keypair).unwrap().as_str(), "\'}"].concat();
 //        let cser = CString::new(ser).unwrap();
 //        cser.into_raw()
 //    }
+
+//    #[no_mangle]
+//    pub extern fn ffishim_bidirectional_init_merchant(serialized_pp: *mut c_char, balance_merchant: i32, serialized_merchant_keypair: *mut c_char) -> *mut c_char {
+//        // Deserialize the pp
+//        let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
 //
-//}
+//        // Deserialize the merchant keypair
+//        let deserialized_merchant_keypair: cl::KeyPairD = deserialize_object(serialized_merchant_keypair);
+//
+//        let init_merchant_data = bidirectional::init_merchant(&deserialized_pp, balance_merchant, &deserialized_merchant_keypair);
+//        let ser = ["{\'merchant_data\':\'", serde_json::to_string(&init_merchant_data).unwrap().as_str(), "\'}"].concat();
+//        let cser = CString::new(ser).unwrap();
+//        cser.into_raw()
+//    }
+
+}
 
 
 //    use serialization_wrappers;
@@ -1081,34 +1096,27 @@ mod tests {
     use ff::Rand;
     use pairing::bls12_381::{Bls12};
 
-//    fn setup_new_channel_helper(channel: &mut bidirectional::ChannelState,
-//                                init_cust_bal: i32, init_merch_bal: i32)
-//                              -> (bidirectional::MerchantWallet,
-//                                  bidirectional::CustomerWallet) {
-//
-//        let b0_cust = init_cust_bal;
-//        let b0_merch = init_merch_bal;
-//
-//        // generate long-lived keypair for merchant -- used to identify
-//        // merchant to all customers
-//        let merch_keys = bidirectional::keygen(&pp);
-//
-//        // customer generates an ephemeral keypair for use on a single channel
-//        let cust_keys = bidirectional::keygen(&pp);
-//
-//        // each party executes the init algorithm on the agreed initial challenge balance
-//        // in order to derive the channel tokens
-//        // initialize on the merchant side with balance: b0_merch
-//        let merch_data = bidirectional::init_merchant(&pp, b0_merch, &merch_keys);
-//
-//        // retrieve commitment setup params (using merchant long lived pk params)
-//        let cm_csp = bidirectional::generate_commit_setup(&pp, &merch_keys.pk);
-//        // initialize on the customer side with balance: b0_cust
-//        let cust_data = bidirectional::init_customer(&pp, channel,
-//                                                     b0_cust, b0_merch,
-//                                                     &cm_csp, &cust_keys);
-//        return (merch_keys, merch_data, cust_keys, cust_data);
-//    }
+    fn setup_new_channel_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
+                                init_cust_bal: i32, init_merch_bal: i32)
+                              -> (bidirectional::ChannelToken<Bls12>, bidirectional::MerchantWallet<Bls12>, bidirectional::CustomerWallet<Bls12>) {
+
+        let mut rng = &mut rand::thread_rng();
+        let merch_name = "Bob";
+        let cust_name = "Alice";
+
+        let b0_cust = init_cust_bal;
+        let b0_merch = init_merch_bal;
+
+        // each party executes the init algorithm on the agreed initial challenge balance
+        // in order to derive the channel tokens
+        // initialize on the merchant side with balance: b0_merch
+        let (mut channel_token, merch_wallet) = bidirectional::init_merchant(rng, channel_state, merch_name);
+
+        // initialize on the customer side with balance: b0_cust
+        let cust_wallet = bidirectional::init_customer(rng, channel_state, &mut channel_token, b0_cust, b0_merch, cust_name);
+
+        return (channel_token, merch_wallet, cust_wallet);
+    }
 
 //    fn setup_new_channel_existing_merchant_helper(pp: &bidirectional::PublicParams, channel: &mut bidirectional::ChannelState,
 //                                                 init_cust_bal: i32, init_merch_bal: i32, merch_keys: &cl::KeyPairD)
@@ -1390,10 +1398,16 @@ mod tests {
 //    }
 
     #[test]
-    #[ignore]
     fn serialization_tests() {
-        // TODO: finish me
-        assert!(true);
+        let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+        let mut rng = &mut rand::thread_rng();
+        channel_state.setup(&mut rng);
+
+        let serialized = serde_json::to_string(&channel_state).unwrap();
+        println!("new channel state len: {}", &serialized.len());
+
+        let chan_state: bidirectional::ChannelState<Bls12> = serde_json::from_str(&serialized).unwrap();
+
     }
 
 }

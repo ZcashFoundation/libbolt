@@ -23,7 +23,15 @@ pub struct Proof<E: Engine> {
     pub rpBM: RangeProof<E>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct NIZKPublicParams<E: Engine> {
     pub mpk: PublicParams<E>,
     pub keypair: BlindKeyPair<E>,
@@ -300,4 +308,24 @@ mod tests {
         let proof = pubParams.prove(rng, r, wallet1.clone(), wallet5, commitment2.clone(), rprime, &paymentToken);
         assert_eq!(pubParams.verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment2, wpk), false);
     }
+
+    #[test]
+    fn test_nizk_serialization() {
+        let mut rng = &mut rand::thread_rng();
+
+        let l = 5;
+        let mpk = setup(&mut rng);
+        let blindkeypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
+        let comParams = blindkeypair.generate_cs_multi_params(&mpk);
+        let rpParamsBC = ccs08::RPPublicParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
+        let rpParamsBM = ccs08::RPPublicParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
+
+        let nizk_params = NIZKPublicParams { mpk: mpk, keypair: blindkeypair, comParams: comParams, rpParamsBC: rpParamsBC, rpParamsBM: rpParamsBM };
+
+        let is_serialized = serde_json::to_vec(&nizk_params).unwrap();
+        println!("NIZK Struct len: {}", is_serialized.len());
+
+        // deserialize
+    }
+
 }

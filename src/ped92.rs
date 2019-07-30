@@ -24,7 +24,9 @@ impl<E: Engine> PartialEq for Commitment<E> {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as pairing::Engine>::G1: serde::Serialize"))]
+#[serde(bound(deserialize = "<E as pairing::Engine>::G1: serde::Deserialize<'de>"))]
 pub struct CSMultiParams<E: Engine> {
     pub pub_bases: Vec<E::G1>
 }
