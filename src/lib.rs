@@ -1110,7 +1110,8 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut channel_token, merch_wallet) = bidirectional::init_merchant(rng, channel_state, merch_name);
+        let (mut channel_token, mut merch_wallet) = bidirectional::init_merchant(rng, channel_state, merch_name);
+        merch_wallet.init_balance(b0_merch);
 
         // initialize on the customer side with balance: b0_cust
         let cust_wallet = bidirectional::init_customer(rng, channel_state, &mut channel_token, b0_cust, b0_merch, cust_name);
@@ -1118,7 +1119,7 @@ mod tests {
         return (channel_token, merch_wallet, cust_wallet);
     }
 
-//    fn setup_new_channel_existing_merchant_helper(pp: &bidirectional::PublicParams, channel: &mut bidirectional::ChannelState,
+//    fn setup_new_channel_existing_merchant_helper(channel: &mut bidirectional::ChannelState,
 //                                                 init_cust_bal: i32, init_merch_bal: i32, merch_keys: &cl::KeyPairD)
 //                                             -> (bidirectional::InitMerchantData, cl::KeyPairD, bidirectional::InitCustomerData) {
 //
@@ -1143,43 +1144,51 @@ mod tests {
 //    }
 
 
-//    fn execute_establish_protocol_helper(pp: &bidirectional::PublicParams, channel: &mut bidirectional::ChannelState,
-//                                   merch_keys: &cl::KeyPairD, merch_data: &mut bidirectional::InitMerchantData,
-//                                   cust_keys: &cl::KeyPairD, cust_data: &mut bidirectional::InitCustomerData) {
-//        // entering the establish protocol for the channel
-//        let proof = bidirectional::establish_customer_phase1(&pp, &cust_data, &merch_data.bases);
-//
-//        // obtain the wallet signature from the merchant
-//        let wallet_sig = bidirectional::establish_merchant_phase2(&pp, channel, &merch_data, &proof);
-//
-//        // complete channel establishment
-//        assert!(bidirectional::establish_customer_final(&pp, &merch_keys.pk, &mut cust_data.csk, wallet_sig));
-//    }
-//
+    fn execute_establish_protocol_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
+                                   channel_token: &mut bidirectional::ChannelToken<Bls12>,
+                                   merch_wallet: &mut bidirectional::MerchantWallet<Bls12>,
+                                   cust_wallet: &mut bidirectional::CustomerWallet<Bls12>) {
+
+        let mut rng = &mut rand::thread_rng();
+
+        // lets establish the channel
+        let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, channel_token, cust_wallet);
+
+        // obtain close token for closing out channel
+        let close_token = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet);
+        assert!(cust_wallet.verify_close_token(&channel_state, &close_token));
+
+        // wait for funding tx to be confirmed, etc
+
+        // obtain payment token for pay protocol
+        let pay_token = bidirectional::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_wallet);
+        //assert!(cust_wallet.verify_pay_token(&channel_state, &pay_token));
+
+        assert!(bidirectional::establish_final(channel_state, cust_wallet, &pay_token));
+        println!("Channel established!");
+    }
+
 //    // pp, channel, merch_keys, merch_data, cust_keys, cust_data, pay_increment
-//    fn execute_pay_protocol_helper(pp: &bidirectional::PublicParams, channel: &mut bidirectional::ChannelState,
-//                                   merch_keys: &cl::KeyPairD, merch_data: &mut bidirectional::InitMerchantData,
-//                                   cust_keys: &cl::KeyPairD, cust_data: &mut bidirectional::InitCustomerData,
-//                                    payment_increment: i32) {
-//        // let's test the pay protocol
-//        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust_data.channel_token, &merch_keys.pk, &mut cust_data.csk);
-//
-//        let (t_c, new_wallet, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &channel, &cust_data.channel_token, // channel token
-//                                                                            &merch_keys.pk, // merchant pub key
-//                                                                            &cust_data.csk, // wallet
-//                                                                            payment_increment); // balance increment (FUNC INPUT)
-//
-//        // get the refund token (rt_w)
-//        let rt_w = bidirectional::pay_by_merchant_phase1(&pp, channel, &pay_proof, &merch_data);
-//
-//        // get the revocation token (rv_w) on the old public key (wpk)
-//        let rv_w = bidirectional::pay_by_customer_phase2(&pp, &cust_data.csk, &new_wallet, &merch_keys.pk, &rt_w);
-//
-//        // get the new wallet sig (new_wallet_sig) on the new wallet
-//        let new_wallet_sig = bidirectional::pay_by_merchant_phase2(&pp, channel, &pay_proof, merch_data, &rv_w);
-//
-//        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust_data, t_c, new_wallet, rt_w, new_wallet_sig));
-//    }
+    fn execute_payment_protocol_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
+                                   channel_token: &mut bidirectional::ChannelToken<Bls12>,
+                                   merch_wallet: &mut bidirectional::MerchantWallet<Bls12>,
+                                   cust_wallet: &mut bidirectional::CustomerWallet<Bls12>,
+                                   payment_increment: i32) {
+
+        let mut rng = &mut rand::thread_rng();
+
+        let (payment, new_cust_wallet) = bidirectional::generate_payment(rng, channel_state, &cust_wallet, payment_increment);
+
+        let new_close_token = bidirectional::verify_payment(rng, &channel_state, &payment, merch_wallet);
+
+        let revoke_token = bidirectional::generate_revoke_token(&channel_state, cust_wallet, new_cust_wallet, &new_close_token);
+
+        // send revoke token and get pay-token in response
+        let new_pay_token = bidirectional::verify_revoke_token(&revoke_token, merch_wallet);
+
+        // verify the pay token and update internal state
+        assert!(cust_wallet.verify_pay_token(&channel_state, &new_pay_token));
+     }
 
     #[test]
     fn bidirectional_payment_basics_work() {
@@ -1233,11 +1242,53 @@ mod tests {
         println!("Successful payment!");
     }
 
+    #[test]
+    fn bidirectional_multiple_payments_work() {
+
+        let total_owed = 40;
+        let b0_customer = 380;
+        let b0_merchant = 20;
+        let payment_increment = 20;
+
+        let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+        let mut rng = &mut rand::thread_rng();
+
+        channel_state.setup(&mut rng); // or load_setup params
+
+        let (mut channel_token, mut merch_wallet, mut cust_wallet) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+
+        // run establish protocol for customer and merchant channel
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_wallet, &mut cust_wallet);
+
+        assert!(channel_state.channel_established);
+
+        {
+            // make multiple payments in a loop
+            let num_payments = total_owed / payment_increment;
+            for i in 0 .. num_payments {
+                execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_wallet, &mut cust_wallet, payment_increment);
+            }
+
+            {
+                // scope localizes the immutable borrow here (for debug purposes only)
+                println!("Customer balance: {:?}", &cust_wallet.cust_balance);
+                println!("Merchant balance: {:?}", &cust_wallet.merch_balance);
+                assert!(cust_wallet.cust_balance == (b0_customer - total_owed) && cust_wallet.merch_balance == total_owed + b0_merchant);
+            }
+
+//            let cust_wallet = &cust_data.csk;
+//            // get channel closure message
+//            let rc_c = bidirectional::customer_refund(&cust_wallet, &merch_keys.pk, &cust_wallet);
+//            println!("Obtained the channel closure message: {}", rc_c.message.msgtype);
+        }
+
+    }
+
 // Old channel test code
 //        let (merch_keys, mut merch_data, cust_keys, mut cust_data) = setup_new_channel_helper(&pp, &mut channel, b0_customer, b0_merchant);
 //
 //        // run establish protocol for customer and merchant channel
-//        execute_establish_protocol_helper(&pp, &mut channel, &merch_keys, &mut merch_data, &cust_keys, &mut cust_data);
+//        execute_establish_protocol_helper(&mut channel, &merch_keys, &mut merch_data, &cust_keys, &mut cust_data);
 //
 //        assert!(channel.channel_established);
 //

@@ -166,8 +166,8 @@ pub struct CustomerWallet<E: Engine> {
     pub name: String,
     pub pk_c: secp256k1::PublicKey,
     sk_c: secp256k1::SecretKey,
-    cust_balance: i32, //
-    merch_balance: i32,
+    pub cust_balance: i32, //
+    pub merch_balance: i32,
     pub wpk: secp256k1::PublicKey, // keypair bound to the wallet
     wsk: secp256k1::SecretKey,
     old_kp: Option<WalletKeyPair>, // old wallet key pair
@@ -414,7 +414,7 @@ impl<E: Engine> fmt::Display for CustomerWallet<E> {
 ///
 pub struct MerchantWallet<E: Engine> {
     keypair: cl::BlindKeyPair<E>,
-    balance: i32,
+    pub balance: i32,
     pk: secp256k1::PublicKey, // pk_m
     sk: secp256k1::SecretKey, // sk_m
     comParams: CSMultiParams<E>,
