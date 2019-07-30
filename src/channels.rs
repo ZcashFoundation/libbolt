@@ -230,6 +230,17 @@ impl<E: Engine> CustomerWallet<E> {
         }
     }
 
+    pub fn get_wallet(&self) -> Wallet<E> {
+        return self.wallet.clone();
+    }
+
+    pub fn get_close_token(&self) -> cl::Signature<E> {
+        let index = self.index - 1;
+        let close_token = self.close_tokens.get(&index).unwrap();
+        // rerandomize first
+        return close_token.clone();
+    }
+
     // generate nizk proof of knowledge of commitment opening
     pub fn generate_proof<R: Rng>(&self, csprng: &mut R, channel_token: &ChannelToken<E>) -> CommitmentProof<E> {
         return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.r);
@@ -250,6 +261,7 @@ impl<E: Engine> CustomerWallet<E> {
             let is_valid = pk.verify(&mpk, &close_wallet, &unblind_close_token);
             if is_valid {
                 // record the unblinded close token
+                //cp.pub_params.keypair
                 self.close_tokens.insert( self.index - 1, unblind_close_token);
             }
             return is_valid;
@@ -506,6 +518,10 @@ impl<E: Engine> MerchantWallet<E> {
         let pay_proof = proof.clone();
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);
         let epsilon = E::Fr::from_str(&amount.to_string()).unwrap();
+        if (amount < 0) {
+            // TODO: how to handle negative payment increments?
+            let epsilon = epsilon.inverse();
+        }
 
         if cp.pub_params.verify(pay_proof, epsilon, com, prev_wpk) {
             // 1 - proceed with generating close and pay token

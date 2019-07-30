@@ -43,6 +43,7 @@ pub fn hash_g2_to_fr<E: Engine>(x: &E::G2) -> E::Fr {
     hash_to_fr::<E>(x_vec)
 }
 
+// TODO: very buggy - revisit asap
 pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
     let mut result: String = "".to_string();
     for byte in bytearray.iter() {

@@ -425,6 +425,16 @@ impl<E: Engine> BlindKeyPair<E> {
         self.secret.sign(csprng, message)
     }
 
+    /// randomize signature
+    pub fn rerandomize_signature<R: Rng>(&self, csprng: &mut R, signature: &Signature<E>) -> Signature<E> {
+        let r = E::Fr::rand(csprng);
+        let mut h = signature.h.clone();
+        let mut H = signature.H.clone();
+        h.mul_assign(r.clone());
+        H.mul_assign(r);
+        Signature { h, H }
+    }
+
     /// sign a commitment of a vector of messages
     pub fn sign_blind<R: Rng>(&self, csprng: &mut R, mpk: &PublicParams<E>, com: Commitment<E>) -> Signature<E> {
         let u = E::Fr::rand(csprng);
@@ -593,6 +603,9 @@ mod tests {
         assert_eq!(keypair.verify(&mpk, &message1, &t, &blind_sig), true);
         assert_eq!(keypair.verify(&mpk, &message2, &t, &blind_sig), false);
         assert_eq!(keypair.verify(&mpk, &message1, &t1, &blind_sig), false);
+
+        let rand_sig = keypair.rerandomize_signature(&mut rng, &sig);
+        assert_eq!(public_key.verify(&mpk, &message1, &rand_sig), true);
     }
 
     #[test]
