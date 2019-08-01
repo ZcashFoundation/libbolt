@@ -30,8 +30,8 @@ doc:
 	cargo +nightly doc
 
 pythontests:
-	cargo +nightly build
-	python src/main.py
+	cargo +nightly build --release
+	python py/libbolt.py
 
 cpptests:
 	@cargo +nightly build
