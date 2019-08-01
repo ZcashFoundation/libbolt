@@ -80,17 +80,15 @@ pub struct ChannelToken<E: Engine> {
     pub blind_pk_m: cl::BlindPublicKey<E>, // PK_m
     pub pk_m: secp256k1::PublicKey, // pk_m
     pub comParams: CSMultiParams<E>,
-    is_initialized: bool
 }
 
 impl<E: Engine> ChannelToken<E> {
-    pub fn is_init(&mut self) -> bool {
-        return self.is_initialized
-    }
-
     pub fn set_customer_pk(&mut self, pk_c: &secp256k1::PublicKey) {
         self.pk_c = Some(pk_c.clone());
-        self.is_initialized = true;
+    }
+
+    pub fn is_init(&self) -> bool {
+        return !self.pk_c.is_none();
     }
 }
 // add methods to check if channel token is initialized
@@ -153,7 +151,7 @@ impl<E: Engine> ChannelState<E> {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct WalletKeyPair {
     pub wpk: secp256k1::PublicKey,
     pub wsk: secp256k1::SecretKey
@@ -162,6 +160,15 @@ struct WalletKeyPair {
 ///
 /// Customer wallet consists of a keypair (NEW)
 ///
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct CustomerWallet<E: Engine> {
     pub name: String,
     pub pk_c: secp256k1::PublicKey,
@@ -180,8 +187,7 @@ pub struct CustomerWallet<E: Engine> {
 }
 
 impl<E: Engine> CustomerWallet<E> {
-    pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelState<E>, channel_token: &mut ChannelToken<E>, cust_bal: i32, merch_bal: i32, name: String) -> Self {
-        assert!(!channel_token.is_init());
+    pub fn new<R: Rng>(csprng: &mut R, channel: &ChannelState<E>, channel_token: &mut ChannelToken<E>, cust_bal: i32, merch_bal: i32, name: String) -> Self {
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
 
@@ -396,7 +402,7 @@ impl<E: Engine> CustomerWallet<E> {
             let old_wallet = self.old_kp.unwrap();
             // proceed with generating the close token
             let secp = secp256k1::Secp256k1::new();
-            let mut rm = RevokedMessage::new(String::from("revoked"), old_wallet.wpk, None);
+            let mut rm = RevokedMessage::new(String::from("revoked"), old_wallet.wpk);
             let revoke_msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
             // msg = "revoked"|| old wsk (for old wallet)
             let revoke_token = secp.sign(&revoke_msg, &old_wallet.wsk);
@@ -424,6 +430,15 @@ impl<E: Engine> fmt::Display for CustomerWallet<E> {
 ///
 /// Merchant wallet (NEW)
 ///
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct MerchantWallet<E: Engine> {
     keypair: cl::BlindKeyPair<E>,
     pub balance: i32,
@@ -458,8 +473,7 @@ impl<E: Engine> MerchantWallet<E> {
             pk_c: None,
             blind_pk_m: self.keypair.public.clone(),
             pk_m: self.pk.clone(),
-            comParams: self.comParams.clone(),
-            is_initialized: false
+            comParams: self.comParams.clone()
         }
     }
 

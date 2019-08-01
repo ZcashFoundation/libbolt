@@ -12,7 +12,9 @@ pub struct CSParams<E: Engine> {
     pub h: E::G1,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as pairing::Engine>::G1: serde::Serialize"))]
+#[serde(bound(deserialize = "<E as pairing::Engine>::G1: serde::Deserialize<'de>"))]
 pub struct Commitment<E: Engine> {
     pub c: E::G1,
 }
@@ -236,6 +238,17 @@ mod tests {
         m2.push(extra_m);
         let c2 = csp.commit(&m2, &r);
         assert_eq!(csp.decommit(&c2, &m2, &r), true);
+    }
+
+    #[test]
+    fn test_csp_basic_serialize() {
+        let mut rng = &mut rand::thread_rng();
+        let len = 5;
+        let csp = CSMultiParams::<Bls12>::setup_gen_params(rng, len);
+
+        let serialized = serde_json::to_string(&csp).unwrap();
+
+        let csp_des: CSMultiParams<Bls12> = serde_json::from_str(&serialized).unwrap();
     }
 
     // add tests for extend/remove commits dynamically

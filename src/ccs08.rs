@@ -53,7 +53,17 @@ pub struct ProofULState<E: Engine> {
 /**
 proofUL contains the necessary elements for the ZK range proof with range [0,u^l).
 */
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize, \
+<E as pairing::Engine>::Fqk: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>, \
+<E as pairing::Engine>::Fqk: serde::Deserialize<'de>"
+))]
 pub struct ProofUL<E: Engine> {
     pub V: Vec<Signature<E>>,
     pub D: E::G1,
@@ -74,7 +84,17 @@ pub struct RangeProofState<E: Engine> {
 /**
 RangeProof contains the necessary elements for the ZK range proof.
 */
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize, \
+<E as pairing::Engine>::Fqk: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>, \
+<E as pairing::Engine>::Fqk: serde::Deserialize<'de>"
+))]
 pub struct RangeProof<E: Engine> {
     pub p1: ProofUL<E>,
     pub p2: ProofUL<E>,

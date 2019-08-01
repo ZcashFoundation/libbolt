@@ -6,7 +6,9 @@ use ff::PrimeField;
 use util::hash_to_fr;
 use std::fmt;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize"))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>"))]
 pub struct Wallet<E: Engine> {
     pub pkc: E::Fr,
     pub wpk: E::Fr,

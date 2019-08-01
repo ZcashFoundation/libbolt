@@ -95,6 +95,15 @@ pub fn compute_pub_key_fingerprint(wpk: &secp256k1::PublicKey) -> String {
 }
 
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
 pub struct CommitmentProof<E: Engine> {
     pub T: E::G1,
     pub z: Vec<E::Fr>
@@ -178,18 +187,17 @@ pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::F
 }
 
 
-//#[derive(Clone, Serialize, Deserialize)]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RevokedMessage {
     pub msgtype: String,
-    pub wpk: secp256k1::PublicKey,
-    pub sig: Option<[u8; 64]> // represents revocation token serialized compact bytes
+    pub wpk: secp256k1::PublicKey
+    //pub sig: Option<[u8; 64]> // represents revocation token serialized compact bytes
 }
 
 impl RevokedMessage {
-    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey, _sig: Option<[u8; 64]>) -> RevokedMessage {
+    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey) -> RevokedMessage { // _sig: Option<[u8; 64]>
         RevokedMessage {
-            msgtype: _msgtype, wpk: _wpk, sig: _sig
+            msgtype: _msgtype, wpk: _wpk // , sig: _sig
         }
     }
 
@@ -200,9 +208,9 @@ impl RevokedMessage {
         v.push(hash_to_fr::<E>(input_buf));
         v.push(hash_pubkey_to_fr::<E>(&self.wpk));
 
-        if !self.sig.is_none() {
-            v.push(hash_buffer_to_fr::<E>(&self.msgtype, &self.sig.unwrap()));
-        }
+        //if !self.sig.is_none() {
+        //    v.push(hash_buffer_to_fr::<E>(&self.msgtype, &self.sig.unwrap()));
+        //}
         return v;
     }
 

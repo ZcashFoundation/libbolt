@@ -13,7 +13,17 @@ use wallet::Wallet;
 use ccs08::{RPPublicParams, RangeProof};
 use serde::{Serialize, Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize, \
+<E as pairing::Engine>::Fqk: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>, \
+<E as pairing::Engine>::Fqk: serde::Deserialize<'de>"
+))]
 pub struct Proof<E: Engine> {
     pub sig: Signature<E>,
     pub sigProof: SignatureProof<E>,
