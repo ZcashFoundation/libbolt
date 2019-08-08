@@ -1,7 +1,7 @@
 use super::*;
 use sodiumoxide::crypto::hash::sha512;
 use pairing::{Engine, CurveProjective};
-use ff::PrimeField;
+use ff::{PrimeField};
 use rand::Rng;
 use ped92::CSMultiParams;
 use secp256k1::{Signature, PublicKey};
@@ -81,7 +81,9 @@ pub fn convert_int_to_fr<E: Engine>(value: i32) -> E::Fr {
     } else {
         // negative value
         let value2 = value * -1;
-        let res = E::Fr::from_str(value2.to_string().as_str()).unwrap();
+        let mut res = E::Fr::zero();
+        let val = E::Fr::from_str(value2.to_string().as_str()).unwrap();
+        res.sub_assign(&val);
         // TODO: look at how to do negation
         return res;
     }
@@ -257,5 +259,15 @@ mod tests {
     fn fmt_byte_to_int_works() {
         assert_eq!(fmt_bytes_to_int([12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123]),
                    "122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123");
+    }
+
+    #[test]
+    fn convert_int_to_fr_works() {
+        assert_eq!(format!("{}", convert_int_to_fr::<Bls12>(1).into_repr()),
+                   "0x0000000000000000000000000000000000000000000000000000000000000001");
+        assert_eq!(format!("{}", convert_int_to_fr::<Bls12>(-1).into_repr()),
+                   "0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000");
+        assert_eq!(format!("{}", convert_int_to_fr::<Bls12>(365).into_repr()),
+                   "0x000000000000000000000000000000000000000000000000000000000000016d");
     }
 }
