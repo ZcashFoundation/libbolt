@@ -426,7 +426,7 @@ impl<E: Engine> CustomerWallet<E> {
         return true;
     }
 
-    pub fn generate_revoke_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> (RevokedMessage, secp256k1::Signature) {
+    pub fn generate_revoke_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> ResultBoltSig<(RevokedMessage, secp256k1::Signature)> {
         if self.verify_close_token(channel, close_token) {
             let old_wallet = self.old_kp.unwrap();
             // proceed with generating the close token
@@ -436,10 +436,10 @@ impl<E: Engine> CustomerWallet<E> {
             // msg = "revoked"|| old wsk (for old wallet)
             let revoke_token = secp.sign(&revoke_msg, &old_wallet.wsk);
 
-            return (rm, revoke_token);
+            return Ok((rm, revoke_token));
         }
 
-        panic!("generate_revoke_token - could not verify the close token.");
+        Err(BoltError::new("generate_revoke_token - could not verify the close token."))
     }
 
 }
@@ -655,7 +655,7 @@ mod tests {
         //println!("3 - verified the close token!");
 
         // invalidate the previous state only if close token checks out
-        let (revoke_msg, revoke_sig) = cust_wallet.generate_revoke_token(&channel, &new_close_token);
+        let (revoke_msg, revoke_sig) = cust_wallet.generate_revoke_token(&channel, &new_close_token).unwrap();
         //println!("4 - Generated revoke token successfully.");
 
         //println!("5 - Revoke token => {}", revoke_token);

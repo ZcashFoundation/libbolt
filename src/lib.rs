@@ -432,7 +432,7 @@ pub mod bidirectional {
         // let's update the old wallet
         assert!(old_cust_wallet.update(new_cust_wallet));
         // generate the token after verifying that the close token is valid
-        let (message, signature) = old_cust_wallet.generate_revoke_token(channel_state, new_close_token);
+        let (message, signature) = old_cust_wallet.generate_revoke_token(channel_state, new_close_token).unwrap();
         // return the revoke token (msg + sig pair)
         return RevokeToken { message, signature };
 
