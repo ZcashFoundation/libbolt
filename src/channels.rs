@@ -24,6 +24,33 @@ use serialization_wrappers::WalletCommitmentAndParamsWrapper;
 use std::ptr::hash;
 use nizk::{NIZKPublicParams, Proof};
 use wallet::Wallet;
+use std::error::Error;
+use std::fmt;
+
+#[derive(Debug)]
+pub struct BoltError {
+    details: String
+}
+pub type ResultBoltSig<E> = Result<E, BoltError>;
+
+impl BoltError {
+    fn new(msg: &str) -> BoltError {
+        BoltError{details: msg.to_string()}
+    }
+}
+
+impl fmt::Display for BoltError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,"{}",self.details)
+    }
+}
+
+impl Error for BoltError {
+    fn description(&self) -> &str {
+        &self.details
+    }
+}
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PubKeyMap {
@@ -273,7 +300,8 @@ impl<E: Engine> CustomerWallet<E> {
             return is_valid;
         }
 
-        panic!("Customer - Verification failed for close token!");
+        println!("Customer - Verification failed for close token!");
+        return false;
     }
 
     pub fn verify_pay_token(&mut self, channel: &ChannelState<E>, pay_token: &Signature<E>) -> bool {
@@ -296,7 +324,8 @@ impl<E: Engine> CustomerWallet<E> {
             return is_valid;
         }
 
-        panic!("Customer - Verification failed for pay token!");
+        println!("Customer - Verification failed for pay token!");
+        return false;
     }
 
     pub fn has_tokens(&self) -> bool {
@@ -504,16 +533,16 @@ impl<E: Engine> MerchantWallet<E> {
         return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, pay_com);
     }
 
-    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>) -> (Signature<E>, Signature<E>) {
+    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>) -> ResultBoltSig<(Signature<E>, Signature<E>)> {
         let is_valid = util::verify(&self.comParams, &com.c, &com_proof);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
             println!("Commitment PoK is valid!");
             let close_token = self.issue_close_token(csprng, cp, com, true);
             let pay_token = self.issue_pay_token(csprng, cp, com, false);
-            return (close_token, pay_token);
+            return Ok((close_token, pay_token));
         }
-        panic!("verify_proof - Failed to verify PoK of commitment opening");
+        Err(BoltError::new("verify_proof - Failed to verify PoK of commitment opening"))
     }
 
     fn store_wpk_with_token(&mut self, wpk: &secp256k1::PublicKey, pay_token: Signature<E>) {
@@ -527,7 +556,7 @@ impl<E: Engine> MerchantWallet<E> {
         return self.pay_tokens.get(&wpk_str).unwrap().clone();
     }
 
-    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &Proof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i32) -> Signature<E> {
+    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &Proof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i32) -> ResultBoltSig<Signature<E>> {
         let cp = channel.cp.as_ref().unwrap();
         let pay_proof = proof.clone();
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);
@@ -543,19 +572,19 @@ impl<E: Engine> MerchantWallet<E> {
             let pay_token = self.issue_pay_token(csprng, cp, com, true);
             // let's store the pay token with the wpk for now
             self.store_wpk_with_token(wpk, pay_token);
-            return close_token;
+            return Ok(close_token);
         }
-        panic!("verify_payment - Failed to validate NIZK PoK for payment.");
+        Err(BoltError::new("verify_payment - Failed to validate NIZK PoK for payment."))
     }
 
-    pub fn verify_revoke_token(&self, revoke_token: &secp256k1::Signature, revoke_msg: &RevokedMessage, wpk: &secp256k1::PublicKey) -> Signature<E> {
+    pub fn verify_revoke_token(&self, revoke_token: &secp256k1::Signature, revoke_msg: &RevokedMessage, wpk: &secp256k1::PublicKey) -> ResultBoltSig<Signature<E>> {
         let secp = secp256k1::Secp256k1::new();
         let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
         // verify that the revocation token is valid
         if secp.verify(&msg, revoke_token, wpk).is_ok() {
-            return self.get_pay_token(wpk);
+            return Ok(self.get_pay_token(wpk));
         }
-        panic!("verify_revoke_token - Failed to verify the revoke token for wpk!");
+        Err(BoltError::new("verify_revoke_token - Failed to verify the revoke token for wpk!"))
     }
 
 }
@@ -596,7 +625,7 @@ mod tests {
 
         // first return the close token, then wait for escrow-tx confirmation
         // then send the pay-token after confirmation
-        let (close_token, pay_token) = merch_wallet.verify_proof(rng, &channel, &cust_wallet.w_com, &cust_com_proof);
+        let (close_token, pay_token) = merch_wallet.verify_proof(rng, &channel, &cust_wallet.w_com, &cust_com_proof).unwrap();
         // unblind tokens and verify signatures
         assert!(cust_wallet.verify_close_token(&channel, &close_token));
 
@@ -613,7 +642,7 @@ mod tests {
 //        println!("{}", new_cw);
 
         // new pay_token is not sent until revoke_token is obtained from the customer
-        let new_close_token = merch_wallet.verify_payment(rng, &channel, &pay_proof, &new_com, &old_wpk, amount);
+        let new_close_token = merch_wallet.verify_payment(rng, &channel, &pay_proof, &new_com, &old_wpk, amount).unwrap();
 
         //println!("1 -  Updated close Token : {}", new_close_token);
         // unblind tokens and verify signatures
@@ -631,7 +660,7 @@ mod tests {
 
         //println!("5 - Revoke token => {}", revoke_token);
 
-        let new_pay_token = merch_wallet.verify_revoke_token(&revoke_sig, &revoke_msg, &old_wpk);
+        let new_pay_token = merch_wallet.verify_revoke_token(&revoke_sig, &revoke_msg, &old_wpk).unwrap();
         assert!(cust_wallet.verify_pay_token(&channel, &new_pay_token));
 
         //println!("Validated revoke token!");

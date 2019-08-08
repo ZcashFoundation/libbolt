@@ -193,7 +193,7 @@ pub mod bidirectional {
     use std::fmt;
     use rand::{rngs::OsRng, Rng};
     use rand_core::RngCore;
-    pub use channels::{ChannelState, ChannelToken, CustomerWallet, MerchantWallet, PubKeyMap, ChannelParams};
+    pub use channels::{ChannelState, ChannelToken, CustomerWallet, MerchantWallet, PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
     pub use nizk::Proof;
     pub use util::CommitmentProof;
     use util;
@@ -312,7 +312,7 @@ pub mod bidirectional {
     pub fn establish_merchant_issue_close_token<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
                                        com: &Commitment<E>, com_proof: &CommitmentProof<E>, merch_wallet: &MerchantWallet<E>) -> cl::Signature<E> {
         // verifies proof of committed values and derives blind signature on the committed values to the customer's initial wallet
-        let (close_token, _) = merch_wallet.verify_proof(csprng, channel_state, com, com_proof);
+        let (close_token, _) = merch_wallet.verify_proof(csprng, channel_state, com, com_proof).unwrap();
         return close_token;
     }
 
@@ -372,7 +372,7 @@ pub mod bidirectional {
         // if payment proof verifies, then returns close-token and records wpk => pay-token
         // if valid revoke_token is provided later for wpk, then release pay-token
         let new_close_token = merch_wallet.verify_payment(csprng, &channel_state,
-                                                          &payment.proof, &payment.com, &payment.wpk, payment.amount);
+                                                          &payment.proof, &payment.com, &payment.wpk, payment.amount).unwrap();
         return new_close_token;
     }
 
@@ -444,7 +444,7 @@ pub mod bidirectional {
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
     pub fn verify_revoke_token<E: Engine>(rt: &RevokeToken, merch_wallet: &mut MerchantWallet<E>) -> cl::Signature<E> {
-        let new_pay_token = merch_wallet.verify_revoke_token(&rt.signature, &rt.message, &rt.message.wpk);
+        let new_pay_token = merch_wallet.verify_revoke_token(&rt.signature, &rt.message, &rt.message.wpk).unwrap();
         update_merchant_state(&mut merch_wallet.keys, &rt.message.wpk, Some(rt.signature.clone()));
         return new_pay_token;
     }
