@@ -167,7 +167,6 @@ pub struct BlindKeyPair<E: Engine> {
 #[derive(Clone)]
 pub struct ProofState<E: Engine> {
     pub v: E::Fr,
-    pub s: E::Fr,
     pub t: Vec<E::Fr>,
     pub tt: E::Fr,
     pub a: E::Fqk,
@@ -186,7 +185,6 @@ pub struct ProofState<E: Engine> {
 <E as pairing::Engine>::Fqk: serde::Deserialize<'de>"
 ))]
 pub struct SignatureProof<E: Engine> {
-    pub zx: E::Fr,
     pub zsig: Vec<E::Fr>,
     pub zv: E::Fr,
     pub a: E::Fqk,
@@ -363,7 +361,7 @@ impl<E: Engine> BlindPublicKey<E> {
     /// outputs: boolean
     pub fn verify_proof(&self, mpk: &PublicParams<E>, blindSig: Signature<E>, p: SignatureProof<E>, challenge: E::Fr) -> bool {
         let mut gx = E::pairing(blindSig.h, self.X2);
-        gx = gx.pow(p.zx.into_repr());
+        gx = gx.pow(challenge.into_repr());
         for j in 0..self.Y2.len() {
             let mut gy = E::pairing(blindSig.h, self.Y2[j]);
             gy = gy.pow(p.zsig[j].into_repr());
@@ -492,23 +490,21 @@ impl<E: Engine> BlindKeyPair<E> {
                                     tOptional: Option<Vec<E::Fr>>, ttOptional: Option<E::Fr>) -> ProofState<E> {
         let v = E::Fr::rand(rng);
         let blindSig = self.blind(rng, &v, signature);
-        let s = E::Fr::rand(rng);
         let mut t = tOptional.unwrap_or(Vec::<E::Fr>::with_capacity(self.public.Y2.len()));
         let tt = ttOptional.unwrap_or(E::Fr::rand(rng));
-        let mut gx = E::pairing(blindSig.h, self.public.X2);
-        gx = gx.pow(s.into_repr());
+        let mut a = E::Fqk::one();
         for j in 0..self.public.Y2.len() {
             if t.len() == j {
                 t.push(E::Fr::rand(rng));
             }
             let mut gy = E::pairing(blindSig.h, self.public.Y2[j]);
             gy = gy.pow(t[j].into_repr());
-            gx.mul_assign(&gy);
+            a.mul_assign(&gy);
         }
         let mut h = E::pairing(blindSig.h, mpk.g2);
         h = h.pow(tt.into_repr());
-        gx.mul_assign(&h);
-        ProofState { v, s, t, tt, a: gx, blindSig }
+        a.mul_assign(&h);
+        ProofState { v, t, tt, a, blindSig }
     }
 
     /// prove knowledge of a signature: response phase
@@ -525,13 +521,11 @@ impl<E: Engine> BlindKeyPair<E> {
             }
         }
 
-        let mut zx = ps.s.clone();
-        zx.add_assign(&challenge);
         let mut zv = ps.tt.clone();
         let mut vic = ps.v.clone();
         vic.mul_assign(&challenge);
         zv.add_assign(&vic);
-        SignatureProof { zsig, zx, zv, a: ps.a }
+        SignatureProof { zsig, zv, a: ps.a }
     }
 }
 
