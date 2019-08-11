@@ -50,9 +50,14 @@ pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
         // Decide if you want upper- or lowercase results,
         // padding the values to two characters, spaces
         // between bytes, etc.
-        result = result + &format!("{}", *byte as u8);
+        let s = format!("{}", *byte as u8);
+        result = result + &s;
     }
-    result.to_string()
+    let s = match result.starts_with('0') {
+        true => result[1..].to_string(),
+        false => result.to_string()
+    };
+    return s;
 }
 
 pub fn hash_to_fr<E: Engine>(mut byteVec: Vec<u8>) -> E::Fr {

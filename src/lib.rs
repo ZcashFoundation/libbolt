@@ -76,9 +76,6 @@ pub mod util;
 pub mod wallet;
 pub mod ffishim;
 
-const E_MIN: i32 = 1;
-const E_MAX: i32 = 255; // TODO: should be 2^32 - 1
-
 pub fn debug_elem_in_hex(prefix: &str, r: &Fr) {
     let encoded: Vec<u8> = encode(&r, Infinite).unwrap();
     print!("{} (hex) = 0x", prefix);
@@ -204,8 +201,6 @@ pub mod bidirectional {
     use cl; // for blind signature
     use secp256k1; // for on-chain keys
     use HashMap;
-    use E_MIN;
-    use E_MAX;
     use sodiumoxide::crypto::hash::sha512;
     use sha2::Sha512;
 
@@ -722,7 +717,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn bidirectional_payment_negative_payment_works() {
         // just bidirectional case (w/o third party)
         let total_owed = -20;

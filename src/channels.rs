@@ -560,11 +560,7 @@ impl<E: Engine> MerchantWallet<E> {
         let cp = channel.cp.as_ref().unwrap();
         let pay_proof = proof.clone();
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);
-        let epsilon = E::Fr::from_str(&amount.to_string()).unwrap();
-        if (amount < 0) {
-            // TODO: how to handle negative payment increments?
-            let epsilon = epsilon.inverse();
-        }
+        let epsilon = util::convert_int_to_fr::<E>(amount); // E::Fr::from_str(&amount.to_string()).unwrap();
 
         if cp.pub_params.verify(pay_proof, epsilon, com, prev_wpk) {
             // 1 - proceed with generating close and pay token
