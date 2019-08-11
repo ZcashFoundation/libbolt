@@ -183,6 +183,8 @@ pub fn hash_pub_key_to_fr(wpk: &secp256k1::PublicKey) -> Fr {
     return Fr::interpret(&hash_buf);
 }
 
+pub type BoltResult<T> = Result<Option<T>, String>;
+
 ////////////////////////////////// Utilities //////////////////////////////////
 
 /////////////////////////////// Bidirectional ////////////////////////////////
@@ -190,9 +192,6 @@ pub mod bidirectional {
     use std::fmt;
     use rand::{rngs::OsRng, Rng};
     use rand_core::RngCore;
-    pub use channels::{ChannelState, ChannelToken, CustomerWallet, MerchantWallet, PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
-    pub use nizk::Proof;
-    pub use util::CommitmentProof;
     use util;
     use wallet;
     use pairing::{Engine, CurveProjective};
@@ -204,17 +203,16 @@ pub mod bidirectional {
     use sodiumoxide::crypto::hash::sha512;
     use sha2::Sha512;
 
-//    use curve25519_dalek::scalar::Scalar;
-//    use curve25519_dalek::ristretto::RistrettoPoint;
-//    use merlin::Transcript;
-//    use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
-
     use serialization_wrappers;
     use serde::{Serialize, Deserialize};
     use std::sync::mpsc::channel;
+    use util::RevokedMessage;
     pub use ped92::Commitment;
     pub use cl::{PublicKey, Signature};
-    use util::RevokedMessage;
+    pub use BoltResult;
+    pub use channels::{ChannelState, ChannelToken, CustomerWallet, MerchantWallet, PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
+    pub use nizk::Proof;
+    pub use util::CommitmentProof;
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -305,10 +303,12 @@ pub mod bidirectional {
     /// signature) over the contents of the customer's wallet.
     ///
     pub fn establish_merchant_issue_close_token<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
-                                       com: &Commitment<E>, com_proof: &CommitmentProof<E>, merch_wallet: &MerchantWallet<E>) -> cl::Signature<E> {
+                                       com: &Commitment<E>, com_proof: &CommitmentProof<E>, merch_wallet: &MerchantWallet<E>) -> BoltResult<cl::Signature<E>> {
         // verifies proof of committed values and derives blind signature on the committed values to the customer's initial wallet
-        let (close_token, _) = merch_wallet.verify_proof(csprng, channel_state, com, com_proof).unwrap();
-        return close_token;
+        match merch_wallet.verify_proof(csprng, channel_state, com, com_proof) {
+            Ok(n) => Ok(Some(n.0)), // just close token
+            Err(err) => Err(String::from(err.to_string()))
+        }
     }
 
     ///
@@ -583,7 +583,11 @@ mod tests {
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, channel_token, cust_wallet);
 
         // obtain close token for closing out channel
-        let close_token = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet);
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet);
+        let close_token= match option {
+            Ok(n) => n.unwrap(),
+            Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
+        };
         assert!(cust_wallet.verify_close_token(&channel_state, &close_token));
 
         // wait for funding tx to be confirmed, etc
@@ -642,7 +646,11 @@ mod tests {
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_wallet);
 
         // obtain close token for closing out channel
-        let close_token = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet);
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet);
+        let close_token= match option {
+            Ok(n) => n.unwrap(),
+            Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
+        };
         assert!(cust_wallet.verify_close_token(&channel_state, &close_token));
 
         // wait for funding tx to be confirmed, etc

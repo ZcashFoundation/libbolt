@@ -14,6 +14,18 @@ pub mod ffishim {
     use std::mem;
 
     use serialization_wrappers;
+    fn error_message(s: String) -> *mut c_char {
+        let ser = ["{\'error\':\'", serde_json::to_string(&s).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    macro_rules! bolt_try {
+        ($e:expr) => (match $e {
+            Ok(val) => val.unwrap(),
+            Err(err) => return error_message(err),
+        });
+    }
 
     fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
 	where
@@ -135,7 +147,7 @@ pub mod ffishim {
         // Deserialize the merchant wallet
         let merch_wallet: bidirectional::MerchantWallet<Bls12> = deserialize_object(ser_merch_wallet);
 
-        let close_token = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet);
+        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet));
 
         let ser = ["{\'close_token\':\'", serde_json::to_string(&close_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
