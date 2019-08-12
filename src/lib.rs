@@ -448,10 +448,10 @@ pub mod bidirectional {
 
     // for customer => on input a wallet w, it outputs a customer channel closure message
     ///
-    /// customer_refund - takes as input the channel state, merchant's verification
+    /// customer_close - takes as input the channel state, merchant's verification
     /// key, and customer wallet. Generates a channel closure message for customer.
     ///
-    pub fn customer_refund<E: Engine>(channel_state: &ChannelState<E>, cust_wallet: &CustomerWallet<E>) -> ChannelcloseC<E> {
+    pub fn customer_close<E: Engine>(channel_state: &ChannelState<E>, cust_wallet: &CustomerWallet<E>) -> ChannelcloseC<E> {
         if !channel_state.channel_established {
             panic!("Cannot close a channel that has not been established!");
         }
@@ -676,7 +676,7 @@ mod tests {
 
         println!("Successful payment!");
 
-        let cust_close = bidirectional::customer_refund(&channel_state, &cust_wallet);
+        let cust_close = bidirectional::customer_close(&channel_state, &cust_wallet);
         println!("Obtained the channel close message");
         println!("{}", cust_close.message);
         println!("{}", cust_close.signature);
@@ -716,7 +716,7 @@ mod tests {
                 assert!(cust_wallet.cust_balance == (b0_customer - total_owed) && cust_wallet.merch_balance == total_owed + b0_merchant);
             }
 
-            let cust_close = bidirectional::customer_refund(&channel_state, &cust_wallet);
+            let cust_close = bidirectional::customer_close(&channel_state, &cust_wallet);
             println!("Obtained the channel close message");
             println!("{}", cust_close.message);
             println!("{}", cust_close.signature);

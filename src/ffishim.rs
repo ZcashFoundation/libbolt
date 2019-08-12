@@ -312,14 +312,14 @@ pub mod ffishim {
     // CLOSE
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_customer_refund(ser_channel_state: *mut c_char,
+    pub extern fn ffishim_bidirectional_customer_close(ser_channel_state: *mut c_char,
                                                         ser_cust_wallet: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
         // Deserialize the cust wallet
         let cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_cust_wallet);
 
-        let cust_close = bidirectional::customer_refund(&channel_state, &cust_wallet);
+        let cust_close = bidirectional::customer_close(&channel_state, &cust_wallet);
         let ser = ["{\'cust_close\':\'", serde_json::to_string(&cust_close).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
