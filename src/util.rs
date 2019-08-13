@@ -201,9 +201,9 @@ pub struct RevokedMessage {
 }
 
 impl RevokedMessage {
-    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey) -> RevokedMessage { // _sig: Option<[u8; 64]>
+    pub fn new(_msgtype: String, _wpk: secp256k1::PublicKey) -> RevokedMessage {
         RevokedMessage {
-            msgtype: _msgtype, wpk: _wpk // , sig: _sig
+            msgtype: _msgtype, wpk: _wpk
         }
     }
 
@@ -213,10 +213,6 @@ impl RevokedMessage {
         input_buf.extend_from_slice(self.msgtype.as_bytes());
         v.push(hash_to_fr::<E>(input_buf));
         v.push(hash_pubkey_to_fr::<E>(&self.wpk));
-
-        //if !self.sig.is_none() {
-        //    v.push(hash_buffer_to_fr::<E>(&self.msgtype, &self.sig.unwrap()));
-        //}
         return v;
     }
 

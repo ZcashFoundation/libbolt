@@ -58,11 +58,11 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_pay_verify_payment_token.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_pay_verify_payment_token.restype = c_void_p
 
-		self.lib.ffishim_bidirectional_customer_refund.argtypes = (c_void_p, c_void_p)
-		self.lib.ffishim_bidirectional_customer_refund.restype = c_void_p
+		self.lib.ffishim_bidirectional_customer_close.argtypes = (c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_customer_close.restype = c_void_p
 
-		# self.lib.ffishim_bidirectional_merchant_refund.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
-		# self.lib.ffishim_bidirectional_merchant_refund.restype = c_void_p
+		# self.lib.ffishim_bidirectional_merchant_close.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		# self.lib.ffishim_bidirectional_merchant_close.restype = c_void_p
 		#
 		# self.lib.ffishim_bidirectional_resolve.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		# self.lib.ffishim_bidirectional_resolve.restype = c_void_p
@@ -142,8 +142,8 @@ class Libbolt(object):
 
 	# CLOSE
 
-	def bidirectional_customer_refund(self, channel_state, cust_wallet):
-		output_string = self.lib.ffishim_bidirectional_customer_refund(channel_state.encode(), cust_wallet.encode())
+	def bidirectional_customer_close(self, channel_state, cust_wallet):
+		output_string = self.lib.ffishim_bidirectional_customer_close(channel_state.encode(), cust_wallet.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['cust_close']
 
@@ -247,6 +247,6 @@ print("Revoke token: ", revoke_token)
 (pay_token, merch_wallet) = libbolt.bidirectional_pay_verify_revoke_token(revoke_token, merch_wallet)
 print("Pay token: ", pay_token)
 
-cust_close_msg = libbolt.bidirectional_customer_refund(channel_state, cust_wallet)
+cust_close_msg = libbolt.bidirectional_customer_close(channel_state, cust_wallet)
 print("Cust close msg: ", cust_close_msg)
 print("<========================================>")
