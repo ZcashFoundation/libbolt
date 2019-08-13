@@ -4,8 +4,8 @@
 //! It builds on academic work done by Ian Miers and Matthew Green -
 //! https://eprint.iacr.org/2016/701.
 //!
-//! Libbolt relies on BN curves at 128-bit security, as implemented in
-//! [`bn module`](https://github.com/zcash-hackworks/bn).
+//! Libbolt relies on BLS12-381 curves at 128-bit security, as implemented in a fork of
+//! [`pairing module`](https://github.com/boltlabs-inc/pairing).
 //!
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
@@ -19,7 +19,6 @@
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
 #[cfg(all(test, feature = "unstable"))] extern crate test;
 
-extern crate bn;
 extern crate ff;
 extern crate pairing;
 extern crate rand;
@@ -27,7 +26,6 @@ extern crate rand_core;
 
 extern crate bincode;
 extern crate sodiumoxide;
-extern crate rustc_serialize;
 extern crate secp256k1;
 extern crate time;
 extern crate merlin;
@@ -46,7 +44,6 @@ extern crate core;
 
 use std::fmt;
 use std::str;
-use bn::{Group, Fr, G1, G2, Gt};
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
 use sodiumoxide::randombytes;
@@ -64,54 +61,15 @@ use serde::de::{Deserializer, Unexpected, Error};
 
 pub mod sym;
 pub mod cl;
-pub mod clsigs;
 pub mod ccs08;
-pub mod commit_scheme;
 pub mod ped92;
 pub mod channels;
-pub mod clproto;
-pub mod serialization_wrappers;
 pub mod nizk;
 pub mod util;
 pub mod wallet;
 pub mod ffishim;
 
-pub fn debug_elem_in_hex(prefix: &str, r: &Fr) {
-    let encoded: Vec<u8> = encode(&r, Infinite).unwrap();
-    print!("{} (hex) = 0x", prefix);
-    for e in encoded.iter() {
-        print!("{:x}", e);
-    }
-    print!("\n");
-}
-
-pub fn debug_g1_in_hex(prefix: &str, g: &G1) {
-    let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
-    print!("{} (hex) = 0x", prefix);
-    for e in encoded.iter() {
-        print!("{:x}", e);
-    }
-    print!("\n");
-}
-
-pub fn debug_g2_in_hex(prefix: &str, g: &G2) {
-    let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
-    print!("{} (hex) = 0x", prefix);
-    for e in encoded.iter() {
-        print!("{:x}", e);
-    }
-    print!("\n");
-}
-
-pub fn debug_gt_in_hex(prefix: &str, g: &Gt) {
-    let encoded: Vec<u8> = encode(&g, Infinite).unwrap();
-    print!("{} (hex) = 0x", prefix);
-    for e in encoded.iter() {
-        print!("{:x}", e);
-    }
-    print!("\n");
-}
-
+////////////////////////////////// Utilities //////////////////////////////////
 
 struct HexSlice<'a>(&'a [u8]);
 
@@ -147,42 +105,6 @@ impl<'a> fmt::UpperHex for HexSlice<'a> {
     }
 }
 
-/// Deserialize bool from String with custom value mapping
-//fn bool_from_string<'de, D>(deserializer: D) -> Result<bool, D::Error>
-//where
-//    D: Deserializer<'de>,
-//{
-//    match String::deserialize(deserializer)?.as_ref() {
-//        "true" => Ok(true),
-//        "false" => Ok(false),
-//        other => Err(de::Error::invalid_value(
-//            Unexpected::Str(other),
-//            &"true or false",
-//        )),
-//    }
-//}
-
-////////////////////////////////// Utilities //////////////////////////////////
-
-pub fn concat_g1_to_vector(output: &mut Vec<u8>, t: &G1) {
-    let t_vec: Vec<u8> = encode(t, Infinite).unwrap();
-    output.extend(t_vec);
-}
-
-pub fn concat_g2_to_vector(output: &mut Vec<u8>, t: &G2) {
-    let t_vec: Vec<u8> = encode(t, Infinite).unwrap();
-    output.extend(t_vec);
-}
-
-pub fn hash_pub_key_to_fr(wpk: &secp256k1::PublicKey) -> Fr {
-    let x_slice = wpk.serialize_uncompressed();
-    let sha2_digest = sha512::hash(&x_slice);
-
-    let mut hash_buf: [u8; 64] = [0; 64];
-    hash_buf.copy_from_slice(&sha2_digest[0..64]);
-    return Fr::interpret(&hash_buf);
-}
-
 pub type BoltResult<T> = Result<Option<T>, String>;
 
 ////////////////////////////////// Utilities //////////////////////////////////
@@ -203,7 +125,6 @@ pub mod bidirectional {
     use sodiumoxide::crypto::hash::sha512;
     use sha2::Sha512;
 
-    use serialization_wrappers;
     use serde::{Serialize, Deserialize};
     use std::sync::mpsc::channel;
     use util::RevokedMessage;

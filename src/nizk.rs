@@ -7,7 +7,6 @@ use cl::{KeyPair, Signature, PublicParams, setup, BlindKeyPair, ProofState, Sign
 use ped92::{CSParams, Commitment, CSMultiParams};
 use pairing::{Engine, CurveProjective};
 use ff::PrimeField;
-use commit_scheme::commit;
 use wallet::Wallet;
 use ccs08::{RPPublicParams, RangeProof};
 use serde::{Serialize, Deserialize};

@@ -20,7 +20,6 @@ use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Display;
 use serde::{Serialize, Deserialize};
-use serialization_wrappers::WalletCommitmentAndParamsWrapper;
 use std::ptr::hash;
 use nizk::{NIZKPublicParams, Proof};
 use wallet::Wallet;

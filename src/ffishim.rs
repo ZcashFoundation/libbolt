@@ -13,7 +13,6 @@ pub mod ffishim {
     use std::str;
     use std::mem;
 
-    use serialization_wrappers;
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", serde_json::to_string(&s).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
