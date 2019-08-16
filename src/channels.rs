@@ -195,7 +195,7 @@ struct WalletKeyPair {
 <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
 <E as pairing::Engine>::G2: serde::Deserialize<'de>"
 ))]
-pub struct CustomerWallet<E: Engine> {
+pub struct CustomerState<E: Engine> {
     pub name: String,
     pub pk_c: secp256k1::PublicKey,
     sk_c: secp256k1::SecretKey,
@@ -212,7 +212,7 @@ pub struct CustomerWallet<E: Engine> {
     pay_tokens: HashMap<i32, Signature<E>>
 }
 
-impl<E: Engine> CustomerWallet<E> {
+impl<E: Engine> CustomerState<E> {
     pub fn new<R: Rng>(csprng: &mut R, channel: &ChannelState<E>, channel_token: &mut ChannelToken<E>, cust_bal: i32, merch_bal: i32, name: String) -> Self {
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
@@ -244,7 +244,7 @@ impl<E: Engine> CustomerWallet<E> {
         let mut pt_db= HashMap::new();
 
         println!("Customer wallet formed -> now returning the structure to the caller.");
-        return CustomerWallet {
+        return CustomerState {
             name: name,
             pk_c: pk_c,
             sk_c: sk_c,
@@ -275,7 +275,7 @@ impl<E: Engine> CustomerWallet<E> {
 
     // generate nizk proof of knowledge of commitment opening
     pub fn generate_proof<R: Rng>(&self, csprng: &mut R, channel_token: &ChannelToken<E>) -> CommitmentProof<E> {
-        return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.t);
+        return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.t, &vec![]);
     }
 
     pub fn verify_close_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> bool {
@@ -335,7 +335,7 @@ impl<E: Engine> CustomerWallet<E> {
     }
 
     // for channel pay
-    pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i32) -> (Proof<E>, Commitment<E>, secp256k1::PublicKey, CustomerWallet<E>) {
+    pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i32) -> (Proof<E>, Commitment<E>, secp256k1::PublicKey, CustomerState<E>) {
         // 1 - chooose new wpk/wsk pair
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
@@ -362,7 +362,7 @@ impl<E: Engine> CustomerWallet<E> {
                           new_wcom.clone(), new_t, &prev_pay_token);
 
         // update internal state after proof has been verified by remote
-        let new_cw = CustomerWallet {
+        let new_cw = CustomerState {
             name: self.name.clone(),
             pk_c: self.pk_c.clone(),
             sk_c: self.sk_c.clone(),
@@ -383,7 +383,7 @@ impl<E: Engine> CustomerWallet<E> {
     }
 
     // update the internal state of the customer wallet
-    pub fn update(&mut self, new_wallet: CustomerWallet<E>) -> bool {
+    pub fn update(&mut self, new_wallet: CustomerState<E>) -> bool {
         // update everything except for the wpk/wsk pair
         assert!(self.name == new_wallet.name);
         self.cust_balance = new_wallet.cust_balance;
@@ -419,14 +419,14 @@ impl<E: Engine> CustomerWallet<E> {
 
 }
 
-impl<E: Engine> fmt::Display for CustomerWallet<E> {
+impl<E: Engine> fmt::Display for CustomerState<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut content = String::new();
         content = format!("pk = {}\n", &self.pk_c);
         content = format!("{}sk = {}\n", content, &self.sk_c);
         content = format!("{}cust-bal = {}\n", content, &self.cust_balance);
         content = format!("{}merch-bal = {}\n", content, &self.merch_balance);
-        write!(f, "CustomerWallet : (\n{}\n)", &content)
+        write!(f, "CustomerState : (\n{}\n)", &content)
     }
 }
 
@@ -443,7 +443,7 @@ impl<E: Engine> fmt::Display for CustomerWallet<E> {
 <E as pairing::Engine>::G1: serde::Deserialize<'de>, \
 <E as pairing::Engine>::G2: serde::Deserialize<'de>"
 ))]
-pub struct MerchantWallet<E: Engine> {
+pub struct MerchantState<E: Engine> {
     keypair: cl::BlindKeyPair<E>,
     pub balance: i32,
     pk: secp256k1::PublicKey, // pk_m
@@ -453,7 +453,7 @@ pub struct MerchantWallet<E: Engine> {
     pub pay_tokens: HashMap<String, cl::Signature<E>>
 }
 
-impl<E: Engine> MerchantWallet<E> {
+impl<E: Engine> MerchantState<E> {
     pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelState<E>, id: String) -> Self {
         // generate keys here
         let mut tx_kp = secp256k1::Secp256k1::new();
@@ -461,7 +461,7 @@ impl<E: Engine> MerchantWallet<E> {
         let (wsk, wpk) = tx_kp.generate_keypair(csprng);
         let cp = channel.cp.as_ref().unwrap(); // if not set, then panic!
 
-        MerchantWallet {
+        MerchantState {
             keypair: cp.pub_params.keypair.clone(),
             balance: 0,
             pk: wpk,
@@ -582,57 +582,57 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let mut merch_wallet = MerchantWallet::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
+        let mut merch_state = MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
-        let mut channel_token = merch_wallet.init(rng, &mut channel);
+        let mut channel_token = merch_state.init(rng, &mut channel);
 
         // retrieve commitment setup params (using merchant long lived pk params)
         // initialize on the customer side with balance: b0_cust
-        let mut cust_wallet = CustomerWallet::<Bls12>::new(rng, &mut channel, &mut channel_token, b0_cust, b0_merch, String::from("Alice"));
+        let mut cust_state = CustomerState::<Bls12>::new(rng, &mut channel, &mut channel_token, b0_cust, b0_merch, String::from("Alice"));
 
         // lets establish the channel
-        let cust_com_proof = cust_wallet.generate_proof(rng, &mut channel_token);
+        let cust_com_proof = cust_state.generate_proof(rng, &mut channel_token);
 
         // first return the close token, then wait for escrow-tx confirmation
         // then send the pay-token after confirmation
-        let (close_token, pay_token) = merch_wallet.verify_proof(rng, &channel, &cust_wallet.w_com, &cust_com_proof).unwrap();
+        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof).unwrap();
         // unblind tokens and verify signatures
-        assert!(cust_wallet.verify_close_token(&channel, &close_token));
+        assert!(cust_state.verify_close_token(&channel, &close_token));
 
-        assert!(cust_wallet.verify_pay_token(&channel, &pay_token));
+        assert!(cust_state.verify_pay_token(&channel, &pay_token));
 
         println!("Done!");
 
         // pay protocol tests
         let amount = 10;
-        let (pay_proof, new_com, old_wpk, new_cw) = cust_wallet.generate_payment(rng, &channel, amount);
+        let (pay_proof, new_com, old_wpk, new_cw) = cust_state.generate_payment(rng, &channel, amount);
 
 //        println!("{}", new_com);
 //        println!("wpk => {}", old_wpk);
 //        println!("{}", new_cw);
 
         // new pay_token is not sent until revoke_token is obtained from the customer
-        let new_close_token = merch_wallet.verify_payment(rng, &channel, &pay_proof, &new_com, &old_wpk, amount).unwrap();
+        let new_close_token = merch_state.verify_payment(rng, &channel, &pay_proof, &new_com, &old_wpk, amount).unwrap();
 
         //println!("1 -  Updated close Token : {}", new_close_token);
         // unblind tokens and verify signatures
 
-        // assuming the pay_proof checks out, can go ahead and update internal state of cust_wallet
-        assert!(cust_wallet.update(new_cw));
+        // assuming the pay_proof checks out, can go ahead and update internal state of cust_state
+        assert!(cust_state.update(new_cw));
         //println!("2 - updated customer wallet!");
 
-        assert!(cust_wallet.verify_close_token(&channel, &new_close_token));
+        assert!(cust_state.verify_close_token(&channel, &new_close_token));
         //println!("3 - verified the close token!");
 
         // invalidate the previous state only if close token checks out
-        let (revoke_msg, revoke_sig) = cust_wallet.generate_revoke_token(&channel, &new_close_token).unwrap();
+        let (revoke_msg, revoke_sig) = cust_state.generate_revoke_token(&channel, &new_close_token).unwrap();
         //println!("4 - Generated revoke token successfully.");
 
         //println!("5 - Revoke token => {}", revoke_token);
 
-        let new_pay_token = merch_wallet.verify_revoke_token(&revoke_sig, &revoke_msg, &old_wpk).unwrap();
-        assert!(cust_wallet.verify_pay_token(&channel, &new_pay_token));
+        let new_pay_token = merch_state.verify_revoke_token(&revoke_sig, &revoke_msg, &old_wpk).unwrap();
+        assert!(cust_state.verify_pay_token(&channel, &new_pay_token));
 
         //println!("Validated revoke token!");
     }

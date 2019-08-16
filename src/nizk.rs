@@ -107,8 +107,6 @@ impl<E: Engine> NIZKPublicParams<E> {
         z0.add_assign(&t[0]);
         z.push(z0);
         let newWalletVec = newWallet.as_fr_vec();
-//        println!("z.len = {}, wallet len = {}", t.len(), newWalletVec.len());
-//        println!("max => {}", max);
         for i in 1..t.len() {
             let mut zi = newWalletVec[i - 1].clone();
             zi.mul_assign(&challenge);

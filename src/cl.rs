@@ -493,6 +493,7 @@ impl<E: Engine> BlindKeyPair<E> {
         let mut t = tOptional.unwrap_or(Vec::<E::Fr>::with_capacity(self.public.Y2.len()));
         let tt = ttOptional.unwrap_or(E::Fr::rand(rng));
         let mut a = E::Fqk::one();
+        // TODO: consider optimizations to pairing in loop
         for j in 0..self.public.Y2.len() {
             if t.len() == j {
                 t.push(E::Fr::rand(rng));

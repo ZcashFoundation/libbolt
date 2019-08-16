@@ -80,11 +80,11 @@ pub mod ffishim {
 	    let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
 	    let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
-        let (channel_token, mut merch_wallet) = bidirectional::init_merchant(rng, &mut channel_state, name);
-        // initialize the balance for merch_wallet
-        merch_wallet.init_balance(balance);
+        let (channel_token, mut merch_state) = bidirectional::init_merchant(rng, &mut channel_state, name);
+        // initialize the balance for merch_state
+        merch_state.init_balance(balance);
 
-        let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_wallet\':\'", serde_json::to_string(&merch_wallet).unwrap().as_str() ,"\'}"].concat();
+        let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
 
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -102,15 +102,15 @@ pub mod ffishim {
 	    let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
-        let cust_wallet = bidirectional::init_customer(rng, &channel_state, &mut channel_token, balance_customer, balance_merchant, name);
-        let ser = ["{\'cust_wallet\':\'", serde_json::to_string(&cust_wallet).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str() ,"\'}"].concat();
+        let cust_state = bidirectional::init_customer(rng, &channel_state, &mut channel_token, balance_customer, balance_merchant, name);
+        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     // ESTABLISH
 
-    #[no_mangle] // bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_wallet);
+    #[no_mangle] // bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
     pub extern fn ffishim_bidirectional_establish_customer_generate_proof(ser_channel_token: *mut c_char,
                                                                           ser_customer_wallet: *mut c_char) -> *mut c_char {
         let mut rng = &mut rand::thread_rng();
@@ -118,11 +118,11 @@ pub mod ffishim {
         let mut channel_token: bidirectional::ChannelToken<Bls12> = deserialize_object(ser_channel_token);
 
         // Deserialize the cust wallet
-        let mut cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_customer_wallet);
+        let mut cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_customer_wallet);
 
-        let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_wallet);
+        let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
 
-        let ser = ["{\'cust_wallet\':\'", serde_json::to_string(&cust_wallet).unwrap().as_str(),
+        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
                           "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(),
                           "\', \'com\':\'", serde_json::to_string(&com).unwrap().as_str(),
                           "\', \'com_proof\':\'", serde_json::to_string(&com_proof).unwrap().as_str(),
@@ -132,7 +132,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_merch_wallet: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         let mut rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
@@ -144,9 +144,9 @@ pub mod ffishim {
         let com_proof: bidirectional::CommitmentProof<Bls12> = deserialize_object(ser_com_proof);
 
         // Deserialize the merchant wallet
-        let merch_wallet: bidirectional::MerchantWallet<Bls12> = deserialize_object(ser_merch_wallet);
+        let merch_state: bidirectional::MerchantState<Bls12> = deserialize_object(ser_merch_state);
 
-        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_wallet));
+        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_state));
 
         let ser = ["{\'close_token\':\'", serde_json::to_string(&close_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -154,7 +154,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_issue_pay_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_merch_wallet: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_issue_pay_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         let mut rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
@@ -163,9 +163,9 @@ pub mod ffishim {
         let com: bidirectional::Commitment<Bls12> = deserialize_object(ser_com);
 
         // Deserialize the merchant wallet
-        let merch_wallet: bidirectional::MerchantWallet<Bls12> = deserialize_object(ser_merch_wallet);
+        let merch_state: bidirectional::MerchantState<Bls12> = deserialize_object(ser_merch_state);
 
-        let pay_token = bidirectional::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_wallet);
+        let pay_token = bidirectional::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
 
         let ser = ["{\'pay_token\':\'", serde_json::to_string(&pay_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -178,14 +178,14 @@ pub mod ffishim {
         let mut channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
 
         // Deserialize the cust wallet
-        let mut cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_customer_wallet);
+        let mut cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_customer_wallet);
 
         // Deserialize the close token
         let close_token: bidirectional::Signature<Bls12> = deserialize_object(ser_close_token);
 
-        let is_close_token_valid = cust_wallet.verify_close_token(&mut channel_state, &close_token);
+        let is_close_token_valid = cust_state.verify_close_token(&mut channel_state, &close_token);
 
-        let ser = ["{\'cust_wallet\':\'", serde_json::to_string(&cust_wallet).unwrap().as_str(),
+        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
                           "\', \'is_token_valid\':\'", serde_json::to_string(&is_close_token_valid).unwrap().as_str(),
                           "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -199,14 +199,14 @@ pub mod ffishim {
         let mut channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
 
         // Deserialize the cust wallet
-        let mut cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_customer_wallet);
+        let mut cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_customer_wallet);
 
         // Deserialize the custdata
         let pay_token: bidirectional::Signature<Bls12> = deserialize_object(ser_pay_token);
 
-        let is_channel_established = bidirectional::establish_customer_final(&mut channel_state, &mut cust_wallet, &pay_token);
+        let is_channel_established = bidirectional::establish_customer_final(&mut channel_state, &mut cust_state, &pay_token);
 
-        let ser = ["{\'cust_wallet\':\'", serde_json::to_string(&cust_wallet).unwrap().as_str(),
+        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
                           "\', \'is_established\':\'", serde_json::to_string(&is_channel_established).unwrap().as_str(),
                           "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -224,11 +224,11 @@ pub mod ffishim {
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
 
         // Deserialize the cust wallet
-        let cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_customer_wallet);
+        let cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_customer_wallet);
 
-        let (payment, new_cust_wallet) = bidirectional::generate_payment_proof(rng, &channel_state, &cust_wallet, amount);
+        let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &cust_state, amount);
         let ser = ["{\'payment\':\'", serde_json::to_string(&payment).unwrap().as_str(),
-                          "\', \'cust_wallet\':\'", serde_json::to_string(&new_cust_wallet).unwrap().as_str() ,"\'}"].concat();
+                          "\', \'cust_state\':\'", serde_json::to_string(&new_cust_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -236,7 +236,7 @@ pub mod ffishim {
     #[no_mangle]
     pub extern fn ffishim_bidirectional_pay_verify_payment_proof(ser_channel_state: *mut c_char,
                                                                  ser_pay_proof: *mut c_char,
-                                                                 ser_merch_wallet: *mut c_char) -> *mut c_char {
+                                                                 ser_merch_state: *mut c_char) -> *mut c_char {
         let mut rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
@@ -245,64 +245,64 @@ pub mod ffishim {
         let payment: bidirectional::Payment<Bls12> = deserialize_object(ser_pay_proof);
 
         // Deserialize the merch wallet
-        let mut merch_wallet: bidirectional::MerchantWallet<Bls12> = deserialize_object(ser_merch_wallet);
+        let mut merch_state: bidirectional::MerchantState<Bls12> = deserialize_object(ser_merch_state);
 
-        let close_token = bidirectional::verify_payment_proof(rng, &channel_state, &payment, &mut merch_wallet);
+        let close_token = bidirectional::verify_payment_proof(rng, &channel_state, &payment, &mut merch_state);
         let ser = ["{\'close_token\':\'", serde_json::to_string(&close_token).unwrap().as_str(),
-                          "\', \'merch_wallet\':\'", serde_json::to_string(&merch_wallet).unwrap().as_str() ,"\'}"].concat();
+                          "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
     pub extern fn ffishim_bidirectional_pay_generate_revoke_token(ser_channel_state: *mut c_char,
-                                                                  ser_cust_wallet: *mut c_char,
-                                                                  ser_new_cust_wallet: *mut c_char,
+                                                                  ser_cust_state: *mut c_char,
+                                                                  ser_new_cust_state: *mut c_char,
                                                                   ser_close_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
         // Deserialize the cust wallet
-        let mut cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_cust_wallet);
+        let mut cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_cust_state);
         // Deserialize the cust wallet
-        let new_cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_new_cust_wallet);
+        let new_cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_new_cust_state);
         // Deserialize the close token
         let close_token: bidirectional::Signature<Bls12> = deserialize_object(ser_close_token);
 
-        let revoke_token = bidirectional::generate_revoke_token(&channel_state, &mut cust_wallet, new_cust_wallet, &close_token);
+        let revoke_token = bidirectional::generate_revoke_token(&channel_state, &mut cust_state, new_cust_state, &close_token);
         let ser = ["{\'revoke_token\':\'", serde_json::to_string(&revoke_token).unwrap().as_str(),
-                          "\', \'cust_wallet\':\'", serde_json::to_string(&cust_wallet).unwrap().as_str() ,"\'}"].concat();
+                          "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
     pub extern fn ffishim_bidirectional_pay_verify_revoke_token(ser_revoke_token: *mut c_char,
-                                                                ser_merch_wallet: *mut c_char) -> *mut c_char {
+                                                                ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the revoke token
         let revoke_token: bidirectional::RevokeToken = deserialize_object(ser_revoke_token);
         // Deserialize the cust wallet
-        let mut merch_wallet: bidirectional::MerchantWallet<Bls12> = deserialize_object(ser_merch_wallet);
+        let mut merch_state: bidirectional::MerchantState<Bls12> = deserialize_object(ser_merch_state);
         // send revoke token and get pay-token in response
-        let pay_token = bidirectional::verify_revoke_token(&revoke_token, &mut merch_wallet);
+        let pay_token = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
         let ser = ["{\'pay_token\':\'", serde_json::to_string(&pay_token).unwrap().as_str(),
-                          "\', \'merch_wallet\':\'", serde_json::to_string(&merch_wallet).unwrap().as_str() ,"\'}"].concat();
+                          "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_pay_verify_payment_token(ser_channel_state: *mut c_char, ser_cust_wallet: *mut c_char, ser_pay_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_pay_verify_payment_token(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char, ser_pay_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
         // Deserialize the cust wallet
-        let mut cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_cust_wallet);
+        let mut cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_cust_state);
         // Deserialize the pay token
         let pay_token: bidirectional::Signature<Bls12> = deserialize_object(ser_pay_token);
 
         // verify the pay token and update internal state
-        let is_pay_valid = cust_wallet.verify_pay_token(&channel_state, &pay_token);
-        let ser = ["{\'cust_wallet\':\'", serde_json::to_string(&cust_wallet).unwrap().as_str(),
+        let is_pay_valid = cust_state.verify_pay_token(&channel_state, &pay_token);
+        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
                           "\', \'is_pay_valid\':\'", serde_json::to_string(&is_pay_valid).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -312,13 +312,13 @@ pub mod ffishim {
 
     #[no_mangle]
     pub extern fn ffishim_bidirectional_customer_close(ser_channel_state: *mut c_char,
-                                                        ser_cust_wallet: *mut c_char) -> *mut c_char {
+                                                        ser_cust_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
         // Deserialize the cust wallet
-        let cust_wallet: bidirectional::CustomerWallet<Bls12> = deserialize_object(ser_cust_wallet);
+        let cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_cust_state);
 
-        let cust_close = bidirectional::customer_close(&channel_state, &cust_wallet);
+        let cust_close = bidirectional::customer_close(&channel_state, &cust_state);
         let ser = ["{\'cust_close\':\'", serde_json::to_string(&cust_close).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

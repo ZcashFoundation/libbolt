@@ -116,7 +116,7 @@ pub struct CommitmentProof<E: Engine> {
 }
 
 impl<E: Engine> CommitmentProof<E> {
-    pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr) -> Self {
+    pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>) -> Self {
         let mut Tvals = E::G1::zero();
         assert!(wallet.len() <= com_params.pub_bases.len());
 
@@ -138,13 +138,23 @@ impl<E: Engine> CommitmentProof<E> {
         let mut z0 = r.clone();
         z0.mul_assign(&challenge);
         z0.add_assign(&t[0]);
-        z.push(z0);
+        // check if we are revealing this index
+        if (reveal_index.contains(&0)) {
+            z.push(E::Fr::zero());
+        } else {
+            z.push(z0);
+        }
+
 
         for i in 1..t.len() {
             let mut zi = wallet[i-1].clone();
             zi.mul_assign(&challenge);
             zi.add_assign(&t[i]);
-            z.push(zi);
+            if (reveal_index.contains(&i)) {
+                z.push(E::Fr::zero());
+            } else {
+                z.push(zi);
+            }
         }
 
         CommitmentProof {
