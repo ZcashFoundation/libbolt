@@ -132,8 +132,7 @@ pub mod bidirectional {
     pub use cl::{PublicKey, Signature};
     pub use BoltResult;
     pub use channels::{ChannelState, ChannelToken, CustomerState, MerchantState, PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
-    pub use nizk::Proof;
-    pub use util::CommitmentProof;
+    pub use nizk::{CommitmentProof, Proof};
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \

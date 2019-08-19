@@ -15,13 +15,13 @@ use pairing::bls12_381::{Bls12};
 use ff::PrimeField;
 use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
 use ped92::{CSParams, Commitment, CSMultiParams};
-use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, CommitmentProof, RevokedMessage};
+use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage};
 use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Display;
 use serde::{Serialize, Deserialize};
 use std::ptr::hash;
-use nizk::{NIZKPublicParams, Proof};
+use nizk::{NIZKPublicParams, CommitmentProof, Proof};
 use wallet::Wallet;
 use std::error::Error;
 use std::fmt;
@@ -275,7 +275,8 @@ impl<E: Engine> CustomerState<E> {
 
     // generate nizk proof of knowledge of commitment opening
     pub fn generate_proof<R: Rng>(&self, csprng: &mut R, channel_token: &ChannelToken<E>) -> CommitmentProof<E> {
-        return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.t, &vec![]);
+        // generate proof and do a partial reveal of pkc and bc/bm (init balances)
+        return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.t, &vec![1, 3, 4]);
     }
 
     pub fn verify_close_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> bool {
@@ -509,7 +510,7 @@ impl<E: Engine> MerchantState<E> {
     }
 
     pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>) -> ResultBoltSig<(Signature<E>, Signature<E>)> {
-        let is_valid = util::verify(&self.comParams, &com.c, &com_proof);
+        let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
             println!("Commitment PoK is valid!");

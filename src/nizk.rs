@@ -10,6 +10,7 @@ use ff::PrimeField;
 use wallet::Wallet;
 use ccs08::{RPPublicParams, RangeProof};
 use serde::{Serialize, Deserialize};
+use util;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -185,6 +186,132 @@ impl<E: Engine> NIZKPublicParams<E> {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
+pub struct CommitmentProof<E: Engine> {
+    pub T: E::G1,
+    pub z: Vec<E::Fr>,
+    pub t: Vec<E::Fr>,
+    pub index: Vec<usize>,
+    pub reveal: Vec<E::Fr>
+}
+
+impl<E: Engine> CommitmentProof<E> {
+    pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>) -> Self {
+        let mut Tvals = E::G1::zero();
+        assert!(wallet.len() <= com_params.pub_bases.len());
+
+        let mut t = Vec::<E::Fr>::with_capacity( wallet.len()+1 );
+        let mut rt: Vec<E::Fr> = Vec::new(); // t values that will be revealed
+        let mut reveal_wallet: Vec<E::Fr> = Vec::new(); // aspects of wallet being revealed
+
+        for i in 0..wallet.len()+1 {
+            let ti = E::Fr::rand(csprng);
+            t.push(ti);
+            // check if we are revealing this index
+            if (reveal_index.contains(&i)) {
+                rt.push(ti);
+            } else {
+                rt.push( E::Fr::zero());
+            }
+            let mut gt = com_params.pub_bases[i].clone();
+            gt.mul_assign(ti.into_repr());
+            Tvals.add_assign(&gt);
+        }
+
+        // compute the challenge
+        let x: Vec<E::G1> = vec![Tvals, com.clone()];
+        let challenge = util::hash_g1_to_fr::<E>(&x);
+
+        // compute the response
+        let mut z: Vec<E::Fr> = Vec::new();
+        let mut z0 = r.clone();
+        z0.mul_assign(&challenge);
+        z0.add_assign(&t[0]);
+        z.push(z0);
+        reveal_wallet.push( E::Fr::zero());
+
+        for i in 1..t.len() {
+            let mut zi = wallet[i-1].clone();
+            zi.mul_assign(&challenge);
+            zi.add_assign(&t[i]);
+            z.push(zi);
+            // check if we are revealing this index
+            if (reveal_index.contains(&i)) {
+                reveal_wallet.push(wallet[i-1].clone() );
+            } else {
+                reveal_wallet.push( E::Fr::zero());
+            }
+        }
+
+        CommitmentProof {
+            T: Tvals, // commitment challenge
+            z: z, // response values
+            t: rt, // randomness for verifying partial reveals
+            index: reveal_index.clone(),
+            reveal: reveal_wallet
+        }
+    }
+}
+
+///
+/// Verify PoK for the opening of a commitment
+///
+pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>) -> bool {
+
+    let mut comc = com.clone();
+    let T = proof.T.clone();
+
+    let xvec: Vec<E::G1> = vec![T, comc];
+    let challenge = util::hash_g1_to_fr::<E>(&xvec);
+
+    // compute the
+    comc.mul_assign(challenge.into_repr());
+    comc.add_assign(&T);
+
+    let mut x = E::G1::zero();
+    let mut z: Vec<E::Fr> = Vec::new();
+    for i in 0..proof.z.len() {
+        let mut base = com_params.pub_bases[i].clone();
+        base.mul_assign(proof.z[i].into_repr());
+        x.add_assign(&base);
+    }
+
+    if (proof.index.len() == 0) {
+        println!("verify_opening - doing any partial reveals?");
+        return false;
+    }
+
+    // verify linear relationshps
+    // pkc: index = 1
+    let mut s1 = proof.reveal[1].clone();
+    s1.mul_assign(&challenge);
+    s1.add_assign(&proof.t[1]);
+    let pkc_equal = (s1 == proof.z[1]);
+
+    // cust init balances: index = 3
+    let mut s3 = proof.reveal[3].clone();
+    s3.mul_assign(&challenge);
+    s3.add_assign(&proof.t[3]);
+    let bc_equal = (s3 == proof.z[3]);
+
+    // merch init balances: index = 4
+    let mut s4 = proof.reveal[4].clone();
+    s4.mul_assign(&challenge);
+    s4.add_assign(&proof.t[4]);
+    let bm_equal = (s4 == proof.z[4]);
+
+    return comc == x && pkc_equal && bc_equal && bm_equal;
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,6 +459,51 @@ mod tests {
         let proof = pubParams.prove(rng, r, wallet1.clone(), wallet5, commitment2.clone(), rprime, &paymentToken);
         assert_eq!(pubParams.verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment2, wpk), false);
     }
+
+    #[test]
+    fn nizk_proof_commitment_opening_works() {
+        let rng = &mut rand::thread_rng();
+        let pkc = Fr::rand(rng);
+        let wpk = Fr::rand(rng);
+        let t = Fr::rand(rng);
+
+        let bc = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000);
+        let wallet = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
+
+        let pubParams = NIZKPublicParams::<Bls12>::setup(rng, 4);
+        let com = pubParams.comParams.commit(&wallet.as_fr_vec().clone(), &t);
+
+        let com_proof = CommitmentProof::<Bls12>::new(rng, &pubParams.comParams,
+                                                      &com.c, &wallet.as_fr_vec(), &t, &vec![1, 3, 4]);
+
+        assert!(verify_opening(&pubParams.comParams, &com.c, &com_proof));
+    }
+
+    #[test]
+    fn nizk_proof_false_commitment() {
+        let rng = &mut rand::thread_rng();
+        let pkc = Fr::rand(rng);
+        let wpk = Fr::rand(rng);
+        let t = Fr::rand(rng);
+
+        let bc = rng.gen_range(100, 1000);
+        let bc2 = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000);
+        let wallet1 = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
+        let wallet2 = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc2, bm: bm, close: None };
+
+        let pubParams = NIZKPublicParams::<Bls12>::setup(rng, 4);
+        let com1 = pubParams.comParams.commit(&wallet1.as_fr_vec().clone(), &t);
+        let com2 = pubParams.comParams.commit(&wallet2.as_fr_vec().clone(), &t);
+
+        let com1_proof = CommitmentProof::<Bls12>::new(rng, &pubParams.comParams,
+                                                      &com1.c, &wallet1.as_fr_vec(), &t, &vec![1, 3, 4]);
+
+        assert!(verify_opening(&pubParams.comParams, &com1.c, &com1_proof));
+        assert!(!verify_opening(&pubParams.comParams, &com2.c, &com1_proof));
+    }
+
 
     #[test]
     fn test_nizk_serialization() {
