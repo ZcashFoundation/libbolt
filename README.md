@@ -17,7 +17,6 @@ Active development of libbolt is ongoing at [Bolt Labs, Inc](https://github.com/
 * secp256k1
 * sodiumoxide
 * pairing
-* curve25519_dalek
 * merlin
 * bulletproofs
 
