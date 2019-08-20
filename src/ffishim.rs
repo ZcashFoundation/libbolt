@@ -12,6 +12,7 @@ pub mod ffishim {
     use std::ffi::{CStr, CString};
     use std::str;
     use std::mem;
+    use bidirectional::ChannelcloseC;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", serde_json::to_string(&s).unwrap().as_str(), "\'}"].concat();
@@ -324,34 +325,32 @@ pub mod ffishim {
         cser.into_raw()
     }
 
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_merchant_close(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char,
+                                                       ser_cust_close: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+        // Deserialize the channel state
+        let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
+         // Deserialize the channel token
+        let mut channel_token: bidirectional::ChannelToken<Bls12> = deserialize_object(ser_channel_token);
+        // Deserialize the customer close structure
+        let cust_close: bidirectional::ChannelcloseC<Bls12> = deserialize_object(ser_cust_close);
+        // Deserialize the merch wallet
+        let mut merch_state: bidirectional::MerchantState<Bls12> = deserialize_object(ser_merch_state);
+
+        let option = bidirectional::merchant_close(&channel_state, &channel_token, &cust_close, &merch_state);
+        let keys = match option {
+            Ok(n) => n.unwrap(),
+            Err(err) => return error_message(err),
+        };
+
+        let ser = ["{\'wpk\':\'", serde_json::to_string(&keys.wpk).unwrap().as_str(),
+                "\', \'revoke_token\':\'", serde_json::to_string(&keys.revoke_token).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
 }
 
-//    #[no_mangle]
-//    pub extern fn ffishim_bidirectional_merchant_refund(serialized_pp: *mut c_char, serialized_channel: *mut c_char, serialized_channel_token: *mut c_char, serialized_merchant_data: *mut c_char,  serialized_channel_closure: *mut c_char, serialized_revoke_token: *mut c_char) -> *mut c_char {
-//        // Deserialize the pp
-//        let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
-//
-//        // Deserialize the channel state
-//        let mut deserialized_channel_state: bidirectional::ChannelState = deserialize_object(serialized_channel);
-//
-//        // Deserialize the channel token
-//        let deserialized_channel_token: bidirectional::ChannelToken = deserialize_object(serialized_channel_token);
-//
-//        // Deserialize the merchant data
-//        let deserialized_merchant_data: bidirectional::InitMerchantData = deserialize_object(serialized_merchant_data);
-//
-//        // Deserialize the closure
-//        let deserialized_channel_closure: bidirectional::ChannelclosureC = deserialize_object(serialized_channel_closure);
-//
-//        // Deserialize the revoke_token
-//        let deserialized_revoke_token: secp256k1::Signature = deserialize_object(serialized_revoke_token);
-//
-//        let rc_m = bidirectional::merchant_refute(&deserialized_pp, &mut deserialized_channel_state, &deserialized_channel_token, &deserialized_merchant_data, &deserialized_channel_closure, &deserialized_revoke_token);
-//        let ser = ["{\'rc_m\':\'", serde_json::to_string(&rc_m).unwrap().as_str(), "\', \'state\':\'", serde_json::to_string(&deserialized_channel_state).unwrap().as_str(), "\'}"].concat();
-//        let cser = CString::new(ser).unwrap();
-//        cser.into_raw()
-//    }
-//
 //    #[no_mangle]
 //    pub extern fn ffishim_bidirectional_resolve(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char, serialized_closure_customer: *mut c_char,  serialized_closure_merchant: *mut c_char) -> *mut c_char {
 //        // Deserialize the pp

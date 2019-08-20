@@ -119,7 +119,6 @@ pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::F
 pub struct RevokedMessage {
     pub msgtype: String,
     pub wpk: secp256k1::PublicKey
-    //pub sig: Option<[u8; 64]> // represents revocation token serialized compact bytes
 }
 
 impl RevokedMessage {

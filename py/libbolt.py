@@ -61,9 +61,9 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_customer_close.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_customer_close.restype = c_void_p
 
-		# self.lib.ffishim_bidirectional_merchant_close.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
-		# self.lib.ffishim_bidirectional_merchant_close.restype = c_void_p
-		#
+		self.lib.ffishim_bidirectional_merchant_close.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_merchant_close.restype = c_void_p
+
 		# self.lib.ffishim_bidirectional_resolve.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		# self.lib.ffishim_bidirectional_resolve.restype = c_void_p
 
@@ -79,78 +79,80 @@ class Libbolt(object):
 	def bidirectional_init_merchant(self, channel_state, b0_merch, name):
 		output_string = self.lib.ffishim_bidirectional_init_merchant(channel_state.encode(), b0_merch, name.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['channel_token'], output_dictionary['merch_wallet']
+		return output_dictionary['channel_token'], output_dictionary['merch_state']
 
 	def bidirectional_init_customer(self, channel_state, channel_token, b0_cust, b0_merch, name):
 		output_string = self.lib.ffishim_bidirectional_init_customer(channel_state.encode(), channel_token.encode(), b0_cust, b0_merch, name.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary['channel_token'], output_dictionary['cust_wallet'])
+		return (output_dictionary['channel_token'], output_dictionary['cust_state'])
 
 	# ESTABLISH PROTOCOL
 
-	def bidirectional_establish_customer_generate_proof(self, channel_token, cust_wallet):
-		output_string = self.lib.ffishim_bidirectional_establish_customer_generate_proof(channel_token.encode(), cust_wallet.encode())
+	def bidirectional_establish_customer_generate_proof(self, channel_token, cust_state):
+		output_string = self.lib.ffishim_bidirectional_establish_customer_generate_proof(channel_token.encode(), cust_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['channel_token'], output_dictionary['cust_wallet'], output_dictionary['com'], output_dictionary['com_proof']
+		return output_dictionary['channel_token'], output_dictionary['cust_state'], output_dictionary['com'], output_dictionary['com_proof']
 
-	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, merch_wallet):
-		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), merch_wallet.encode())
+	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, merch_state):
+		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['close_token']
 
-	def bidirectional_establish_merchant_issue_pay_token(self, channel_state, com, merch_wallet):
-		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_pay_token(channel_state.encode(), com.encode(), merch_wallet.encode())
+	def bidirectional_establish_merchant_issue_pay_token(self, channel_state, com, merch_state):
+		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_pay_token(channel_state.encode(), com.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['pay_token']
 
-	def bidirectional_establish_customer_verify_close_token(self, channel_state, cust_wallet, close_token):
-		output_string = self.lib.ffishim_bidirectional_verify_close_token(channel_state.encode(), cust_wallet.encode(), close_token.encode())
+	def bidirectional_establish_customer_verify_close_token(self, channel_state, cust_state, close_token):
+		output_string = self.lib.ffishim_bidirectional_verify_close_token(channel_state.encode(), cust_state.encode(), close_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['is_token_valid'], output_dictionary['channel_state'], output_dictionary['cust_wallet']
+		return output_dictionary['is_token_valid'], output_dictionary['channel_state'], output_dictionary['cust_state']
 
-	def bidirectional_establish_customer_final(self, channel_state, cust_wallet, pay_token):
-		output_string = self.lib.ffishim_bidirectional_establish_customer_final(channel_state.encode(), cust_wallet.encode(), pay_token.encode())
+	def bidirectional_establish_customer_final(self, channel_state, cust_state, pay_token):
+		output_string = self.lib.ffishim_bidirectional_establish_customer_final(channel_state.encode(), cust_state.encode(), pay_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['is_established'], output_dictionary['channel_state'], output_dictionary['cust_wallet']
+		return output_dictionary['is_established'], output_dictionary['channel_state'], output_dictionary['cust_state']
 
 	# PAY PROTOCOL
 
 	# generate payment proof
-	def bidirectional_pay_generate_payment_proof(self, channel_state, cust_wallet, amount):
-		output_string = self.lib.ffishim_bidirectional_pay_generate_payment_proof(channel_state.encode(), cust_wallet.encode(), amount)
+	def bidirectional_pay_generate_payment_proof(self, channel_state, cust_state, amount):
+		output_string = self.lib.ffishim_bidirectional_pay_generate_payment_proof(channel_state.encode(), cust_state.encode(), amount)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['payment'], output_dictionary['cust_wallet']
+		return output_dictionary['payment'], output_dictionary['cust_state']
 
 	# verify payment proof
-	def bidirectional_pay_verify_payment_proof(self, channel_state, pay_proof, merch_wallet):
-		output_string = self.lib.ffishim_bidirectional_pay_verify_payment_proof(channel_state.encode(), pay_proof.encode(), merch_wallet.encode())
+	def bidirectional_pay_verify_payment_proof(self, channel_state, pay_proof, merch_state):
+		output_string = self.lib.ffishim_bidirectional_pay_verify_payment_proof(channel_state.encode(), pay_proof.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary['close_token'], output_dictionary['merch_wallet'])
+		return (output_dictionary['close_token'], output_dictionary['merch_state'])
 
 	# generate revoke token
-	def bidirectional_pay_generate_revoke_token(self, channel_state, cust_wallet, new_cust_wallet, close_token):
-		output_string = self.lib.ffishim_bidirectional_pay_generate_revoke_token(channel_state.encode(), cust_wallet.encode(),
-																				 new_cust_wallet.encode(), close_token.encode())
+	def bidirectional_pay_generate_revoke_token(self, channel_state, cust_state, new_cust_state, close_token):
+		output_string = self.lib.ffishim_bidirectional_pay_generate_revoke_token(channel_state.encode(), cust_state.encode(),
+																				 new_cust_state.encode(), close_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['revoke_token'], output_dictionary['cust_wallet']
+		return output_dictionary['revoke_token'], output_dictionary['cust_state']
 
 	# verify revoke token
-	def bidirectional_pay_verify_revoke_token(self, revoke_token, merch_wallet):
-		output_string = self.lib.ffishim_bidirectional_pay_verify_revoke_token(revoke_token.encode(), merch_wallet.encode())
+	def bidirectional_pay_verify_revoke_token(self, revoke_token, merch_state):
+		output_string = self.lib.ffishim_bidirectional_pay_verify_revoke_token(revoke_token.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary['pay_token'], output_dictionary['merch_wallet'])
+		return (output_dictionary['pay_token'], output_dictionary['merch_state'])
 
 	# CLOSE
 
-	def bidirectional_customer_close(self, channel_state, cust_wallet):
-		output_string = self.lib.ffishim_bidirectional_customer_close(channel_state.encode(), cust_wallet.encode())
+	def bidirectional_customer_close(self, channel_state, cust_state):
+		output_string = self.lib.ffishim_bidirectional_customer_close(channel_state.encode(), cust_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['cust_close']
+		return output_dictionary.get('cust_close')
 
-# 	def bidirectional_merchant_refund(self, pp, channel, channel_token, merch_data, channel_closure, revoke_token):
-# 		output_string = self.lib.ffishim_bidirectional_merchant_refund(pp.encode(), channel.encode(), channel_token.encode(), merch_data.encode(), channel_closure.encode(), revoke_token.encode())
-# 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-# 		return (output_dictionary['rc_m'], output_dictionary['state'])
+	def bidirectional_merchant_close(self, channel_state, channel_token, cust_close, merch_state):
+		output_string = self.lib.ffishim_bidirectional_merchant_close(channel_state.encode(), channel_token.encode(),
+																	  cust_close.encode(), merch_state.encode())
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (output_dictionary.get('wpk'), output_dictionary.get('revoke_token'), output_dictionary.get('error'))
+
 #
 # 	def bidirectional_resolve(self, pp, cust_data, merch_data, cust_closure, merch_closure):
 # 		output_string = self.lib.ffishim_bidirectional_resolve( pp.encode(), cust_data.encode(), merch_data.encode(), cust_closure.encode(), merch_closure.encode())
@@ -203,28 +205,28 @@ channel_state = libbolt.channel_setup("My New Channel A")
 
 print("channel state new: ", channel_state)
 
-(channel_token, merch_wallet) = libbolt.bidirectional_init_merchant(channel_state, b0_merch, "Bob")
+(channel_token, merch_state) = libbolt.bidirectional_init_merchant(channel_state, b0_merch, "Bob")
 
-print("merch_wallet: ", len(merch_wallet))
+print("merch_state: ", len(merch_state))
 #print("channel_token: ", type(_channel_token))
 
-(channel_token, cust_wallet) = libbolt.bidirectional_init_customer(channel_state, channel_token, b0_cust, b0_merch, "Alice")
-print("cust_wallet: ", len(cust_wallet))
+(channel_token, cust_state) = libbolt.bidirectional_init_customer(channel_state, channel_token, b0_cust, b0_merch, "Alice")
+print("cust_state: ", len(cust_state))
 
-(channel_token, cust_wallet, com, com_proof) = libbolt.bidirectional_establish_customer_generate_proof(channel_token, cust_wallet)
+(channel_token, cust_state, com, com_proof) = libbolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)
 print("com: ", com)
 
-close_token = libbolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, merch_wallet)
+close_token = libbolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, merch_state)
 print("close token: ", close_token)
 
-(is_token_valid, channel_state, cust_wallet) = libbolt.bidirectional_establish_customer_verify_close_token(channel_state, cust_wallet, close_token)
+(is_token_valid, channel_state, cust_state) = libbolt.bidirectional_establish_customer_verify_close_token(channel_state, cust_state, close_token)
 
-pay_token = libbolt.bidirectional_establish_merchant_issue_pay_token(channel_state, com, merch_wallet)
+pay_token = libbolt.bidirectional_establish_merchant_issue_pay_token(channel_state, com, merch_state)
 print("pay token: ", pay_token)
 
-(is_channel_established, channel_state, cust_wallet) = libbolt.bidirectional_establish_customer_final(channel_state, cust_wallet, pay_token)
+(is_channel_established, channel_state, cust_state) = libbolt.bidirectional_establish_customer_final(channel_state, cust_state, pay_token)
 if is_channel_established:
-	print("updated cust_wallet: ", cust_wallet)
+	print("updated cust_state: ", cust_state)
 else:
 	print("channel still not established. did you verify close token?")
 
@@ -232,21 +234,24 @@ else:
 print("Pay protocol...")
 
 amount = 5
-(payment_proof, new_cust_wallet) = libbolt.bidirectional_pay_generate_payment_proof(channel_state, cust_wallet, amount)
+(payment_proof, new_cust_state) = libbolt.bidirectional_pay_generate_payment_proof(channel_state, cust_state, amount)
 print("Pay proof: ", len(payment_proof))
-print("new cust wallet: ", new_cust_wallet)
+print("new cust wallet: ", new_cust_state)
 print("<========================================>")
 
-(new_close_token, merch_wallet) = libbolt.bidirectional_pay_verify_payment_proof(channel_state, payment_proof, merch_wallet)
+(new_close_token, merch_state) = libbolt.bidirectional_pay_verify_payment_proof(channel_state, payment_proof, merch_state)
 print("Close token: ", new_close_token)
 print("<========================================>")
 
-(revoke_token, cust_wallet) = libbolt.bidirectional_pay_generate_revoke_token(channel_state, cust_wallet, new_cust_wallet, new_close_token)
+(revoke_token, cust_state) = libbolt.bidirectional_pay_generate_revoke_token(channel_state, cust_state, new_cust_state, new_close_token)
 print("Revoke token: ", revoke_token)
 
-(pay_token, merch_wallet) = libbolt.bidirectional_pay_verify_revoke_token(revoke_token, merch_wallet)
+(pay_token, merch_state) = libbolt.bidirectional_pay_verify_revoke_token(revoke_token, merch_state)
 print("Pay token: ", pay_token)
 
-cust_close_msg = libbolt.bidirectional_customer_close(channel_state, cust_wallet)
-print("Cust close msg: ", cust_close_msg)
+cust_close = libbolt.bidirectional_customer_close(channel_state, cust_state)
+print("Cust close msg: ", cust_close)
 print("<========================================>")
+
+merch_close_tokens = libbolt.bidirectional_merchant_close(channel_state, channel_token, cust_close, merch_state)
+print("Merch close tokens: ", merch_close_tokens)

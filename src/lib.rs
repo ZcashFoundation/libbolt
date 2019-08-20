@@ -140,13 +140,8 @@ pub mod bidirectional {
     #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
     <E as pairing::Engine>::G1: serde::Deserialize<'de>"))]
     pub struct ChannelcloseC<E: Engine> {
+        pub wpk: secp256k1::PublicKey,
         pub message: wallet::Wallet<E>,
-        pub signature: cl::Signature<E>
-    }
-
-    #[derive(Clone)]
-    pub struct ChannelcloseM<E: Engine> {
-        pub message: util::RevokedMessage,
         pub signature: cl::Signature<E>
     }
 
@@ -288,6 +283,8 @@ pub mod bidirectional {
         // if valid revoke_token is provided later for wpk, then release pay-token
         let new_close_token = merch_state.verify_payment(csprng, &channel_state,
                                                           &payment.proof, &payment.com, &payment.wpk, payment.amount).unwrap();
+        // store the wpk since it has been revealed
+        update_merchant_state(&mut merch_state.keys, &payment.wpk, None);
         return new_close_token;
     }
 
@@ -384,29 +381,32 @@ pub mod bidirectional {
         let close_wallet = wallet.with_close(String::from("close"));
 
         assert!(pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token));
-        ChannelcloseC { message: wallet, signature: close_token }
+        ChannelcloseC { wpk: cust_state.wpk, message: wallet, signature: close_token }
     }
 
-    fn exist_in_merchant_state<E: Engine>(db: &mut HashMap<String, PubKeyMap>, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> bool {
-        if db.is_empty() {
-            return false;
-        }
-
-        let fingerprint = util::compute_pub_key_fingerprint(wpk);
-        if db.contains_key(&fingerprint) {
-            let pub_key = db.get(&fingerprint).unwrap();
-            if pub_key.revoke_token.is_none() {
-                // let's just check the public key
-                return pub_key.wpk == *wpk;
-            }
-            if !rev.is_none() {
-                return pub_key.wpk == *wpk && pub_key.revoke_token.unwrap() == rev.unwrap();
-            }
-            return pub_key.wpk == *wpk;
-        }
-
-        return false;
-    }
+//    fn exist_in_merchant_state<E: Engine>(db: &HashMap<String, PubKeyMap>, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> (bool, Option<PubKeyMap>) {
+//        if db.is_empty() {
+//            return (false, None);
+//        }
+//
+//        let fingerprint = util::compute_pub_key_fingerprint(wpk);
+//        if db.contains_key(&fingerprint) {
+//            let revoked_state = db.get(&fingerprint).unwrap();
+//
+//
+//
+//            if revoked_state.revoke_token.is_none() {
+//                // let's just check the public key
+//                return (revoked_state.wpk == *wpk, None);
+//            }
+//            if !rev.is_none() {
+//                return (revoked_state.wpk == *wpk && pub_key.revoke_token.unwrap() == rev.unwrap(), None);
+//            }
+//            return (pub_key.wpk == *wpk, Some(pub_key));
+//        }
+//
+//        return false;
+//    }
 
     fn update_merchant_state(db: &mut HashMap<String, PubKeyMap>, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) {
         let fingerprint = util::compute_pub_key_fingerprint(wpk);
@@ -421,35 +421,49 @@ pub mod bidirectional {
     }
 
     ///
-    /// merchant_refute - takes as input the public params, channel token, merchant's wallet,
-    /// channels tate, channel closure from customer, and revocation token.
-    /// Generates a channel closure message for merchant and updated merchant internal state.
+    /// merchant_close - takes as input the channel state, channel token, customer close msg/sig,
+    /// Returns tokens for merchant close transaction (only if customer close message is found to be a
+    /// double spend). If not, then None is returned.
     ///
-    pub fn merchant_refute<E: Engine>(channel_state: &mut ChannelState<E>,
-                           channel_token: &ChannelToken<E>,
-                           rc_c: &ChannelcloseC<E>, rv_token: &secp256k1::Signature) -> bool {
-        return true;
+    pub fn merchant_close<E: Engine>(channel_state: &ChannelState<E>,
+                                     channel_token: &ChannelToken<E>,
+                                     cust_close: &ChannelcloseC<E>,
+                                     merch_state: &MerchantState<E>) -> BoltResult<PubKeyMap> {
+        if (!channel_state.channel_established) {
+            return Err(String::from("merchant_close - Channel not established! Cannot generate channel closure message."));
+        }
+
+        let cp = channel_state.cp.as_ref().unwrap();
+        let pk = cp.pub_params.keypair.get_public_key(&cp.pub_params.mpk);
+        let mut wallet = cust_close.message.clone();
+        let close_wallet = wallet.with_close(String::from("close")).clone();
+        let close_token = cust_close.signature.clone();
+
+        let is_valid = pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token);
+
+        if is_valid {
+            let wpk = cust_close.wpk;
+            // found the wpk, which means old close token
+            let fingerprint = util::compute_pub_key_fingerprint(&wpk);
+            if merch_state.keys.contains_key(&fingerprint) {
+                let revoked_state = merch_state.keys.get(&fingerprint).unwrap();
+                if !revoked_state.revoke_token.is_none() {
+                    let revoke_token = revoked_state.revoke_token.unwrap().clone();
+                    // verify the revoked state first before returning
+                    let secp = secp256k1::Secp256k1::new();
+                    let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
+                    let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
+                    // verify that the revocation token is valid
+                    if secp.verify(&msg, &revoke_token, &wpk).is_ok() {
+                        return Ok(Some(revoked_state.clone()));
+                    }
+                }
+                return Err(String::from("merchant_close - Found wpk but could not find the revoke token. Merchant abort detected."));
+            }
+            return Err(String::from("merchant_close - Could not find entry for wpk & revoke token pair. Valid close!"));
+        }
+        Err(String::from("merchant_close - Customer close message not valid!"))
     }
-//                           rc_c: &ChannelclosureC, rv_token: &secp256k1::Signature)  // -> ChannelclosureM {
-//        // for merchant => on input the merchant's current state S_old and a customer channel closure message,
-//        // outputs a merchant channel closure message rc_m and updated merchant state S_new
-//        let is_valid = cl::verify_d(&pp.cl_mpk, &t_c.pk, &rc_c.message.hash(), &rc_c.signature);
-//        if is_valid {
-//            let wpk = rc_c.message.wpk;
-//            let balance = rc_c.message.balance;
-//            if !exist_in_merchant_state(&state, &wpk, Some(*rv_token)) {
-//                // update state to include the user's wallet key
-//                assert!(update_merchant_state(state, &wpk, Some(*rv_token)));
-//            }
-//            let ser_rv_token = rv_token.serialize_compact();
-//            let rm = RevokedMessage::new(String::from("revoked"), wpk, Some(ser_rv_token));
-//            // sign the revoked message
-//            let signature = cl::sign_d(&pp.cl_mpk, &m_data.csk.sk, &rm.hash());
-//            return ChannelclosureM { message: rm, signature: signature };
-//        } else {
-//            panic!("Signature on customer closure message is invalid!");
-//        }
-//    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
@@ -468,6 +482,7 @@ mod tests {
     use super::*;
     use ff::Rand;
     use pairing::bls12_381::{Bls12};
+    use rand::Rng;
 
     fn setup_new_channel_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
                                 init_cust_bal: i32, init_merch_bal: i32)
@@ -636,10 +651,10 @@ mod tests {
                 assert!(cust_state.cust_balance == (b0_customer - total_owed) && cust_state.merch_balance == total_owed + b0_merchant);
             }
 
-            let cust_close = bidirectional::customer_close(&channel_state, &cust_state);
+            let cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
             println!("Obtained the channel close message");
-            println!("{}", cust_close.message);
-            println!("{}", cust_close.signature);
+            println!("{}", cust_close_msg.message);
+            println!("{}", cust_close_msg.signature);
         }
 
     }
@@ -664,7 +679,6 @@ mod tests {
         assert!(channel_state.channel_established);
 
         {
-            // make multiple payments in a loop
             execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, payment_increment);
 
             {
@@ -675,6 +689,94 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn bidirectional_merchant_close_detects_double_spends() {
+        let mut rng = &mut rand::thread_rng();
+
+        let b0_customer = rng.gen_range(100, 1000);
+        let b0_merchant = 10;
+        let pay_increment = 20;
+
+        let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+
+        channel_state.setup(&mut rng); // or load_setup params
+
+        let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+
+        // run establish protocol for customer and merchant channel
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state);
+
+        assert!(channel_state.channel_established);
+
+        // let's make a few payments then exit channel (will post an old channel state
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+
+        // let's close then move state forward
+        let old_cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
+
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        let cur_cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
+
+        let merch_close_result = bidirectional::merchant_close(&channel_state,
+                                                            &channel_token,
+                                                            &old_cust_close_msg,
+                                                            &merch_state);
+        let merch_close_msg = match merch_close_result {
+            Ok(n) => n.unwrap(),
+            Err(err) => panic!("Merchant close msg: {}", err)
+        };
+
+        println!("Double spend attempt by customer! Evidence below...");
+        println!("Merchant close: wpk = {}", merch_close_msg.wpk);
+        println!("Merchant close: revoke_token = {}", merch_close_msg.revoke_token.unwrap());
+    }
+
+    #[test]
+    #[should_panic]
+    fn bidirectional_merchant_close_works() {
+        let mut rng = &mut rand::thread_rng();
+
+        let b0_customer = rng.gen_range(100, 1000);
+        let b0_merchant = 10;
+        let pay_increment = 20;
+
+        let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+
+        channel_state.setup(&mut rng); // or load_setup params
+
+        let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+
+        // run establish protocol for customer and merchant channel
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state);
+
+        assert!(channel_state.channel_established);
+
+        // let's make a few payments then exit channel (will post an old channel state
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+
+        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+
+        let cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
+
+        let merch_close_result = bidirectional::merchant_close(&channel_state,
+                                                            &channel_token,
+                                                            &cust_close_msg,
+                                                            &merch_state);
+        let merch_close_msg = match merch_close_result {
+            Ok(n) => n.unwrap(),
+            Err(err) => panic!("Merchant close msg: {}", err)
+        };
+    }
+
 
 //    fn execute_third_party_pay_protocol_helper(pp: &bidirectional::PublicParams,
 //                                   channel1: &mut bidirectional::ChannelState, channel2: &mut bidirectional::ChannelState,
