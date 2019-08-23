@@ -1,6 +1,6 @@
 use super::*;
 use sodiumoxide::crypto::hash::sha512;
-use pairing::{Engine, CurveProjective};
+use pairing::Engine;
 use ff::{PrimeField};
 use rand::Rng;
 use ped92::CSMultiParams;
@@ -59,7 +59,7 @@ pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
     return s;
 }
 
-pub fn hash_to_fr<E: Engine>(mut byteVec: Vec<u8>) -> E::Fr {
+pub fn hash_to_fr<E: Engine>(byteVec: Vec<u8>) -> E::Fr {
     let sha2_digest = sha512::hash(byteVec.as_slice());
     let mut hash_buf: [u8; 64] = [0; 64];
     hash_buf.copy_from_slice(&sha2_digest[0..64]);

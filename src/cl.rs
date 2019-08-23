@@ -304,12 +304,12 @@ impl<E: Engine> BlindPublicKey<E> {
 
     pub fn verify(&self, mpk: &PublicParams<E>, message: &Vec<E::Fr>, signature: &Signature<E>) -> bool {
         let mut L = E::G2::zero();
-        let mut l = self.Y2.len();
+        let l = self.Y2.len();
         //println!("verify - m.len = {}, l = {}", message.len(), l);
         assert!(message.len() <= l + 1);
         let mut last_elem = l;
 
-        let last_elem = match l == message.len() {
+        last_elem = match l == message.len() {
             true => message.len() - 1,
             false => l
         };
@@ -432,7 +432,7 @@ impl<E: Engine> BlindKeyPair<E> {
         let mut h1 = mpk.g1;
         h1.mul_assign(u); // g1 ^ u
 
-        let mut com1 = com.c.clone();
+        let com1 = com.c.clone();
         let mut H1 = self.public.X1.clone();
         H1.add_assign(&com1); // (X * com)
         H1.mul_assign(u); // (X * com) ^ u (blinding factor)

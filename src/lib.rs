@@ -13,7 +13,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_results)]
 #![allow(missing_docs)]
-#![feature(extern_prelude)]
 #![feature(exclusive_range_pattern)]
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
@@ -111,12 +110,10 @@ pub type BoltResult<T> = Result<Option<T>, String>;
 
 /////////////////////////////// Bidirectional ////////////////////////////////
 pub mod bidirectional {
-    use std::fmt;
-    use rand::{rngs::OsRng, Rng};
-    use rand_core::RngCore;
+    use rand::Rng;
     use util;
     use wallet;
-    use pairing::{Engine, CurveProjective};
+    use pairing::Engine;
     use pairing::bls12_381::{Bls12};
     use sodiumoxide;
     use cl; // for blind signature
@@ -184,7 +181,7 @@ pub mod bidirectional {
         let merch_name = String::from(name);
         let mut merch_state = MerchantState::<E>::new(csprng, channel_state, merch_name);
         // initialize the merchant state
-        let mut channel_token = merch_state.init(csprng, channel_state);
+        let channel_token = merch_state.init(csprng, channel_state);
 
         return (channel_token, merch_state);
     }

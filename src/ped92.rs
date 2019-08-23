@@ -1,7 +1,7 @@
 // ped92.rs
 use rand::{thread_rng, Rng};
 use pairing::{Engine, CurveProjective};
-use ff::{Rand, Field};
+use ff::Rand;
 use std::fmt;
 use util::is_vec_g1_equal;
 use serde::{Serialize, Deserialize};

@@ -1,7 +1,7 @@
 extern crate pairing;
 
 use super::*;
-use pairing::{Engine, CurveProjective};
+use pairing::Engine;
 use ff::PrimeField;
 use util::hash_to_fr;
 use std::fmt;

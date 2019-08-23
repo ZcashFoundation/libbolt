@@ -148,7 +148,6 @@ impl<E: Engine> ChannelState<E> {
     pub fn setup<R: Rng>(&mut self, csprng: &mut R) {
         let l = 5;
         let pubParams = NIZKPublicParams::<E>::setup(csprng, l);
-        let num_rand_values = 1;
 
         let cp = ChannelParams { pub_params: pubParams, l: l, extra_verify: true };
         self.cp = Some(cp);
@@ -226,10 +225,6 @@ impl<E: Engine> CustomerState<E> {
         let wpk_h = hash_pubkey_to_fr::<E>(&wpk);
         // hash the channel pub key
         let pk_h = hash_pubkey_to_fr::<E>(&pk_c);
-
-        // convert balance into Fr
-        let cust_b0 = convert_int_to_fr::<E>(cust_bal);
-        let merch_b0 = convert_int_to_fr::<E>(merch_bal);
         // randomness for commitment
         let t = E::Fr::rand(csprng);
         // initialize wallet vector
@@ -241,8 +236,8 @@ impl<E: Engine> CustomerState<E> {
 
         assert!(channel_token.is_init());
 
-        let mut ct_db= HashMap::new();
-        let mut pt_db= HashMap::new();
+        let ct_db= HashMap::new();
+        let pt_db= HashMap::new();
 
         //println!("Customer wallet formed -> now returning the structure to the caller.");
         return CustomerState {
@@ -358,7 +353,7 @@ impl<E: Engine> CustomerState<E> {
 
         // 3 - generate new blinded and randomized pay token
         let i = self.index;
-        let mut prev_pay_token = self.pay_tokens.get(&i).unwrap();
+        let prev_pay_token = self.pay_tokens.get(&i).unwrap();
         //println!("Found prev pay token: {}", prev_pay_token);
 
         let pay_proof = cp.pub_params.prove(csprng, self.t.clone(), old_wallet, new_wallet.clone(),
@@ -409,7 +404,7 @@ impl<E: Engine> CustomerState<E> {
             let old_wallet = self.old_kp.unwrap();
             // proceed with generating the close token
             let secp = secp256k1::Secp256k1::new();
-            let mut rm = RevokedMessage::new(String::from("revoked"), old_wallet.wpk);
+            let rm = RevokedMessage::new(String::from("revoked"), old_wallet.wpk);
             let revoke_msg = secp256k1::Message::from_slice(&rm.hash_to_slice()).unwrap();
             // msg = "revoked"|| old wsk (for old wallet)
             let revoke_token = secp.sign(&revoke_msg, &old_wallet.wsk);
@@ -429,6 +424,7 @@ impl<E: Engine> fmt::Display for CustomerState<E> {
         content = format!("{}sk = {}\n", content, &self.sk_c);
         content = format!("{}cust-bal = {}\n", content, &self.cust_balance);
         content = format!("{}merch-bal = {}\n", content, &self.merch_balance);
+        // add remaining fields
         write!(f, "CustomerState : (\n{}\n)", &content)
     }
 }

@@ -2,7 +2,7 @@ extern crate pairing;
 extern crate rand;
 
 use super::*;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use cl::{KeyPair, Signature, PublicParams, setup, BlindKeyPair, ProofState, SignatureProof, BlindPublicKey};
 use ped92::{CSParams, Commitment, CSMultiParams};
 use pairing::{Engine, CurveProjective};
@@ -120,7 +120,7 @@ impl<E: Engine> NIZKPublicParams<E> {
         let mut vecWithout2 = vec01.clone();
         let mut vec3 = newWalletVec[3..].to_vec();
         vecWithout2.append(&mut vec3);
-        let mut vec2 = newWalletVec[2].clone();
+        let vec2 = newWalletVec[2].clone();
         vec01.push( vec2);
         if newWalletVec.len() > 4 {
             let mut vec4 = newWalletVec[4..].to_vec();
@@ -277,7 +277,6 @@ pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, pro
     comc.add_assign(&T);
 
     let mut x = E::G1::zero();
-    let mut z: Vec<E::Fr> = Vec::new();
     for i in 0..proof.z.len() {
         let mut base = com_params.pub_bases[i].clone();
         base.mul_assign(proof.z[i].into_repr());
