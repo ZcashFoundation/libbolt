@@ -223,11 +223,11 @@ pub mod ffishim {
         let mut rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
-
         // Deserialize the cust wallet
         let cust_state: bidirectional::CustomerState<Bls12> = deserialize_object(ser_customer_wallet);
-
+        // Generate the payment proof
         let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &cust_state, amount);
+        // Serialize the results and return to caller
         let ser = ["{\'payment\':\'", serde_json::to_string(&payment).unwrap().as_str(),
                           "\', \'cust_state\':\'", serde_json::to_string(&new_cust_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -349,6 +349,26 @@ pub mod ffishim {
         cser.into_raw()
     }
 
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_verify_open_channel(ser_channel_token: *mut c_char,
+                                                            ser_wpk: *mut c_char,
+                                                            ser_close_msg: *mut c_char,
+                                                            ser_close_token: *mut c_char) -> *mut c_char {
+
+        // Deserialize the channel token
+        let channel_token: bidirectional::ChannelToken<Bls12> = deserialize_object(ser_channel_token);
+        // Deserialize the wpk
+        let wpk: secp256k1::PublicKey = deserialize_object(ser_wpk);
+        // Deserialize the close wallet
+        let close_msg: bidirectional::Wallet<Bls12> = deserialize_object(ser_close_msg);
+        // Deserialize the close token
+        let close_token: bidirectional::Signature<Bls12> = deserialize_object(ser_close_token);
+        // check the signatures
+        let token_valid = bidirectional::verify_open_channel(&channel_token, &wpk, &close_msg, &close_token);
+        let ser = ["{\'result\':\'", serde_json::to_string(&token_valid).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
 }
 
 //    #[no_mangle]

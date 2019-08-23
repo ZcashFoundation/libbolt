@@ -133,6 +133,8 @@ pub mod bidirectional {
     pub use BoltResult;
     pub use channels::{ChannelState, ChannelToken, CustomerState, MerchantState, PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
     pub use nizk::{CommitmentProof, Proof};
+    pub use wallet::Wallet;
+    pub use cl::PublicParams;
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -175,13 +177,13 @@ pub mod bidirectional {
 
     ///
     /// init_merchant - takes as input the public params, merchant balance and keypair.
-    /// Generates merchant data which consists of channel token and merchant wallet.
+    /// Generates merchant data which consists of channel token and merchant state.
     ///
     pub fn init_merchant<'a, R: Rng, E: Engine>(csprng: &mut R, channel_state: &mut ChannelState<E>, name: &'a str) -> (ChannelToken<E>, MerchantState<E>) {
-        // create new merchant wallet
+        // create new merchant state
         let merch_name = String::from(name);
         let mut merch_state = MerchantState::<E>::new(csprng, channel_state, merch_name);
-        // initialize the merchant wallet
+        // initialize the merchant state
         let mut channel_token = merch_state.init(csprng, channel_state);
 
         return (channel_token, merch_state);
@@ -203,7 +205,7 @@ pub mod bidirectional {
     }
 
     ///
-    /// establish_customer_generate_proof (Phase 1) - takes as input the public params, customer wallet and
+    /// establish_customer_generate_proof (Phase 1) - takes as input the public params, customer state and
     /// common public bases from merchant. Generates a PoK of the committed values in the
     /// new wallet.
     ///
@@ -239,8 +241,8 @@ pub mod bidirectional {
     }
 
     ///
-    /// establish_customer_final - takes as input the channel state, customer wallet,
-    /// customer wallet and pay token (blinded sig) obtained from merchant. Add the returned
+    /// establish_customer_final - takes as input the channel state, customer state,
+    /// and pay token (blinded sig) obtained from merchant. Add the returned
     /// blinded signature to the wallet.
     ///
     pub fn establish_customer_final<E: Engine>(channel_state: &mut ChannelState<E>, cust_state: &mut CustomerState<E>, pay_token: &cl::Signature<E>) -> bool {
@@ -352,7 +354,7 @@ pub mod bidirectional {
 
     ///
     /// verify_revoke_token (phase 2) - takes as input revoke message and signature,
-    /// merchant wallet, from the customer. If the revocation token is valid,
+    /// merchant state, from the customer. If the revocation token is valid,
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
     pub fn verify_revoke_token<E: Engine>(rt: &RevokeToken, merch_state: &mut MerchantState<E>) -> cl::Signature<E> {
@@ -366,7 +368,7 @@ pub mod bidirectional {
     // for customer => on input a wallet w, it outputs a customer channel closure message
     ///
     /// customer_close - takes as input the channel state, merchant's verification
-    /// key, and customer wallet. Generates a channel closure message for customer.
+    /// key, and customer state. Generates a channel closure message for customer.
     ///
     pub fn customer_close<E: Engine>(channel_state: &ChannelState<E>, cust_state: &CustomerState<E>) -> ChannelcloseC<E> {
         if !channel_state.channel_established {
@@ -383,30 +385,6 @@ pub mod bidirectional {
         assert!(pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token));
         ChannelcloseC { wpk: cust_state.wpk, message: wallet, signature: close_token }
     }
-
-//    fn exist_in_merchant_state<E: Engine>(db: &HashMap<String, PubKeyMap>, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) -> (bool, Option<PubKeyMap>) {
-//        if db.is_empty() {
-//            return (false, None);
-//        }
-//
-//        let fingerprint = util::compute_pub_key_fingerprint(wpk);
-//        if db.contains_key(&fingerprint) {
-//            let revoked_state = db.get(&fingerprint).unwrap();
-//
-//
-//
-//            if revoked_state.revoke_token.is_none() {
-//                // let's just check the public key
-//                return (revoked_state.wpk == *wpk, None);
-//            }
-//            if !rev.is_none() {
-//                return (revoked_state.wpk == *wpk && pub_key.revoke_token.unwrap() == rev.unwrap(), None);
-//            }
-//            return (pub_key.wpk == *wpk, Some(pub_key));
-//        }
-//
-//        return false;
-//    }
 
     fn update_merchant_state(db: &mut HashMap<String, PubKeyMap>, wpk: &secp256k1::PublicKey, rev: Option<secp256k1::Signature>) {
         let fingerprint = util::compute_pub_key_fingerprint(wpk);
@@ -434,12 +412,12 @@ pub mod bidirectional {
         }
 
         let cp = channel_state.cp.as_ref().unwrap();
-        let pk = cp.pub_params.keypair.get_public_key(&cp.pub_params.mpk);
+        let pk = cp.pub_params.keypair.get_public_key(&channel_token.mpk);
         let mut wallet = cust_close.message.clone();
         let close_wallet = wallet.with_close(String::from("close")).clone();
         let close_token = cust_close.signature.clone();
 
-        let is_valid = pk.verify(&cp.pub_params.mpk, &close_wallet, &close_token);
+        let is_valid = pk.verify(&channel_token.mpk, &close_wallet, &close_token);
 
         if is_valid {
             let wpk = cust_close.wpk;
@@ -464,6 +442,27 @@ pub mod bidirectional {
         }
         Err(String::from("merchant_close - Customer close message not valid!"))
     }
+
+    ///
+    /// WTP for validating that a close_token was well-formed
+    ///
+    pub fn verify_open_channel<E: Engine>(channel_token: &ChannelToken<E>, wpk: &secp256k1::PublicKey, close_msg: &wallet::Wallet<E>, close_token: &Signature<E>) -> bool {
+        // close_msg => <pkc> || <wpk> || <balance-cust> || <balance-merch> || CLOSE
+        // close_token = regular CL signature on close_msg
+        // channel_token => <pk_c, CL_PK_m, pk_m, mpk, comParams>
+
+        // (1) check that channel token and close msg are consistent (e.g., close_msg.pk_c == H(channel_token.pk_c) &&
+        let pk_c = channel_token.pk_c.unwrap();
+        let chan_token_pk_c = util::hash_pubkey_to_fr::<E>(&pk_c);
+        let chan_token_wpk = util::hash_pubkey_to_fr::<E>(&wpk);
+
+        let pkc_thesame = (close_msg.pkc == chan_token_pk_c);
+        // (2) check that wpk matches what's in the close msg
+        let wpk_thesame = (close_msg.wpk == chan_token_wpk);
+        return pkc_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
+    }
+
+
 }
 
 #[cfg(all(test, feature = "unstable"))]

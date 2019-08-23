@@ -133,23 +133,6 @@ pub struct KeyPair<E: Engine> {
     pub public: PublicKey<E>,
 }
 
-//#[derive(Clone, Serialize, Deserialize)]
-//#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
-//<E as pairing::Engine>::G1: serde::Serialize, \
-//<E as pairing::Engine>::G2: serde::Serialize"
-//))]
-//#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
-//<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
-//<E as pairing::Engine>::G2: serde::Deserialize<'de>"
-//))]
-//pub struct TestStruct<E: Engine> {
-//    pub mpk: PublicParams<E>,
-//    pub keypair: BlindKeyPair<E>,
-//    pub comParams: CSMultiParams<E>,
-//    pub rpParamsBC: ccs08::RPPublicParams<E>,
-//    pub rpParamsBM: ccs08::RPPublicParams<E>
-//}
-
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
 <E as pairing::Engine>::G1: serde::Serialize, \

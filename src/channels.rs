@@ -103,8 +103,9 @@ pub struct ChannelState<E: Engine> {
 ))]
 pub struct ChannelToken<E: Engine> {
     pub pk_c: Option<secp256k1::PublicKey>, // pk_c
-    pub blind_pk_m: cl::BlindPublicKey<E>, // PK_m
     pub pk_m: secp256k1::PublicKey, // pk_m
+    pub cl_pk_m: cl::PublicKey<E>, // PK_m
+    pub mpk: cl::PublicParams<E>, // mpk for PK_m
     pub comParams: CSMultiParams<E>,
 }
 
@@ -243,7 +244,7 @@ impl<E: Engine> CustomerState<E> {
         let mut ct_db= HashMap::new();
         let mut pt_db= HashMap::new();
 
-        println!("Customer wallet formed -> now returning the structure to the caller.");
+        //println!("Customer wallet formed -> now returning the structure to the caller.");
         return CustomerState {
             name: name,
             pk_c: pk_c,
@@ -256,7 +257,7 @@ impl<E: Engine> CustomerState<E> {
             t: t,
             w_com: w_com,
             wallet: wallet,
-            index: 1,
+            index: 0,
             close_tokens: ct_db,
             pay_tokens: pt_db
         }
@@ -267,7 +268,7 @@ impl<E: Engine> CustomerState<E> {
     }
 
     pub fn get_close_token(&self) -> cl::Signature<E> {
-        let index = self.index - 1;
+        let index = self.index;
         let close_token = self.close_tokens.get(&index).unwrap();
         // rerandomize first
         return close_token.clone();
@@ -288,19 +289,19 @@ impl<E: Engine> CustomerState<E> {
 
         let is_close_valid = cp.pub_params.keypair.verify(&mpk, &close_wallet, &self.t, &close_token);
         if is_close_valid {
-            println!("verify_close_token - Blinded close token is valid!!");
+            //println!("verify_close_token - Blinded close token is valid!!");
             let pk = cp.pub_params.keypair.get_public_key(&mpk);
             let unblind_close_token = cp.pub_params.keypair.unblind(&self.t, &close_token);
             let is_valid = pk.verify(&mpk, &close_wallet, &unblind_close_token);
             if is_valid {
                 // record the unblinded close token
                 //cp.pub_params.keypair
-                self.close_tokens.insert( self.index - 1, unblind_close_token);
+                self.close_tokens.insert( self.index, unblind_close_token);
             }
             return is_valid;
         }
 
-        println!("Customer - Verification failed for close token!");
+        //println!("Customer - Verification failed for close token!");
         return false;
     }
 
@@ -314,22 +315,22 @@ impl<E: Engine> CustomerState<E> {
 
         let is_pay_valid = cp.pub_params.keypair.verify(&mpk, &wallet, &self.t, &pay_token);
         if is_pay_valid {
-            println!("verify_pay_token - Blinded pay token is valid!!");
+            //println!("verify_pay_token - Blinded pay token is valid!!");
             let unblind_pay_token = cp.pub_params.keypair.unblind(&self.t, &pay_token);
             let pk = cp.pub_params.keypair.get_public_key(&mpk);
             let is_valid = pk.verify(&mpk, &wallet, &unblind_pay_token);
             if is_valid {
-                self.pay_tokens.insert(self.index - 1, unblind_pay_token);
+                self.pay_tokens.insert(self.index, unblind_pay_token);
             }
             return is_valid;
         }
 
-        println!("Customer - Verification failed for pay token!");
+        //println!("Customer - Verification failed for pay token!");
         return false;
     }
 
     pub fn has_tokens(&self) -> bool {
-        let index = self.index - 1;
+        let index = self.index;
         let is_ct = self.close_tokens.get(&index).is_some();
         let is_pt = self.pay_tokens.get(&index).is_some();
         return is_ct && is_pt;
@@ -356,8 +357,9 @@ impl<E: Engine> CustomerState<E> {
         let new_wcom = cp.pub_params.comParams.commit(&new_wallet.as_fr_vec(), &new_t);
 
         // 3 - generate new blinded and randomized pay token
-        let i = self.index - 1;
+        let i = self.index;
         let mut prev_pay_token = self.pay_tokens.get(&i).unwrap();
+        //println!("Found prev pay token: {}", prev_pay_token);
 
         let pay_proof = cp.pub_params.prove(csprng, self.t.clone(), old_wallet, new_wallet.clone(),
                           new_wcom.clone(), new_t, &prev_pay_token);
@@ -375,7 +377,7 @@ impl<E: Engine> CustomerState<E> {
             t: new_t,
             w_com: new_wcom.clone(),
             wallet: new_wallet.clone(),
-            index: self.index + 1, // increment index here
+            index: self.index, // increment index here
             close_tokens: self.close_tokens.clone(),
             pay_tokens: self.pay_tokens.clone()
         };
@@ -474,10 +476,15 @@ impl<E: Engine> MerchantState<E> {
     }
 
     pub fn init<R: Rng>(&mut self, csprng: &mut R, channel: &mut ChannelState<E>) -> ChannelToken<E> {
+        let cp = channel.cp.as_ref().unwrap(); // if not set, then panic!
+        let mpk = cp.pub_params.mpk.clone();
+        let cl_pk = cp.pub_params.keypair.get_public_key(&mpk);
+
         return ChannelToken {
             pk_c: None,
-            blind_pk_m: self.keypair.public.clone(),
+            cl_pk_m: cl_pk.clone(), // extract the regular public key
             pk_m: self.pk.clone(),
+            mpk: mpk,
             comParams: self.comParams.clone()
         }
     }
@@ -488,7 +495,7 @@ impl<E: Engine> MerchantState<E> {
     }
 
     pub fn issue_close_token<R: Rng>(&self, csprng: &mut R, cp: &ChannelParams<E>, com: &Commitment<E>, extend_close: bool) -> Signature<E> {
-        println!("issue_close_token => generating token");
+        //println!("issue_close_token => generating token");
         let x = hash_to_fr::<E>(String::from("close").into_bytes() );
         let close_com = match extend_close {
             true => self.comParams.extend_commit(com, &x),
@@ -499,7 +506,7 @@ impl<E: Engine> MerchantState<E> {
     }
 
     pub fn issue_pay_token<R: Rng>(&self, csprng: &mut R, cp: &ChannelParams<E>, com: &Commitment<E>, remove_close: bool) -> Signature<E> {
-        println!("issue_pay_token => generating token");
+        //println!("issue_pay_token => generating token");
         let x = hash_to_fr::<E>(String::from("close").into_bytes() );
         let pay_com = match remove_close {
             true => self.comParams.remove_commit(com, &x),
@@ -513,7 +520,7 @@ impl<E: Engine> MerchantState<E> {
         let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
-            println!("Commitment PoK is valid!");
+            // println!("Commitment PoK is valid!");
             let close_token = self.issue_close_token(csprng, cp, com, true);
             let pay_token = self.issue_pay_token(csprng, cp, com, false);
             return Ok((close_token, pay_token));
