@@ -63,19 +63,16 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_customer_close.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_customer_close.restype = c_void_p
 
-		self.lib.ffishim_bidirectional_merchant_close.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_merchant_close.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_merchant_close.restype = c_void_p
 
 		# ON-CHAIN BOLT LOGIC / WTPs
 
-		self.lib.ffishim_bidirectional_verify_open_channel.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bidirectional_verify_open_channel.restype = c_void_p
+		self.lib.ffishim_bidirectional_wtp_verify_cust_close_message.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_wtp_verify_cust_close_message.restype = c_void_p
 
-		#self.lib.ffishim_bidirectional_verify_close_channel.argtypes = (c_void_p, c_void_p)
-		#self.lib.ffishim_bidirectional_verify_close_channel.restype = c_void_p
-
-		# self.lib.ffishim_bidirectional_resolve.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
-		# self.lib.ffishim_bidirectional_resolve.restype = c_void_p
+		self.lib.ffishim_bidirectional_wtp_verify_merch_close_message.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_wtp_verify_merch_close_message.restype = c_void_p
 
 		self.lib.ffishim_free_string.argtypes = (c_void_p, )
 
@@ -163,54 +160,39 @@ class Libbolt(object):
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('cust_close')
 
-	def bidirectional_merchant_close(self, channel_state, channel_token, cust_close, merch_state):
+	def bidirectional_merchant_close(self, channel_state, channel_token, address, cust_close, merch_state):
 		output_string = self.lib.ffishim_bidirectional_merchant_close(channel_state.encode(), channel_token.encode(),
-																	  cust_close.encode(), merch_state.encode())
+																	  address.encode(), cust_close.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary.get('wpk'), output_dictionary.get('revoke_token'), output_dictionary.get('error'))
+		return (output_dictionary.get('wpk'), output_dictionary.get('merch_close'), output_dictionary.get('error'))
 
 	# WTP logic
 
 	def wtp_get_wallet(self, cust_state):
-		cust_state_dict = self.interperate_json_string_as_dictionary(cust_state)
+		cust_state_dict = self._interperate_json_string_as_dictionary(cust_state)
 		return json.dumps(cust_state_dict.get("wpk")), json.dumps(cust_state_dict.get("wallet"))
 
 	def wtp_get_close_token(self, cust_close):
-		cust_close_dict = self.interperate_json_string_as_dictionary(cust_close)
+		cust_close_dict = self._interperate_json_string_as_dictionary(cust_close)
 		return json.dumps(cust_close_dict.get("signature"))
 
-	def wtp_verify_open_channel(self, channel_token, wpk, cust_close_wallet, close_token):
-		output_string = self.lib.ffishim_bidirectional_verify_open_channel(channel_token.encode(), wpk.encode(), cust_close_wallet.encode(), close_token.encode())
+	def wtp_verify_cust_close_message(self, channel_token, wpk, cust_close_wallet, close_token):
+		output_string = self.lib.ffishim_bidirectional_wtp_verify_cust_close_message(channel_token.encode(),
+																				 wpk.encode(),
+																				 cust_close_wallet.encode(),
+																				 close_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('result')
 
-# 	def bidirectional_resolve(self, pp, cust_data, merch_data, cust_closure, merch_closure):
-# 		output_string = self.lib.ffishim_bidirectional_resolve( pp.encode(), cust_data.encode(), merch_data.encode(), cust_closure.encode(), merch_closure.encode())
-# 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-# 		return (int(output_dictionary['new_b0_cust']), int(output_dictionary['new_b0_merch']))
-#
-# # --------------------------------------------
-# 	def commit_scheme_decommit(self, csp, commitment, x):
-# 		output_string = self.lib.ffishim_commit_scheme_decommit(csp.encode(), commitment.encode(), x.encode())
-# 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-# 		if output_dictionary['return_value'] == 'true':
-# 			return True
-# 		return False
+	def wtp_verify_merch_close_message(self, channel_token, wpk, merch_close):
+		output_string = self.lib.ffishim_bidirectional_wtp_verify_merch_close_message(channel_token.encode(),
+																					  wpk.encode(),
+																					  merch_close.encode())
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return output_dictionary.get('result')
 
-	def interperate_json_string_as_dictionary(self, json_string):
+	def _interperate_json_string_as_dictionary(self, json_string):
 		return ast.literal_eval(json_string)
-
-	def util_convert_int_list_to_hex_string(self, dictionary):
-		return "".join(["{0:02x}".format(x) for x in dictionary])
-
-	# def util_extract_public_key_from_keypair(self, keypair):
-	# 	# Interperate the input keypair struct as a dictionary and then extract
-	# 	dictionary = self.interperate_json_string_as_dictionary(keypair)
-	# 	return json.dumps(dictionary['pk'])
-	#
-	# def util_extract_pub_bases_from_keypair(self, keypair):
-	# 	dictionary = self.interperate_json_string_as_dictionary(keypair)
-	# 	return json.dumps(dictionary['bases'])
 
 if platform == 'darwin':
 	prefix = 'lib'
@@ -285,6 +267,8 @@ def run_unit_test():
 	(cust_state, is_pay_valid) = libbolt.bidirectional_pay_verify_payment_token(channel_state, cust_state, pay_token)
 	print("Pay token is valid: ", is_pay_valid)
 
+	old_cust_close = libbolt.bidirectional_customer_close(channel_state, cust_state)
+
 	# make a payment
 	amount = 10
 	(payment_proof2, new_cust_state2) = libbolt.bidirectional_pay_generate_payment_proof(channel_state, cust_state, amount)
@@ -312,8 +296,20 @@ def run_unit_test():
 	print("Cust close msg: ", cust_close)
 	print("<========================================>")
 
-	merch_close_tokens = libbolt.bidirectional_merchant_close(channel_state, channel_token, cust_close, merch_state)
-	print("Merch close tokens: ", merch_close_tokens)
+	# normal case: no action b/c cust close is valid
+	address = "11" * 32
+	merch_close = libbolt.bidirectional_merchant_close(channel_state, channel_token, address, cust_close, merch_state)
+	print("Customer initiated - Merch close msg: ", merch_close)
+	print("<========================================>")
+
+	# common case: merchant catches customer double spending
+	address = "11" * 32
+	merch_wpk, merch_close_msg, _ = libbolt.bidirectional_merchant_close(channel_state, channel_token, address, old_cust_close, merch_state)
+	print("Double spend - Merch close msg: ", merch_close_msg)
+	merch_close_valid = libbolt.wtp_verify_merch_close_message(channel_token, merch_wpk, merch_close_msg)
+	print("Merchant close msg valid: ", merch_close_valid)
+	print("<========================================>")
+
 
 	print("<========================================>")
 	wpk, cust_close_wallet = libbolt.wtp_get_wallet(cust_state)
@@ -321,9 +317,11 @@ def run_unit_test():
 	print("close-msg wallet = ", cust_close_wallet)
 	cust_close_token = libbolt.wtp_get_close_token(cust_close)
 	print("close token: ", cust_close_token)
-	print("Valid channel opening: ", libbolt.wtp_verify_open_channel(channel_token, wpk, cust_close_wallet, cust_close_token))
+	print("Valid channel opening: ", libbolt.wtp_verify_cust_close_message(channel_token, wpk, cust_close_wallet, cust_close_token))
+	# TODO: merch close when cust_close represents correct channel state
 
-	print("Invalid channel opening: ", libbolt.wtp_verify_open_channel(channel_token, revoked_wpk, cust_close_wallet, cust_close_token))
+	print("Invalid channel opening: ", libbolt.wtp_verify_cust_close_message(channel_token, revoked_wpk, cust_close_wallet, cust_close_token))
+	print("<========================================>")
 
 if __name__ == "__main__":
 	run_unit_test()

@@ -124,11 +124,12 @@ pub mod bidirectional {
 
     use serde::{Serialize, Deserialize};
     use std::sync::mpsc::channel;
-    use util::RevokedMessage;
+    use util::{RevokedMessage, hash_to_slice};
     pub use ped92::Commitment;
     pub use cl::{PublicKey, Signature};
     pub use BoltResult;
-    pub use channels::{ChannelState, ChannelToken, CustomerState, MerchantState, PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
+    pub use channels::{ChannelState, ChannelToken, CustomerState, MerchantState, ChannelcloseM,
+                       PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
     pub use nizk::{CommitmentProof, Proof};
     pub use wallet::Wallet;
     pub use cl::PublicParams;
@@ -430,6 +431,7 @@ pub mod bidirectional {
                     let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
                     // verify that the revocation token is valid
                     if secp.verify(&msg, &revoke_token, &wpk).is_ok() {
+                        // compute signature on
                         return Ok(Some(revoked_state.clone()));
                     }
                 }
@@ -440,10 +442,14 @@ pub mod bidirectional {
         Err(String::from("merchant_close - Customer close message not valid!"))
     }
 
+//    pub fn wtp_sign_merch_close_message<E: Engine>(address: &Vec<u8>, revoke_token: &Option<secp256k1::Signature>, merch_state: &MerchantState<E>) -> ChannelcloseM {
+//        return merch_state.sign_revoke_message(&address, &revoke_token);
+//    }
+
     ///
-    /// WTP for validating that a close_token was well-formed
+    /// Used in open-channel WTP for validating that a close_token is a valid signature under <
     ///
-    pub fn verify_open_channel<E: Engine>(channel_token: &ChannelToken<E>, wpk: &secp256k1::PublicKey, close_msg: &wallet::Wallet<E>, close_token: &Signature<E>) -> bool {
+    pub fn wtp_verify_cust_close_message<E: Engine>(channel_token: &ChannelToken<E>, wpk: &secp256k1::PublicKey, close_msg: &wallet::Wallet<E>, close_token: &Signature<E>) -> bool {
         // close_msg => <pkc> || <wpk> || <balance-cust> || <balance-merch> || CLOSE
         // close_token = regular CL signature on close_msg
         // channel_token => <pk_c, CL_PK_m, pk_m, mpk, comParams>
@@ -459,7 +465,33 @@ pub mod bidirectional {
         return pkc_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
     }
 
+    ///
+    /// Used in merch-close WTP for validating that revoke_token is a valid signature under <wpk> and the <revoked || wpk> message
+    ///
+    pub fn wtp_verify_revoke_message<E: Engine>(channel_token: &ChannelToken<E>, wpk: &secp256k1::PublicKey, revoke_token: &secp256k1::Signature) -> bool {
+        let secp = secp256k1::Secp256k1::verification_only();
+        let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
+        let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
+        // verify that the revocation token is valid with respect to revoked || wpk
+        return secp.verify(&msg, &revoke_token, &wpk).is_ok();
+    }
 
+    ///
+    /// Used in merch-close WTP for validating that merch_sig is a valid signature under <merch_pk> on <dest_addr || revoke-token> message
+    ///
+    pub fn wtp_verify_merch_close_message<E: Engine>(channel_token: &ChannelToken<E>, merch_close: &ChannelcloseM) -> bool {
+        let secp = secp256k1::Secp256k1::verification_only();
+        let mut msg = Vec::new();
+        msg.extend(merch_close.address.as_bytes());
+        if !merch_close.revoke.is_none() {
+            // serialize signature in DER format
+            let r = merch_close.revoke.unwrap().serialize_der().to_vec();
+            msg.extend(r);
+        }
+        let msg2 = secp256k1::Message::from_slice(&hash_to_slice(&msg)).unwrap();
+        // verify that merch sig is valid with respect to dest_address
+        return secp.verify(&msg2, &merch_close.signature, &channel_token.pk_m).is_ok();
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]

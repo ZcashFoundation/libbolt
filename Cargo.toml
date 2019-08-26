@@ -21,6 +21,7 @@ libc = "*"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_with = "1.0"
+serde_bytes = "0.11.2"
 time = "*"
 secp256k1 = { version = "0.15.0", features = ["rand", "serde"] }
 curve25519-dalek = { version = "1", features = ["serde"] }

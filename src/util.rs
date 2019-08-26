@@ -114,6 +114,14 @@ pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::F
     return result.unwrap();
 }
 
+pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
+    let sha2_digest = sha512::hash(input_buf.as_slice());
+    let mut hash_buf: [u8; 32] = [0; 32];
+    hash_buf.copy_from_slice(&sha2_digest[0..32]);
+    return hash_buf;
+}
+
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RevokedMessage {

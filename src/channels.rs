@@ -15,7 +15,7 @@ use pairing::bls12_381::{Bls12};
 use ff::PrimeField;
 use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
 use ped92::{CSParams, Commitment, CSMultiParams};
-use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage};
+use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage, hash_to_slice};
 use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -104,7 +104,7 @@ pub struct ChannelState<E: Engine> {
 pub struct ChannelToken<E: Engine> {
     pub pk_c: Option<secp256k1::PublicKey>, // pk_c
     pub pk_m: secp256k1::PublicKey, // pk_m
-    pub cl_pk_m: cl::PublicKey<E>, // PK_m
+    pub cl_pk_m: cl::PublicKey<E>, // PK_m (used for verifying blind signatures)
     pub mpk: cl::PublicParams<E>, // mpk for PK_m
     pub comParams: CSMultiParams<E>,
 }
@@ -239,7 +239,6 @@ impl<E: Engine> CustomerState<E> {
         let ct_db= HashMap::new();
         let pt_db= HashMap::new();
 
-        //println!("Customer wallet formed -> now returning the structure to the caller.");
         return CustomerState {
             name: name,
             pk_c: pk_c,
@@ -290,7 +289,6 @@ impl<E: Engine> CustomerState<E> {
             let is_valid = pk.verify(&mpk, &close_wallet, &unblind_close_token);
             if is_valid {
                 // record the unblinded close token
-                //cp.pub_params.keypair
                 self.close_tokens.insert( self.index, unblind_close_token);
             }
             return is_valid;
@@ -417,18 +415,47 @@ impl<E: Engine> CustomerState<E> {
 
 }
 
+//    pub name: String,
+//    pub pk_c: secp256k1::PublicKey,
+//    sk_c: secp256k1::SecretKey,
+//    pub cust_balance: i32, //
+//    pub merch_balance: i32,
+//    pub wpk: secp256k1::PublicKey, // keypair bound to the wallet
+//    wsk: secp256k1::SecretKey,
+//    old_kp: Option<WalletKeyPair>, // old wallet key pair
+//    t: E::Fr, // randomness used to form the commitment
+//    wallet: Wallet<E>, // vector of field elements that represent wallet
+//    pub w_com: Commitment<E>, // commitment to the current state of the wallet
+//    index: i32,
+//    close_tokens: HashMap<i32, Signature<E>>,
+//    pay_tokens: HashMap<i32, Signature<E>>
+
+
 impl<E: Engine> fmt::Display for CustomerState<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut content = String::new();
-        content = format!("pk = {}\n", &self.pk_c);
+        content = format!("name = {}\n", &self.name);
+        content = format!("{}pk = {}\n", content, &self.pk_c);
         content = format!("{}sk = {}\n", content, &self.sk_c);
         content = format!("{}cust-bal = {}\n", content, &self.cust_balance);
         content = format!("{}merch-bal = {}\n", content, &self.merch_balance);
-        // add remaining fields
+        content = format!("{}wpk = {}\nwsk = {}\n", content, &self.wpk, &self.wsk);
+        if (!self.old_kp.is_none()) {
+            let old_kp = self.old_kp.unwrap();
+            content = format!("{}revoked: wpk = {}\nrevoked: wsk = {}\n", content, &old_kp.wpk, &old_kp.wsk);
+        }
+        content = format!("{}t = {}\n", content, &self.t);
+
         write!(f, "CustomerState : (\n{}\n)", &content)
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ChannelcloseM {
+    pub address: String,
+    pub revoke: Option<secp256k1::Signature>,
+    pub signature: secp256k1::Signature
+}
 
 ///
 /// Merchant wallet (NEW)
@@ -562,6 +589,19 @@ impl<E: Engine> MerchantState<E> {
         Err(BoltError::new("verify_revoke_token - Failed to verify the revoke token for wpk!"))
     }
 
+    pub fn sign_revoke_message(&self, address: String, revoke_token: &Option<secp256k1::Signature>) -> ChannelcloseM {
+        let secp = secp256k1::Secp256k1::signing_only();
+        let mut msg = Vec::new();
+        msg.extend(address.as_bytes());
+        if !revoke_token.is_none() {
+            let r = revoke_token.unwrap().serialize_der().to_vec();
+            msg.extend(r);
+        }
+        let msg2 = secp256k1::Message::from_slice(&hash_to_slice(&msg) ).unwrap();
+        let merch_sig = secp.sign(&msg2, &self.sk);
+        return ChannelcloseM { address: address.clone(), revoke: revoke_token.clone(), signature: merch_sig };
+    }
+
 }
 
 #[cfg(test)]
@@ -611,10 +651,6 @@ mod tests {
         // pay protocol tests
         let amount = 10;
         let (pay_proof, new_com, old_wpk, new_cw) = cust_state.generate_payment(rng, &channel, amount);
-
-//        println!("{}", new_com);
-//        println!("wpk => {}", old_wpk);
-//        println!("{}", new_cw);
 
         // new pay_token is not sent until revoke_token is obtained from the customer
         let new_close_token = merch_state.verify_payment(rng, &channel, &pay_proof, &new_com, &old_wpk, amount).unwrap();

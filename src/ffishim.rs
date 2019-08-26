@@ -11,6 +11,7 @@ pub mod ffishim {
     use libc::c_char;
     use std::ffi::{CStr, CString};
     use std::str;
+    use channels::ChannelcloseM;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", serde_json::to_string(&s).unwrap().as_str(), "\'}"].concat();
@@ -324,8 +325,11 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_merchant_close(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char,
-                                                       ser_cust_close: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_merchant_close(ser_channel_state: *mut c_char,
+                                                       ser_channel_token: *mut c_char,
+                                                       ser_address: *const c_char,
+                                                       ser_cust_close: *mut c_char,
+                                                       ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
          // Deserialize the channel token
@@ -335,20 +339,26 @@ pub mod ffishim {
         // Deserialize the merch wallet
         let merch_state: bidirectional::MerchantState<Bls12> = deserialize_object(ser_merch_state);
 
+        // Deserialize the destination address as a string
+        let ser_addr_bytes = unsafe { CStr::from_ptr(ser_address).to_bytes() };
+        let address: &str = str::from_utf8(ser_addr_bytes).unwrap(); // make sure the bytes are UTF-8
+
         let option = bidirectional::merchant_close(&channel_state, &channel_token, &cust_close, &merch_state);
         let keys = match option {
             Ok(n) => n.unwrap(),
             Err(err) => return error_message(err),
         };
 
+        let merch_close: bidirectional::ChannelcloseM = merch_state.sign_revoke_message(address.to_string(), &keys.revoke_token);
+
         let ser = ["{\'wpk\':\'", serde_json::to_string(&keys.wpk).unwrap().as_str(),
-                "\', \'revoke_token\':\'", serde_json::to_string(&keys.revoke_token).unwrap().as_str(), "\'}"].concat();
+                "\', \'merch_close\':\'", serde_json::to_string(&merch_close).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_verify_open_channel(ser_channel_token: *mut c_char,
+    pub extern fn ffishim_bidirectional_wtp_verify_cust_close_message(ser_channel_token: *mut c_char,
                                                             ser_wpk: *mut c_char,
                                                             ser_close_msg: *mut c_char,
                                                             ser_close_token: *mut c_char) -> *mut c_char {
@@ -362,7 +372,26 @@ pub mod ffishim {
         // Deserialize the close token
         let close_token: bidirectional::Signature<Bls12> = deserialize_object(ser_close_token);
         // check the signatures
-        let token_valid = bidirectional::verify_open_channel(&channel_token, &wpk, &close_msg, &close_token);
+        let token_valid = bidirectional::wtp_verify_cust_close_message(&channel_token, &wpk, &close_msg, &close_token);
+        let ser = ["{\'result\':\'", serde_json::to_string(&token_valid).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_wtp_verify_merch_close_message(ser_channel_token: *mut c_char, ser_wpk: *mut c_char, ser_merch_close: *mut c_char) -> *mut c_char {
+        // Deserialize the channel token
+        let channel_token: bidirectional::ChannelToken<Bls12> = deserialize_object(ser_channel_token);
+        // Deserialize the wpk
+        let wpk: secp256k1::PublicKey = deserialize_object(ser_wpk);
+        // Deserialize the merch close
+        //let revoke_token: secp256k1::Signature = deserialize_object(ser_revoke_token);
+        let merch_close: bidirectional::ChannelcloseM = deserialize_object(ser_merch_close);
+
+        let revoke_token_valid = bidirectional::wtp_verify_revoke_message(&channel_token, &wpk, &merch_close.revoke.unwrap());
+        let merch_close_valid = bidirectional::wtp_verify_merch_close_message(&channel_token, &merch_close);
+        let token_valid = revoke_token_valid && merch_close_valid;
+
         let ser = ["{\'result\':\'", serde_json::to_string(&token_valid).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
