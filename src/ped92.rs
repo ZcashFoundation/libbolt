@@ -1,10 +1,12 @@
 // ped92.rs
 use rand::{thread_rng, Rng};
 use pairing::{Engine, CurveProjective};
-use ff::Rand;
+use ff::{Rand, Field, PrimeField};
 use std::fmt;
 use util::is_vec_g1_equal;
 use serde::{Serialize, Deserialize};
+use util;
+use std::borrow::BorrowMut;
 
 #[derive(Clone)]
 pub struct CSParams<E: Engine> {
@@ -170,6 +172,103 @@ impl<E: Engine> CSMultiParams<E> {
             dc.add_assign(&basis);
         }
         return dc == cm.c;
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
+<E as pairing::Engine>::G1: serde::Serialize, \
+<E as pairing::Engine>::G2: serde::Serialize"
+))]
+#[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G1: serde::Deserialize<'de>, \
+<E as pairing::Engine>::G2: serde::Deserialize<'de>"
+))]
+pub struct CommitmentProof<E: Engine> {
+    pub T: E::G1,
+    pub z: Vec<E::Fr>,
+    pub t: Vec<E::Fr>,
+    pub index: Vec<usize>,
+    pub reveal: Vec<E::Fr>
+}
+
+impl<E: Engine> CommitmentProof<E> {
+    pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>) -> Self {
+        let (Tvals, t, rt, mut reveal_wallet) = CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, wallet, reveal_index);
+
+        // compute the challenge
+        let x: Vec<E::G1> = vec![Tvals, com.clone()];
+        let challenge = util::hash_g1_to_fr::<E>(&x);
+
+        // compute the response
+        CommitmentProof::<E>::prove_response(wallet, r, reveal_index, Tvals, &t, rt, reveal_wallet.borrow_mut(), &challenge)
+    }
+
+    pub fn prove_commitment<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, wallet: &Vec<E::Fr>, reveal_index: &Vec<usize>) -> (E::G1, Vec<E::Fr>, Vec<E::Fr>, Vec<E::Fr>) {
+        let mut Tvals = E::G1::zero();
+        assert!(wallet.len() <= com_params.pub_bases.len());
+        let mut t = Vec::<E::Fr>::with_capacity(wallet.len() + 1);
+        let mut rt: Vec<E::Fr> = Vec::new();
+        // t values that will be revealed
+        let mut reveal_wallet: Vec<E::Fr> = Vec::new();
+        // aspects of wallet being revealed
+        for i in 0..wallet.len() + 1 {
+            let ti = E::Fr::rand(csprng);
+            t.push(ti);
+            // check if we are revealing this index
+            if reveal_index.contains(&i) {
+                rt.push(ti);
+            } else {
+                rt.push(E::Fr::zero());
+            }
+            let mut gt = com_params.pub_bases[i].clone();
+            gt.mul_assign(ti.into_repr());
+            Tvals.add_assign(&gt);
+        }
+        (Tvals, t, rt, reveal_wallet)
+    }
+
+    pub fn prove_response(wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>, Tvals: E::G1, t: &Vec<E::Fr>, rt: Vec<E::Fr>, reveal_wallet: &mut Vec<E::Fr>, challenge: &E::Fr) -> CommitmentProof<E> {
+        let mut z: Vec<E::Fr> = Vec::new();
+        let mut z0 = r.clone();
+        z0.mul_assign(&challenge);
+        z0.add_assign(&t[0]);
+        z.push(z0);
+        reveal_wallet.push(E::Fr::zero());
+        for i in 1..t.len() {
+            let mut zi = wallet[i - 1].clone();
+            zi.mul_assign(&challenge);
+            zi.add_assign(&t[i]);
+            z.push(zi);
+            // check if we are revealing this index
+            if reveal_index.contains(&i) {
+                reveal_wallet.push(wallet[i - 1].clone());
+            } else {
+                reveal_wallet.push(E::Fr::zero());
+            }
+        }
+
+        CommitmentProof {
+            T: Tvals, // commitment challenge
+            z: z, // response values
+            t: rt, // randomness for verifying partial reveals
+            index: reveal_index.clone(),
+            reveal: reveal_wallet.clone()
+        }
+    }
+
+    pub fn verify_proof(&self, com_params: &CSMultiParams<E>, com: &<E as Engine>::G1, challenge: &E::Fr) -> bool {
+        let mut comc = com.clone();
+        let T = self.T.clone();
+        comc.mul_assign(challenge.into_repr());
+        comc.add_assign(&T);
+        let mut x = E::G1::zero();
+        for i in 0..self.z.len() {
+            let mut base = com_params.pub_bases[i].clone();
+            base.mul_assign(self.z[i].into_repr());
+            x.add_assign(&base);
+        }
+        comc == x
     }
 }
 

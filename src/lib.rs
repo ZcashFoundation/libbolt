@@ -130,9 +130,10 @@ pub mod bidirectional {
     pub use BoltResult;
     pub use channels::{ChannelState, ChannelToken, CustomerState, MerchantState, ChannelcloseM,
                        PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
-    pub use nizk::{CommitmentProof, Proof};
+    pub use nizk::NIZKProof;
     pub use wallet::Wallet;
     pub use cl::PublicParams;
+    pub use ped92::CommitmentProof;
 
     #[derive(Clone, Serialize, Deserialize)]
     #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -157,7 +158,7 @@ pub mod bidirectional {
     <E as pairing::Engine>::Fqk: serde::Deserialize<'de>"
     ))]
     pub struct Payment<E: Engine> {
-        proof: Proof<E>,
+        proof: NIZKProof<E>,
         com: Commitment<E>,
         wpk: secp256k1::PublicKey,
         amount: i32,
