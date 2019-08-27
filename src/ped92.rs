@@ -275,8 +275,9 @@ impl<E: Engine> CommitmentProof<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pairing::bls12_381::{Bls12, Fr};
+    use pairing::bls12_381::{Bls12, Fr, G1};
     use ff::Field;
+    use wallet::Wallet;
 
     #[test]
     fn commit_one_message_works() {
@@ -348,6 +349,28 @@ mod tests {
         let serialized = serde_json::to_string(&csp).unwrap();
 
         let csp_des: CSMultiParams<Bls12> = serde_json::from_str(&serialized).unwrap();
+    }
+
+    #[test]
+    fn test_proof_commitment() {
+        let rng = &mut rand::thread_rng();
+        let pkc = Fr::rand(rng);
+        let wpk = Fr::rand(rng);
+        let t = Fr::rand(rng);
+
+        let bc = rng.gen_range(100, 1000);
+        let bc2 = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000);
+        let wallet = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
+
+        let comParams = CSMultiParams::setup_gen_params(rng, 4);
+        let com = comParams.commit(&wallet.as_fr_vec().clone(), &t);
+
+        let proof = CommitmentProof::<Bls12>::new(rng, &comParams, &com.c, &wallet.as_fr_vec(), &t, &vec!{});
+
+        let xvec: Vec<G1> = vec![proof.T.clone(), com.c];
+        let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
+        assert_eq!(proof.verify_proof(&comParams, &com.c, &challenge), true);
     }
 
     // add tests for extend/remove commits dynamically
