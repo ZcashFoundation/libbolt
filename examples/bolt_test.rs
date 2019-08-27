@@ -69,7 +69,8 @@ fn main() {
     println!(">> Time to generate proof for establish: {} ms", est_time);
 
     // obtain close token for closing out channel
-    let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_state);
+    let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof,
+                                                                                         b0_customer, b0_merchant, &merch_state);
     let close_token= match option {
         Ok(n) => n.unwrap(),
         Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)

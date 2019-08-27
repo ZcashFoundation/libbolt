@@ -415,22 +415,6 @@ impl<E: Engine> CustomerState<E> {
 
 }
 
-//    pub name: String,
-//    pub pk_c: secp256k1::PublicKey,
-//    sk_c: secp256k1::SecretKey,
-//    pub cust_balance: i32, //
-//    pub merch_balance: i32,
-//    pub wpk: secp256k1::PublicKey, // keypair bound to the wallet
-//    wsk: secp256k1::SecretKey,
-//    old_kp: Option<WalletKeyPair>, // old wallet key pair
-//    t: E::Fr, // randomness used to form the commitment
-//    wallet: Wallet<E>, // vector of field elements that represent wallet
-//    pub w_com: Commitment<E>, // commitment to the current state of the wallet
-//    index: i32,
-//    close_tokens: HashMap<i32, Signature<E>>,
-//    pay_tokens: HashMap<i32, Signature<E>>
-
-
 impl<E: Engine> fmt::Display for CustomerState<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut content = String::new();
@@ -445,7 +429,16 @@ impl<E: Engine> fmt::Display for CustomerState<E> {
             content = format!("{}revoked: wpk = {}\nrevoked: wsk = {}\n", content, &old_kp.wpk, &old_kp.wsk);
         }
         content = format!("{}t = {}\n", content, &self.t);
-
+        content = format!("{}wallet = {}\n", content, &self.wallet);
+        content = format!("{}w_com = {}\n", content, &self.w_com);
+        let close_token = self.close_tokens.get(&self.index);
+        let pay_token = self.pay_tokens.get(&self.index);
+        if (!close_token.is_none()) {
+            content = format!("{}close_token = {}\n", content, &self.close_tokens.get(&self.index).unwrap());
+        }
+        if (!pay_token.is_none()) {
+            content = format!("{}pay_token = {}\n", content, &self.pay_tokens.get(&self.index).unwrap());
+        }
         write!(f, "CustomerState : (\n{}\n)", &content)
     }
 }
@@ -471,7 +464,7 @@ pub struct ChannelcloseM {
 ))]
 pub struct MerchantState<E: Engine> {
     keypair: cl::BlindKeyPair<E>,
-    pub balance: i32,
+    pub init_balance: i32,
     pk: secp256k1::PublicKey, // pk_m
     sk: secp256k1::SecretKey, // sk_m
     comParams: CSMultiParams<E>,
@@ -489,7 +482,7 @@ impl<E: Engine> MerchantState<E> {
 
         MerchantState {
             keypair: cp.pub_params.keypair.clone(),
-            balance: 0,
+            init_balance: 0,
             pk: wpk,
             sk: wsk,
             comParams: cp.pub_params.comParams.clone(),
@@ -514,7 +507,7 @@ impl<E: Engine> MerchantState<E> {
 
     pub fn init_balance(&mut self, balance: i32) {
         // set by the escrow/funding transactionf for the channel
-        self.balance = balance;
+        self.init_balance = balance;
     }
 
     pub fn issue_close_token<R: Rng>(&self, csprng: &mut R, cp: &ChannelParams<E>, com: &Commitment<E>, extend_close: bool) -> Signature<E> {
@@ -539,11 +532,13 @@ impl<E: Engine> MerchantState<E> {
         return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, pay_com);
     }
 
-    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>) -> ResultBoltSig<(Signature<E>, Signature<E>)> {
-        let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof);
+    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, cust_balance: i32, merch_balance: i32) -> ResultBoltSig<(Signature<E>, Signature<E>)> {
+        if (merch_balance != self.init_balance) {
+            return Err(BoltError::new("verify_proof - initial balance of merchant inconsistent with specified balance"));
+        }
+        let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, cust_balance, merch_balance);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
-            // println!("Commitment PoK is valid!");
             let close_token = self.issue_close_token(csprng, cp, com, true);
             let pay_token = self.issue_pay_token(csprng, cp, com, false);
             return Ok((close_token, pay_token));
@@ -566,7 +561,7 @@ impl<E: Engine> MerchantState<E> {
         let cp = channel.cp.as_ref().unwrap();
         let pay_proof = proof.clone();
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);
-        let epsilon = util::convert_int_to_fr::<E>(amount); // E::Fr::from_str(&amount.to_string()).unwrap();
+        let epsilon = util::convert_int_to_fr::<E>(amount);
 
         if cp.pub_params.verify(pay_proof, epsilon, com, prev_wpk) {
             // 1 - proceed with generating close and pay token
@@ -627,6 +622,7 @@ mod tests {
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
         let mut merch_state = MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
+        merch_state.init_balance(b0_merch);
 
         // initialize the merchant wallet with the balance
         let mut channel_token = merch_state.init(rng, &mut channel);
@@ -640,7 +636,7 @@ mod tests {
 
         // first return the close token, then wait for escrow-tx confirmation
         // then send the pay-token after confirmation
-        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof).unwrap();
+        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof, b0_cust, b0_merch).unwrap();
         // unblind tokens and verify signatures
         assert!(cust_state.verify_close_token(&channel, &close_token));
 

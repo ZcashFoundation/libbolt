@@ -264,7 +264,7 @@ impl<E: Engine> CommitmentProof<E> {
 ///
 /// Verify PoK for the opening of a commitment
 ///
-pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>) -> bool {
+pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>, init_cust: i32, init_merch: i32) -> bool {
 
     let mut comc = com.clone();
     let T = proof.T.clone();
@@ -299,13 +299,15 @@ pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, pro
     let mut s3 = proof.reveal[3].clone();
     s3.mul_assign(&challenge);
     s3.add_assign(&proof.t[3]);
-    let bc_equal = (s3 == proof.z[3]);
+    let init_c = util::convert_int_to_fr::<E>(init_cust);
+    let bc_equal = (s3 == proof.z[3]) && (proof.reveal[3] == init_c);
 
     // merch init balances: index = 4
     let mut s4 = proof.reveal[4].clone();
     s4.mul_assign(&challenge);
     s4.add_assign(&proof.t[4]);
-    let bm_equal = (s4 == proof.z[4]);
+    let init_m = util::convert_int_to_fr::<E>(init_merch);
+    let bm_equal = (s4 == proof.z[4]) && (proof.reveal[4] == init_m);
 
     return comc == x && pkc_equal && bc_equal && bm_equal;
 }
@@ -476,7 +478,7 @@ mod tests {
         let com_proof = CommitmentProof::<Bls12>::new(rng, &pubParams.comParams,
                                                       &com.c, &wallet.as_fr_vec(), &t, &vec![1, 3, 4]);
 
-        assert!(verify_opening(&pubParams.comParams, &com.c, &com_proof));
+        assert!(verify_opening(&pubParams.comParams, &com.c, &com_proof, bc, bm));
     }
 
     #[test]
@@ -499,8 +501,8 @@ mod tests {
         let com1_proof = CommitmentProof::<Bls12>::new(rng, &pubParams.comParams,
                                                       &com1.c, &wallet1.as_fr_vec(), &t, &vec![1, 3, 4]);
 
-        assert!(verify_opening(&pubParams.comParams, &com1.c, &com1_proof));
-        assert!(!verify_opening(&pubParams.comParams, &com2.c, &com1_proof));
+        assert!(verify_opening(&pubParams.comParams, &com1.c, &com1_proof, bc, bm));
+        assert!(!verify_opening(&pubParams.comParams, &com2.c, &com1_proof, bc2, bm));
     }
 
 

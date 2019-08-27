@@ -218,9 +218,11 @@ pub mod bidirectional {
     /// signature) over the contents of the customer's wallet.
     ///
     pub fn establish_merchant_issue_close_token<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
-                                       com: &Commitment<E>, com_proof: &CommitmentProof<E>, merch_state: &MerchantState<E>) -> BoltResult<cl::Signature<E>> {
+                                                                   com: &Commitment<E>, com_proof: &CommitmentProof<E>,
+                                                                   init_cust_balance: i32, init_merch_balance: i32,
+                                                                   merch_state: &MerchantState<E>) -> BoltResult<cl::Signature<E>> {
         // verifies proof of committed values and derives blind signature on the committed values to the customer's initial wallet
-        match merch_state.verify_proof(csprng, channel_state, com, com_proof) {
+        match merch_state.verify_proof(csprng, channel_state, com, com_proof, init_cust_balance, merch_state.init_balance) {
             Ok(n) => Ok(Some(n.0)), // just close token
             Err(err) => Err(String::from(err.to_string()))
         }
@@ -537,6 +539,8 @@ mod tests {
 
     fn execute_establish_protocol_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
                                    channel_token: &mut bidirectional::ChannelToken<Bls12>,
+                                   cust_balance: i32,
+                                   merch_balance: i32,
                                    merch_state: &mut bidirectional::MerchantState<Bls12>,
                                    cust_state: &mut bidirectional::CustomerState<Bls12>) {
 
@@ -546,7 +550,7 @@ mod tests {
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, channel_token, cust_state);
 
         // obtain close token for closing out channel
-        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_state);
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, cust_balance, merch_balance, &merch_state);
         let close_token= match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
@@ -609,7 +613,8 @@ mod tests {
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
 
         // obtain close token for closing out channel
-        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_state);
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof,
+                                                                                            b0_customer, b0_merchant, &merch_state);
         let close_token= match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
@@ -661,7 +666,7 @@ mod tests {
         let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
-        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state);
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
 
         assert!(channel_state.channel_established);
 
@@ -703,7 +708,7 @@ mod tests {
         let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
-        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state);
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
         assert!(channel_state.channel_established);
 
         {
@@ -733,7 +738,7 @@ mod tests {
         let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
-        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state);
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
 
         assert!(channel_state.channel_established);
 
@@ -780,7 +785,7 @@ mod tests {
         let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
-        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state);
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
 
         assert!(channel_state.channel_established);
 

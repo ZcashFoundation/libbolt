@@ -132,7 +132,8 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char,
+                                                                             init_cust_bal: i32, init_merch_bal: i32, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
@@ -146,7 +147,7 @@ pub mod ffishim {
         // Deserialize the merchant wallet
         let merch_state: bidirectional::MerchantState<Bls12> = deserialize_object(ser_merch_state);
 
-        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_state));
+        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, init_cust_bal, init_merch_bal, &merch_state));
 
         let ser = ["{\'close_token\':\'", serde_json::to_string(&close_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
