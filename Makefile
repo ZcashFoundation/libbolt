@@ -32,12 +32,13 @@ doc:
 pythontests:
 	cargo +nightly build --release
 	python py/libbolt.py
+	python py/tests.py
 
 cpptests:
-	@cargo +nightly build
-	@g++ src/main.cpp -L ./target/debug/ -lbolt -I ./include -o cpp_test
-	@LD_LIBRARY_PATH=./target/debug/ ./cpp_test
-	@rm cpp_test
+	@cargo +nightly build --release
+	@g++ src/main.cpp -L ./target/release/ -lbolt -I ./include -o cpp_test
+	@LD_LIBRARY_PATH=./target/release/ ./cpp_test
+	# @rm cpp_test
 
 clean:
 	cargo +nightly clean

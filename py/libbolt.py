@@ -103,22 +103,24 @@ class Libbolt(object):
 	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, init_cust, init_merch, merch_state):
 		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), init_cust, init_merch, merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['close_token']
+		return output_dictionary.get('close_token')
 
 	def bidirectional_establish_merchant_issue_pay_token(self, channel_state, com, merch_state):
 		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_pay_token(channel_state.encode(), com.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['pay_token']
+		return output_dictionary.get('pay_token')
 
 	def bidirectional_establish_customer_verify_close_token(self, channel_state, cust_state, close_token):
 		output_string = self.lib.ffishim_bidirectional_verify_close_token(channel_state.encode(), cust_state.encode(), close_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['is_token_valid'], output_dictionary['channel_state'], output_dictionary['cust_state']
+		is_token_valid = self._convert_boolean(output_dictionary.get('is_token_valid'))
+		return is_token_valid, output_dictionary.get('channel_state'), output_dictionary.get('cust_state')
 
 	def bidirectional_establish_customer_final(self, channel_state, cust_state, pay_token):
 		output_string = self.lib.ffishim_bidirectional_establish_customer_final(channel_state.encode(), cust_state.encode(), pay_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['is_established'], output_dictionary['channel_state'], output_dictionary['cust_state']
+		is_established = self._convert_boolean(output_dictionary.get('is_established'))
+		return is_established, output_dictionary.get('channel_state'), output_dictionary.get('cust_state')
 
 	# PAY PROTOCOL
 
@@ -194,6 +196,14 @@ class Libbolt(object):
 	def _interperate_json_string_as_dictionary(self, json_string):
 		return ast.literal_eval(json_string)
 
+	def _convert_boolean(self, bool_str):
+		if bool_str == "true":
+			return True
+		if bool_str == "false":
+			return False
+		return bool_str
+
+
 if platform == 'darwin':
 	prefix = 'lib'
 	ext = 'dylib'
@@ -227,6 +237,7 @@ def run_unit_test():
 	print("cust_state: ", len(cust_state))
 
 	(channel_token, cust_state, com, com_proof) = libbolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)
+	print("channel token: => ", channel_token)
 	print("com: ", com)
 
 	close_token = libbolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, b0_cust, b0_merch, merch_state)
@@ -309,7 +320,6 @@ def run_unit_test():
 	merch_close_valid = libbolt.wtp_verify_merch_close_message(channel_token, merch_wpk, merch_close_msg)
 	print("Merchant close msg valid: ", merch_close_valid)
 	print("<========================================>")
-
 
 	print("<========================================>")
 	wpk, cust_close_wallet = libbolt.wtp_get_wallet(cust_state)

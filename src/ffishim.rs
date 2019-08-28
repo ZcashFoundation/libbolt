@@ -53,6 +53,19 @@ pub mod ffishim {
     }
 
     #[no_mangle]
+    pub extern fn ffishim_bidirectional_wtp_check_wpk(ser_wpk: *mut c_char) -> *mut c_char {
+        let wpk: secp256k1::PublicKey = deserialize_object(ser_wpk);
+
+        println!("Got wpk: {}", wpk);
+
+        let res = true;
+        let ser = ["{\'result\':\'", serde_json::to_string(&res).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+
+    }
+
+    #[no_mangle]
     pub extern fn ffishim_bidirectional_channel_setup(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
@@ -374,7 +387,7 @@ pub mod ffishim {
         let close_token: bidirectional::Signature<Bls12> = deserialize_object(ser_close_token);
         // check the signatures
         let token_valid = bidirectional::wtp_verify_cust_close_message(&channel_token, &wpk, &close_msg, &close_token);
-        let ser = ["{\'result\':\'", serde_json::to_string(&token_valid).unwrap().as_str(), "\'}"].concat();
+        let ser = ["{\"result\":\"", serde_json::to_string(&token_valid).unwrap().as_str(), "\"}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
