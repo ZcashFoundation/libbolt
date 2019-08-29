@@ -14,14 +14,14 @@ use pairing::{Engine, CurveProjective};
 use pairing::bls12_381::{Bls12};
 use ff::PrimeField;
 use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
-use ped92::{CSParams, Commitment, CSMultiParams};
+use ped92::{CSParams, Commitment, CSMultiParams, CommitmentProof};
 use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage, hash_to_slice};
 use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Display;
 use serde::{Serialize, Deserialize};
 use std::ptr::hash;
-use nizk::{NIZKPublicParams, CommitmentProof, Proof};
+use nizk::{NIZKPublicParams, NIZKProof};
 use wallet::Wallet;
 use std::error::Error;
 use std::fmt;
@@ -330,7 +330,7 @@ impl<E: Engine> CustomerState<E> {
     }
 
     // for channel pay
-    pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i32) -> (Proof<E>, Commitment<E>, secp256k1::PublicKey, CustomerState<E>) {
+    pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i32) -> (NIZKProof<E>, Commitment<E>, secp256k1::PublicKey, CustomerState<E>) {
         // 1 - chooose new wpk/wsk pair
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
@@ -557,7 +557,7 @@ impl<E: Engine> MerchantState<E> {
         return self.pay_tokens.get(&wpk_str).unwrap().clone();
     }
 
-    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &Proof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i32) -> ResultBoltSig<Signature<E>> {
+    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &NIZKProof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i32) -> ResultBoltSig<Signature<E>> {
         let cp = channel.cp.as_ref().unwrap();
         let pay_proof = proof.clone();
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);
