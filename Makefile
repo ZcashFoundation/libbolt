@@ -30,6 +30,8 @@ doc:
 	cargo +nightly doc
 
 pythontests:
+	cargo +nightly clean
+	cargo +nightly update
 	cargo +nightly build --release
 	python py/libbolt.py
 	python py/tests.py
