@@ -378,7 +378,7 @@ impl<E: Engine> CustomerState<E> {
         let prev_pay_token = self.pay_tokens.get(&i).unwrap();
         //println!("Found prev pay token: {}", prev_pay_token);
 
-        let pay_proof = cp.pub_params.prove(csprng, self.t.clone(), old_wallet, new_wallet.clone(),
+        let pay_proof = cp.pub_params.prove(csprng, old_wallet, new_wallet.clone(),
                           new_wcom.clone(), new_t, &prev_pay_token);
 
         // update internal state after proof has been verified by remote

@@ -1,5 +1,5 @@
 // ped92.rs
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use pairing::{Engine, CurveProjective};
 use ff::{Rand, Field, PrimeField};
 use std::fmt;
@@ -116,7 +116,7 @@ impl<E: Engine> CSMultiParams<E> {
     pub fn setup_gen_params<R: Rng>(rng: &mut R, len: usize) -> Self {
         let mut p: Vec<E::G1> = Vec::new();
         // 1 extra base element for the random parameter
-        for i in 0..len + 1 {
+        for _i in 0..len + 1 {
             p.push(E::G1::rand(rng));
         }
         CSMultiParams { pub_bases: p }
@@ -194,23 +194,21 @@ pub struct CommitmentProof<E: Engine> {
 
 impl<E: Engine> CommitmentProof<E> {
     pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>) -> Self {
-        let (Tvals, t, rt, mut reveal_wallet) = CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, wallet, reveal_index);
+        let (Tvals, t, rt) = CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, wallet, reveal_index);
 
         // compute the challenge
         let x: Vec<E::G1> = vec![Tvals, com.clone()];
         let challenge = util::hash_g1_to_fr::<E>(&x);
 
         // compute the response
-        CommitmentProof::<E>::prove_response(wallet, r, reveal_index, Tvals, &t, rt, reveal_wallet.borrow_mut(), &challenge)
+        CommitmentProof::<E>::prove_response(wallet, r, reveal_index, Tvals, &t, rt, &challenge)
     }
 
-    pub fn prove_commitment<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, wallet: &Vec<E::Fr>, reveal_index: &Vec<usize>) -> (E::G1, Vec<E::Fr>, Vec<E::Fr>, Vec<E::Fr>) {
+    pub fn prove_commitment<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, wallet: &Vec<E::Fr>, reveal_index: &Vec<usize>) -> (E::G1, Vec<E::Fr>, Vec<E::Fr>) {
         let mut Tvals = E::G1::zero();
         assert!(wallet.len() <= com_params.pub_bases.len());
         let mut t = Vec::<E::Fr>::with_capacity(wallet.len() + 1);
         let mut rt: Vec<E::Fr> = Vec::new();
-        // t values that will be revealed
-        let mut reveal_wallet: Vec<E::Fr> = Vec::new();
         // aspects of wallet being revealed
         for i in 0..wallet.len() + 1 {
             let ti = E::Fr::rand(csprng);
@@ -225,15 +223,17 @@ impl<E: Engine> CommitmentProof<E> {
             gt.mul_assign(ti.into_repr());
             Tvals.add_assign(&gt);
         }
-        (Tvals, t, rt, reveal_wallet)
+        (Tvals, t, rt)
     }
 
-    pub fn prove_response(wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>, Tvals: E::G1, t: &Vec<E::Fr>, rt: Vec<E::Fr>, reveal_wallet: &mut Vec<E::Fr>, challenge: &E::Fr) -> CommitmentProof<E> {
+    pub fn prove_response(wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>, Tvals: E::G1, t: &Vec<E::Fr>, rt: Vec<E::Fr>, challenge: &E::Fr) -> CommitmentProof<E> {
         let mut z: Vec<E::Fr> = Vec::new();
         let mut z0 = r.clone();
         z0.mul_assign(&challenge);
         z0.add_assign(&t[0]);
         z.push(z0);
+        // t values that will be revealed
+        let mut reveal_wallet: Vec<E::Fr> = Vec::new();
         reveal_wallet.push(E::Fr::zero());
         for i in 1..t.len() {
             let mut zi = wallet[i - 1].clone();
@@ -276,6 +276,7 @@ impl<E: Engine> CommitmentProof<E> {
 mod tests {
     use super::*;
     use pairing::bls12_381::{Bls12, Fr, G1};
+    use rand::thread_rng;
     use ff::Field;
     use wallet::Wallet;
 
@@ -301,7 +302,7 @@ mod tests {
         let csp = CSMultiParams::<Bls12>::setup_gen_params(rng, len);
 
         let mut m: Vec<Fr> = Vec::new();
-        for i in 0..len {
+        for _i in 0..len {
             m.push(Fr::rand(rng));
         }
         let r = Fr::rand(rng);
@@ -320,7 +321,7 @@ mod tests {
         let csp = CSMultiParams::<Bls12>::setup_gen_params(rng, len);
 
         let mut m1: Vec<Fr> = Vec::new();
-        for i in 0..len-1 {
+        for _i in 0..len-1 {
             m1.push(Fr::rand(rng));
         }
         let extra_m = Fr::rand(rng);
@@ -342,7 +343,7 @@ mod tests {
 
     #[test]
     fn test_csp_basic_serialize() {
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
         let len = 5;
         let csp = CSMultiParams::<Bls12>::setup_gen_params(rng, len);
 
@@ -359,7 +360,6 @@ mod tests {
         let t = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
-        let bc2 = rng.gen_range(100, 1000);
         let bm = rng.gen_range(100, 1000);
         let wallet = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
 
