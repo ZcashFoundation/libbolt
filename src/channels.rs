@@ -117,6 +117,30 @@ impl<E: Engine> ChannelToken<E> {
     pub fn is_init(&self) -> bool {
         return !self.pk_c.is_none();
     }
+
+    pub fn compute_id(&self) -> [u8; 32]
+         where <E as pairing::Engine>::G1: serde::Serialize,
+               <E as pairing::Engine>::G2: serde::Serialize,
+               <E as ff::ScalarEngine>::Fr: serde::Serialize
+    {
+        let mut input = Vec::new();
+
+        if !self.pk_c.is_none() {
+            let ser_pkc = self.pk_c.unwrap().serialize_uncompressed();
+            input.extend_from_slice(&ser_pkc);
+        }
+        let ser_pk_m = self.pk_m.serialize_uncompressed();
+        let ser_cl_pk_m = serde_json::to_vec(&self.cl_pk_m).unwrap();
+        let ser_mpk = serde_json::to_vec(&self.mpk).unwrap();
+        let ser_comParams = serde_json::to_vec(&self.comParams).unwrap();
+
+        input.extend_from_slice(&ser_pk_m);
+        input.extend(&ser_cl_pk_m);
+        input.extend(&ser_mpk);
+
+        return hash_to_slice(&input);
+    }
+
 }
 // add methods to check if channel token is initialized
 // (only if
