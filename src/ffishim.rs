@@ -124,8 +124,7 @@ pub mod ffishim {
     // ESTABLISH
 
     #[no_mangle] // bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
-    pub extern fn ffishim_bidirectional_establish_customer_generate_proof(ser_channel_token: *mut c_char,
-                                                                          ser_customer_wallet: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_customer_generate_proof(ser_channel_token: *mut c_char, ser_customer_wallet: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
          // Deserialize the channel token
         let mut channel_token: bidirectional::ChannelToken<Bls12> = deserialize_object(ser_channel_token);
@@ -145,8 +144,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char,
-                                                                             init_cust_bal: i32, init_merch_bal: i32, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, init_cust_bal: i32, init_merch_bal: i32, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
@@ -230,9 +228,7 @@ pub mod ffishim {
     // PAY
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_pay_generate_payment_proof(ser_channel_state: *mut c_char,
-                                                                   ser_customer_wallet: *mut c_char,
-                                                                   amount: i32) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_pay_generate_payment_proof(ser_channel_state: *mut c_char, ser_customer_wallet: *mut c_char, amount: i32) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
@@ -248,9 +244,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_pay_verify_payment_proof(ser_channel_state: *mut c_char,
-                                                                 ser_pay_proof: *mut c_char,
-                                                                 ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_pay_verify_payment_proof(ser_channel_state: *mut c_char, ser_pay_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
@@ -269,10 +263,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_pay_generate_revoke_token(ser_channel_state: *mut c_char,
-                                                                  ser_cust_state: *mut c_char,
-                                                                  ser_new_cust_state: *mut c_char,
-                                                                  ser_close_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_pay_generate_revoke_token(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char, ser_new_cust_state: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
         // Deserialize the cust wallet
@@ -290,8 +281,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_pay_verify_revoke_token(ser_revoke_token: *mut c_char,
-                                                                ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_pay_verify_revoke_token(ser_revoke_token: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the revoke token
         let revoke_token: bidirectional::RevokeToken = deserialize_object(ser_revoke_token);
         // Deserialize the cust wallet
@@ -325,8 +315,7 @@ pub mod ffishim {
     // CLOSE
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_customer_close(ser_channel_state: *mut c_char,
-                                                        ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_customer_close(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
         // Deserialize the cust wallet
@@ -339,11 +328,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_merchant_close(ser_channel_state: *mut c_char,
-                                                       ser_channel_token: *mut c_char,
-                                                       ser_address: *const c_char,
-                                                       ser_cust_close: *mut c_char,
-                                                       ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_merchant_close(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_address: *const c_char, ser_cust_close: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state: bidirectional::ChannelState<Bls12> = deserialize_object(ser_channel_state);
          // Deserialize the channel token
@@ -372,11 +357,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_wtp_verify_cust_close_message(ser_channel_token: *mut c_char,
-                                                            ser_wpk: *mut c_char,
-                                                            ser_close_msg: *mut c_char,
-                                                            ser_close_token: *mut c_char) -> *mut c_char {
-
+    pub extern fn ffishim_bidirectional_wtp_verify_cust_close_message(ser_channel_token: *mut c_char, ser_wpk: *mut c_char, ser_close_msg: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel token
         let channel_token: bidirectional::ChannelToken<Bls12> = deserialize_object(ser_channel_token);
         // Deserialize the wpk
@@ -411,85 +392,3 @@ pub mod ffishim {
         cser.into_raw()
     }
 }
-
-//    #[no_mangle]
-//    pub extern fn ffishim_bidirectional_resolve(serialized_pp: *mut c_char, serialized_customer_data: *mut c_char, serialized_merchant_data: *mut c_char, serialized_closure_customer: *mut c_char,  serialized_closure_merchant: *mut c_char) -> *mut c_char {
-//        // Deserialize the pp
-//        let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
-//
-//        // Deserialize the custdata
-//        let deserialized_customer_data: bidirectional::InitCustomerData = deserialize_object(serialized_customer_data);
-//
-//        // Deserialize the merchant data
-//        let deserialized_merchant_data: bidirectional::InitMerchantData = deserialize_object(serialized_merchant_data);
-//
-//        //TODO handle none()
-//
-//        // Deserialize the client closure
-//        let deserialized_closure_customer: bidirectional::ChannelclosureC = deserialize_object(serialized_closure_customer);
-//
-//        // Deserialize the merchant closure
-//        let deserialized_closure_merchant: bidirectional::ChannelclosureM = deserialize_object(serialized_closure_merchant);
-//
-//        let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&deserialized_pp, &deserialized_customer_data, &deserialized_merchant_data, Some(deserialized_closure_customer), Some(deserialized_closure_merchant));
-//        let ser = ["{\'new_b0_cust\':\'", new_b0_cust.to_string().as_str(), "\', \'new_b0_merch\':\'", new_b0_merch.to_string().as_str(), "\'}"].concat();
-//        let cser = CString::new(ser).unwrap();
-//        cser.into_raw()
-//    }
-//
-//    #[no_mangle]
-//    pub extern fn ffishim_commit_scheme_decommit(serialized_csp: *mut c_char, serialized_commitment: *mut c_char, serialized_x: *mut c_char) -> *mut c_char {
-//        // Deserialize the csp
-//        let deserialized_csp: commit_scheme::CSParams = deserialize_object(serialized_csp);
-//
-//        // Deserialize the commit
-//        let deserialized_commitment: commit_scheme::Commitment = deserialize_object(serialized_commitment);
-//
-//        // Deserialize the vec<fr> x
-//        let deserialized_x: serialization_wrappers::VecFrWrapper = deserialize_object(serialized_x);
-//            // Wrapper struct is required because Serde needs something to annotate
-//
-//        let ser = match commit_scheme::decommit(&deserialized_csp, &deserialized_commitment, &deserialized_x.0) {
-//            false => "{\'return_value\':\'false\'}",
-//            true => "{\'return_value\':\'true\'}",
-//        };
-//        let cser = CString::new(ser).unwrap();
-//        cser.into_raw()
-//    }
-//
-//    #[no_mangle]
-//    pub extern fn ffishim_validate_channel_open(serialized_channel_token: *mut c_char, serialized_messages: *mut c_char) -> *mut c_char {
-//
-//        // Deserialize the channel token
-//        let deserialized_channel_token: serialization_wrappers::WalletCommitmentAndParamsWrapper = deserialize_object(serialized_channel_token);
-//
-//        // Deserialize the vec<fr> x
-//        let deserialized_messages: serialization_wrappers::VecFrWrapper = deserialize_object(serialized_messages);
-//
-//        let ser = match commit_scheme::decommit(&deserialized_channel_token.params, &deserialized_channel_token.com, &deserialized_messages.0) {
-//            false => "{\'return_value\':\'false\'}",
-//            true => "{\'return_value\':\'true\'}",
-//        };
-//        let cser = CString::new(ser).unwrap();
-//        cser.into_raw()
-//    }
-//
-//    #[no_mangle]
-//    pub extern fn ffishim_validate_channel_close(serialized_pp: *mut c_char, serialized_closure_customer: *mut c_char, serialized_merchant_public_key: *mut c_char) -> *mut c_char {
-//        // Deserialize the pp
-//        let deserialized_pp: bidirectional::PublicParams = deserialize_object(serialized_pp);
-//
-//        // Deserialize the customer closure
-//        let deserialized_closure_customer: bidirectional::ChannelclosureC = deserialize_object(serialized_closure_customer);
-//
-//        // Deserialize the merchant keypair
-//        let deserialized_merchant_public_key: cl::PublicKey = deserialize_object(serialized_merchant_public_key);
-//
-//        //validate signature
-//        let ser = match cl::verify_d(&deserialized_pp.cl_mpk, &deserialized_merchant_public_key, &deserialized_closure_customer.message.hash(), &deserialized_closure_customer.signature) {
-//            false => "{\'return_value\':\'false\'}",
-//            true => "{\'return_value\':\'true\'}",
-//        };
-//        let cser = CString::new(ser).unwrap();
-//        cser.into_raw()
-//    }
