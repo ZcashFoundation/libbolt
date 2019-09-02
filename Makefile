@@ -38,7 +38,7 @@ pythontests:
 
 cpptests:
 	@cargo +nightly build --release
-	@g++ src/libbolt.cpp -L ./target/release/ -lbolt -I ./include -o cpp_test
+	@g++ cpp/libbolt.cpp -L ./target/release/ -lbolt -I ./include -o cpp_test
 	@LD_LIBRARY_PATH=./target/release/ ./cpp_test
 	@rm cpp_test
 
