@@ -471,7 +471,7 @@ pub mod bidirectional {
     ///
     /// Used in merch-close WTP for validating that revoke_token is a valid signature under <wpk> and the <revoked || wpk> message
     ///
-    pub fn wtp_verify_revoke_message<E: Engine>(channel_token: &ChannelToken<E>, wpk: &secp256k1::PublicKey, revoke_token: &secp256k1::Signature) -> bool {
+    pub fn wtp_verify_revoke_message(wpk: &secp256k1::PublicKey, revoke_token: &secp256k1::Signature) -> bool {
         let secp = secp256k1::Secp256k1::verification_only();
         let revoke_msg = RevokedMessage::new(String::from("revoked"), wpk.clone());
         let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();

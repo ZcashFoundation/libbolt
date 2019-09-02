@@ -11,7 +11,7 @@ def malformed_token(token):
     token_dict = ast.literal_eval(token)
     updated_token = {}
     for k,v in token_dict.items():
-        updated_token[k] = rand_hex(1) + v[1:]
+        updated_token[k] = v[:-4] + rand_hex(4)
     return json.dumps(updated_token)
 
 class BoltEstablishTests(unittest.TestCase):

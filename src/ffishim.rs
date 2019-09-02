@@ -44,15 +44,15 @@ pub mod ffishim {
 //	    let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 //	    serde_json::from_str(&string).unwrap()
 //	}
-
-    fn deserialize_optional_object<'a, T>(serialized: *mut c_char) -> Option<T>
-    where
-        T: Deserialize<'a>,
-    {
-        let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
-        let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-        Some(serde_json::from_str(&string).unwrap())
-    }
+//
+//    fn deserialize_optional_object<'a, T>(serialized: *mut c_char) -> Option<T>
+//    where
+//        T: Deserialize<'a>,
+//    {
+//        let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
+//        let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+//        Some(serde_json::from_str(&string).unwrap())
+//    }
 
     fn deserialize_result_object<'a, T>(serialized: *mut c_char) -> ResultSerdeType<T>
     where
@@ -467,7 +467,7 @@ pub mod ffishim {
         let merch_close_result: ResultSerdeType<bidirectional::ChannelcloseM> = deserialize_result_object(ser_merch_close);
         let merch_close = handle_errors!(merch_close_result);
 
-        let revoke_token_valid = bidirectional::wtp_verify_revoke_message(&channel_token, &wpk, &merch_close.revoke.unwrap());
+        let revoke_token_valid = bidirectional::wtp_verify_revoke_message(&wpk, &merch_close.revoke.unwrap());
         let merch_close_valid = bidirectional::wtp_verify_merch_close_message(&channel_token, &merch_close);
         let token_valid = revoke_token_valid && merch_close_valid;
 
