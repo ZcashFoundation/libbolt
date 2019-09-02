@@ -129,7 +129,7 @@ pub mod bidirectional {
     pub use cl::{PublicKey, Signature};
     pub use BoltResult;
     pub use channels::{ChannelState, ChannelToken, CustomerState, MerchantState, ChannelcloseM,
-                       PubKeyMap, ChannelParams, BoltError, ResultBoltSig};
+                       PubKeyMap, ChannelParams, BoltError, ResultBoltType};
     pub use nizk::NIZKProof;
     pub use wallet::Wallet;
     pub use cl::PublicParams;

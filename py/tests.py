@@ -109,8 +109,14 @@ class BoltEstablishTests(unittest.TestCase):
         self.assertFalse(is_channel_established)
 
     def test_error_handling_with_serialization(self):
-        pass
+        (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token, self.cust_state)
 
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, self.b0_cust, self.b0_merch, self.merch_state)
+        self.assertTrue(close_token is not None)
+
+        malformed_close_token = malformed_token(close_token)
+        (is_token_valid, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(self.channel_state, cust_state, malformed_close_token)
+        self.assertTrue(is_token_valid is None)
 
 if __name__ == '__main__':
     unittest.main()

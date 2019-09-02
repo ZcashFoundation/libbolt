@@ -30,7 +30,7 @@ use std::fmt;
 pub struct BoltError {
     details: String
 }
-pub type ResultBoltSig<E> = Result<E, BoltError>;
+pub type ResultBoltType<E> = Result<E, BoltError>;
 
 impl BoltError {
     fn new(msg: &str) -> BoltError {
@@ -421,7 +421,7 @@ impl<E: Engine> CustomerState<E> {
         return true;
     }
 
-    pub fn generate_revoke_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> ResultBoltSig<(RevokedMessage, secp256k1::Signature)> {
+    pub fn generate_revoke_token(&mut self, channel: &ChannelState<E>, close_token: &Signature<E>) -> ResultBoltType<(RevokedMessage, secp256k1::Signature)> {
         if self.verify_close_token(channel, close_token) {
             let old_wallet = self.old_kp.unwrap();
             // proceed with generating the close token
@@ -556,7 +556,7 @@ impl<E: Engine> MerchantState<E> {
         return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, pay_com);
     }
 
-    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, cust_balance: i32, merch_balance: i32) -> ResultBoltSig<(Signature<E>, Signature<E>)> {
+    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, cust_balance: i32, merch_balance: i32) -> ResultBoltType<(Signature<E>, Signature<E>)> {
         if (merch_balance != self.init_balance) {
             return Err(BoltError::new("verify_proof - initial balance of merchant inconsistent with specified balance"));
         }
@@ -581,7 +581,7 @@ impl<E: Engine> MerchantState<E> {
         return self.pay_tokens.get(&wpk_str).unwrap().clone();
     }
 
-    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &NIZKProof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i32) -> ResultBoltSig<Signature<E>> {
+    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &NIZKProof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i32) -> ResultBoltType<Signature<E>> {
         let cp = channel.cp.as_ref().unwrap();
         let pay_proof = proof.clone();
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);
@@ -598,7 +598,7 @@ impl<E: Engine> MerchantState<E> {
         Err(BoltError::new("verify_payment - Failed to validate NIZK PoK for payment."))
     }
 
-    pub fn verify_revoke_token(&self, revoke_token: &secp256k1::Signature, revoke_msg: &RevokedMessage, wpk: &secp256k1::PublicKey) -> ResultBoltSig<Signature<E>> {
+    pub fn verify_revoke_token(&self, revoke_token: &secp256k1::Signature, revoke_msg: &RevokedMessage, wpk: &secp256k1::PublicKey) -> ResultBoltType<Signature<E>> {
         let secp = secp256k1::Secp256k1::new();
         let msg = secp256k1::Message::from_slice(&revoke_msg.hash_to_slice()).unwrap();
         // verify that the revocation token is valid
