@@ -36,19 +36,19 @@ pub mod ffishim {
 
     pub type ResultSerdeType<T> = Result<T, serde_json::error::Error>;
 
-    fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
-	where
-	    T: Deserialize<'a>,
-	{
-	    let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
-	    let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
-	    serde_json::from_str(&string).unwrap()
-	}
+//    fn deserialize_object<'a, T>(serialized: *mut c_char) -> T
+//	where
+//	    T: Deserialize<'a>,
+//	{
+//	    let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
+//	    let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+//	    serde_json::from_str(&string).unwrap()
+//	}
 
     fn deserialize_optional_object<'a, T>(serialized: *mut c_char) -> Option<T>
     where
         T: Deserialize<'a>,
-    {  // TODO make this a result with nice error handling
+    {
         let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
         let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
         Some(serde_json::from_str(&string).unwrap())
@@ -57,7 +57,7 @@ pub mod ffishim {
     fn deserialize_result_object<'a, T>(serialized: *mut c_char) -> ResultSerdeType<T>
     where
         T: Deserialize<'a>,
-    {  // TODO make this a result with nice error handling
+    {
         let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
         let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
         serde_json::from_str(&string)
