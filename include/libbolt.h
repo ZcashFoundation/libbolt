@@ -4,11 +4,11 @@
 #include <stdint.h>
 #include <errno.h>
 
+#ifdef __cplusplus
+
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
-
-#ifdef __cplusplus
 
 using namespace rapidjson;
 
@@ -115,7 +115,7 @@ char* ffishim_bidirectional_wtp_check_wpk(const char *wpk);
     }
     return 0;
   }
+}
 #endif // end c++ check
 
-}
 #endif // LIBBOLT_INCLUDE_H_
