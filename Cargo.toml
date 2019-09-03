@@ -28,9 +28,6 @@ curve25519-dalek = { version = "1", features = ["serde"] }
 merlin = "1.0.0"
 bulletproofs = { git = "https://github.com/dalek-cryptography/bulletproofs", tag = "1.0.2" }
 sha2 = { version = "0.8", default-features = false }
-#wagyu-bitcoin = { git = "https://github.com/ArgusHQ/wagyu", branch = "feature/bitcoin-transactions" }
-#wagyu-ethereum = { git = "https://github.com/ArgusHQ/wagyu", branch = "feature/ethereum-transactions" }
-wagyu-zcash = { git = "https://github.com/ArgusHQ/wagyu", branch = "feature/zcash-transactions" }
 
 [dev-dependencies.bincode]
 version = "~0.6.0"
