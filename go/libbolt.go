@@ -22,6 +22,11 @@ type setupResp struct {
 	CloseToken    string `json:"close_token"`
 	RevokeToken   string `json:"revoke_token"`
 	PayToken      string `json:"pay_token"`
+	CustClose     string `json:"cust_close"`
+	MerchClose    string `json:"merch_close"`
+	Wpk           string `json:"wpk"`
+	Error         string `json:"error"`
+	Result        string `json:"result"`
 }
 
 func BidirectionalChannelSetup(name string, channelSupport bool) string {
@@ -70,6 +75,60 @@ func BidirectionalEstablishCustomerFinal(serChannelState string, serCustomerWall
 	resp := C.GoString(C.ffishim_bidirectional_establish_customer_final(C.CString(serChannelState), C.CString(serCustomerWallet), C.CString(serPayToken)))
 	r := processCResponse(resp)
 	return r.IsEstablished, r.ChannelState, r.CustState
+}
+
+func BidirectionalPayGeneratePaymentProof(serChannelState string, serCustomerWallet string, amount int) (string, string) {
+	resp := C.GoString(C.ffishim_bidirectional_pay_generate_payment_proof(C.CString(serChannelState), C.CString(serCustomerWallet), C.int(amount)))
+	r := processCResponse(resp)
+	return r.Payment, r.CustState
+}
+
+func BidirectionalPayVerifyPaymentProof(serChannelState string, serPayProof string, serMerchState string) (string, string) {
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_proof(C.CString(serChannelState), C.CString(serPayProof), C.CString(serMerchState)))
+	r := processCResponse(resp)
+	return r.CloseToken, r.MerchState
+}
+
+func BidirectionalPayGenerateRevokeToken(serChannelState string, serCustState string, serNewCustState string, serCloseToken string) (string, string) {
+	resp := C.GoString(C.ffishim_bidirectional_pay_generate_revoke_token(C.CString(serChannelState), C.CString(serCustState), C.CString(serNewCustState), C.CString(serCloseToken)))
+	r := processCResponse(resp)
+	return r.RevokeToken, r.CustState
+}
+
+func BidirectionalPayVerifyRevokeToken(serRevokeToken string, serMerchState string) (string, string) {
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_revoke_token(C.CString(serRevokeToken), C.CString(serMerchState)))
+	r := processCResponse(resp)
+	return r.PayToken, r.MerchState
+}
+
+func BidirectionalPayVerifyPaymentToken(serChannelState string, serCustState string, serPayToken string) (string, bool) {
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_token(C.CString(serChannelState), C.CString(serCustState), C.CString(serPayToken)))
+	r := processCResponse(resp)
+	return r.CustState, r.IsTokenValid
+}
+
+func BidirectionalCustomerClose(serChannelState string, serCustState string) string {
+	resp := C.GoString(C.ffishim_bidirectional_customer_close(C.CString(serChannelState), C.CString(serCustState)))
+	r := processCResponse(resp)
+	return r.CustClose
+}
+
+func BidirectionalMerchantClose(serChannelState string, serChannelToken string, serAddress string, serCustClose string, serMerchState string) (string, string, string) {
+	resp := C.GoString(C.ffishim_bidirectional_merchant_close(C.CString(serChannelState), C.CString(serChannelToken), C.CString(serAddress), C.CString(serCustClose), C.CString(serMerchState)))
+	r := processCResponse(resp)
+	return r.Wpk, r.MerchClose, r.Error
+}
+
+func BidirectionalWtpVerifyCustCloseMessage(serChannelToken string, serWpk string, serCloseMsg string, serCloseToken string) string {
+	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_cust_close_message(C.CString(serChannelToken), C.CString(serWpk), C.CString(serCloseMsg), C.CString(serCloseToken)))
+	r := processCResponse(resp)
+	return r.Result
+}
+
+func BidirectionalWtpVerifyMerchCloseMessage(serChannelToken string, serWpk string, serMerchClose string) string {
+	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_merch_close_message(C.CString(serChannelToken), C.CString(serWpk), C.CString(serMerchClose)))
+	r := processCResponse(resp)
+	return r.Result
 }
 
 func processCResponse(resp string) *setupResp {
