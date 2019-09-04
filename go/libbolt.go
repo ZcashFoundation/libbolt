@@ -1,7 +1,7 @@
 package main
 
-// #cgo darwin CFLAGS: -I ../include -D LD_LIBRARY_PATH=../target/release 
-// #cgo darwin LDFLAGS: -L ../target/release/ -lbolt
+// #cgo CFLAGS: -I ../include -D LD_LIBRARY_PATH=../target/release
+// #cgo LDFLAGS: -L ../target/release/ -lbolt
 // #include <libbolt.h>
 import "C"
 import (
