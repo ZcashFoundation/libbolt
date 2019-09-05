@@ -41,3 +41,42 @@ func Test_Establish(t *testing.T) {
 	assert.True(t, isChannelEstablished)
 }
 
+func Test_Pay(t *testing.T) {
+	b0Cust := 1000
+	b0Merch := 100
+	channelState, channelToken, merchState, custState := setup(b0Cust, b0Merch)
+	channelToken, custState, com, comProof := BidirectionalEstablishCustomerGenerateProof(channelToken, custState)
+	closeToken := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, b0Cust, b0Merch, merchState)
+	_, channelState, custState = BidirectionalVerifyCloseToken(channelState, custState, closeToken)
+	payToken := BidirectionalEstablishMerchantIssuePayToken(channelState, com, merchState)
+	_, channelState, custState = BidirectionalEstablishCustomerFinal(channelState, custState, payToken)
+
+	payment, newCustState := BidirectionalPayGeneratePaymentProof(channelState, custState, 10)
+	closeToken, merchState = BidirectionalPayVerifyPaymentProof(channelState, payment, merchState)
+	revokeToken, custState := BidirectionalPayGenerateRevokeToken(channelState, custState, newCustState, closeToken)
+	payToken, merchState = BidirectionalPayVerifyRevokeToken(revokeToken, merchState)
+	custState, isTokenValid := BidirectionalPayVerifyPaymentToken(channelState, custState, payToken)
+	assert.True(t, isTokenValid)
+}
+
+func Test_Close(t *testing.T) {
+	b0Cust := 1000
+	b0Merch := 100
+	channelState, channelToken, merchState, custState := setup(b0Cust, b0Merch)
+	channelToken, custState, com, comProof := BidirectionalEstablishCustomerGenerateProof(channelToken, custState)
+	closeToken := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, b0Cust, b0Merch, merchState)
+	_, channelState, custState = BidirectionalVerifyCloseToken(channelState, custState, closeToken)
+	payToken := BidirectionalEstablishMerchantIssuePayToken(channelState, com, merchState)
+	_, channelState, custState = BidirectionalEstablishCustomerFinal(channelState, custState, payToken)
+
+	payment, newCustState := BidirectionalPayGeneratePaymentProof(channelState, custState, 10)
+	closeToken, merchState = BidirectionalPayVerifyPaymentProof(channelState, payment, merchState)
+	revokeToken, custState := BidirectionalPayGenerateRevokeToken(channelState, custState, newCustState, closeToken)
+	payToken, merchState = BidirectionalPayVerifyRevokeToken(revokeToken, merchState)
+	custState, _ = BidirectionalPayVerifyPaymentToken(channelState, custState, payToken)
+
+	custClose := BidirectionalCustomerClose(channelState, custState)
+	_, _, err := BidirectionalMerchantClose(channelState, channelToken, "onChainAddress", custClose, merchState)
+	assert.Equal(t, "merchant_close - Could not find entry for wpk & revoke token pair. Valid close!", err)
+}
+

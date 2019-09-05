@@ -18,6 +18,7 @@ type setupResp struct {
 	ComProof      string `json:"com_proof"`
 	IsTokenValid  bool   `json:"is_token_valid,string"`
 	IsEstablished bool   `json:"is_established,string"`
+	IsPayValid    bool   `json:"is_pay_valid,string"`
 	Payment       string `json:"payment"`
 	CloseToken    string `json:"close_token"`
 	RevokeToken   string `json:"revoke_token"`
@@ -104,7 +105,7 @@ func BidirectionalPayVerifyRevokeToken(serRevokeToken string, serMerchState stri
 func BidirectionalPayVerifyPaymentToken(serChannelState string, serCustState string, serPayToken string) (string, bool) {
 	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_token(C.CString(serChannelState), C.CString(serCustState), C.CString(serPayToken)))
 	r := processCResponse(resp)
-	return r.CustState, r.IsTokenValid
+	return r.CustState, r.IsPayValid
 }
 
 func BidirectionalCustomerClose(serChannelState string, serCustState string) string {

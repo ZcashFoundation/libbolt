@@ -42,5 +42,9 @@ cpptests:
 	@LD_LIBRARY_PATH=./target/release/ ./cpp_test
 	@rm cpp_test
 
+gotests:
+	cargo +nightly build --release
+	go test go/libbolt.go go/libbolt_test.go
+
 clean:
 	cargo +nightly clean
