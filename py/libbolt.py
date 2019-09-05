@@ -134,7 +134,7 @@ class Libbolt(object):
 	def bidirectional_pay_verify_payment_proof(self, channel_state, pay_proof, merch_state):
 		output_string = self.lib.ffishim_bidirectional_pay_verify_payment_proof(channel_state.encode(), pay_proof.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary['close_token'], output_dictionary['merch_state'])
+		return (output_dictionary.get('close_token'), output_dictionary.get('merch_state'))
 
 	# generate revoke token
 	def bidirectional_pay_generate_revoke_token(self, channel_state, cust_state, new_cust_state, close_token):
@@ -153,7 +153,8 @@ class Libbolt(object):
 	def bidirectional_pay_verify_payment_token(self, channel_state, cust_state, pay_token):
 		output_string = self.lib.ffishim_bidirectional_pay_verify_payment_token(channel_state.encode(), cust_state.encode(), pay_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary['cust_state'], output_dictionary['is_pay_valid'])
+		is_pay_valid = self._convert_boolean(output_dictionary.get('is_pay_valid'))
+		return (output_dictionary['cust_state'], is_pay_valid)
 
 	# CLOSE
 

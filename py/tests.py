@@ -14,6 +14,11 @@ def malformed_token(token):
         updated_token[k] = v[:-4] + rand_hex(4)
     return json.dumps(updated_token)
 
+def malformed_proof(proof):
+    bad_proof = proof.replace("0", "1")
+    bad_proof = bad_proof.replace("1", "2")
+    return bad_proof
+
 class BoltEstablishTests(unittest.TestCase):
     def setUp(self):
         self.bolt = libbolt.Libbolt('target/{}/{}bolt.{}'.format(libbolt.mode, libbolt.prefix, libbolt.ext))
@@ -129,6 +134,67 @@ class BoltEstablishTests(unittest.TestCase):
 
         (is_channel_established, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_final(self.channel_state, cust_state, malformed_pay_token)
         self.assertFalse(is_channel_established)
+
+class BoltPayTests(unittest.TestCase):
+    def setUp(self):
+        """
+        Setup init customer/merchant state and establish phase of Bolt protocol
+        :return:
+        """
+        self.bolt = libbolt.Libbolt('target/{}/{}bolt.{}'.format(libbolt.mode, libbolt.prefix, libbolt.ext))
+        self.channel_state = self.bolt.channel_setup("Test Channel")
+        self.b0_cust = 500
+        self.b0_merch = 10
+        (self.channel_token, self.merch_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
+        (self.channel_token, self.cust_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
+                                                                                      self.b0_cust, self.b0_merch, "Alice")
+
+        (self.channel_token, self.cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token, self.cust_state)
+
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, self.b0_cust, self.b0_merch, self.merch_state)
+        self.assertTrue(close_token is not None)
+
+        (is_token_valid, self.channel_state, self.cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(self.channel_state, self.cust_state, close_token)
+        self.assertTrue(is_token_valid)
+
+        pay_token = self.bolt.bidirectional_establish_merchant_issue_pay_token(self.channel_state, com, self.merch_state)
+        self.assertTrue(pay_token is not None)
+
+        (is_channel_established, self.channel_state, self.cust_state) = self.bolt.bidirectional_establish_customer_final(self.channel_state, self.cust_state, pay_token)
+
+        self.assertTrue(is_channel_established)
+
+    def test_pay_protocol_works(self):
+        """
+        Payment protocol works
+        :return:
+        """
+        amount = 10
+        (payment_proof, new_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, self.cust_state, amount)
+
+        (new_close_token, self.merch_state) = self.bolt.bidirectional_pay_verify_payment_proof(self.channel_state, payment_proof, self.merch_state)
+
+        (revoke_token, self.cust_state) = self.bolt.bidirectional_pay_generate_revoke_token(self.channel_state, self.cust_state, new_cust_state, new_close_token)
+
+        (pay_token, self.merch_state) = self.bolt.bidirectional_pay_verify_revoke_token(revoke_token, self.merch_state)
+
+        (self.cust_state, is_pay_valid) = self.bolt.bidirectional_pay_verify_payment_token(self.channel_state, self.cust_state, pay_token)
+        self.assertTrue(is_pay_valid)
+
+    def test_pay_protocol_bad_payment_proof_fails(self):
+        amount = 10
+        (payment_proof, new_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, self.cust_state, amount)
+
+        bad_payment_proof = malformed_proof(payment_proof)
+        (new_close_token, self.merch_state) = self.bolt.bidirectional_pay_verify_payment_proof(self.channel_state, bad_payment_proof, self.merch_state)
+        self.assertTrue(new_close_token is None)
+
+    def test_pay_protocol_bad_revoke_token_fails(self):
+        pass
+
+    def test_pay_protocol_bad_payment_token_fails(self):
+        pass
+
 
 if __name__ == '__main__':
     unittest.main()
