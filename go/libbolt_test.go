@@ -9,9 +9,9 @@ func Test_ChannelSetup(t *testing.T) {
 	_, channelToken, merchState, custState, err := setup(1000, 100)
 	assert.Nil(t, err)
 
-	assert.NotEqual(t, "", merchState)
-	assert.NotEqual(t, "", custState)
-	assert.NotEqual(t, "", channelToken)
+	assert.NotEqual(t, MerchState{}, merchState)
+	assert.NotEqual(t, CustState{}, custState)
+	assert.NotEqual(t, ChannelToken{}, channelToken)
 }
 
 func setup(b0Cust int, b0Merch int) (string, ChannelToken, MerchState, CustState, error) {
