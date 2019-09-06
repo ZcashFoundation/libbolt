@@ -11,7 +11,10 @@ def malformed_token(token):
     token_dict = ast.literal_eval(token)
     updated_token = {}
     for k,v in token_dict.items():
-        updated_token[k] = v[:-4] + rand_hex(4)
+        if type(v) == str:
+            updated_token[k] = v[:-4] + rand_hex(4)
+        else:
+            updated_token[k] = v
     return json.dumps(updated_token)
 
 def malformed_proof(proof):
@@ -181,20 +184,71 @@ class BoltPayTests(unittest.TestCase):
         (self.cust_state, is_pay_valid) = self.bolt.bidirectional_pay_verify_payment_token(self.channel_state, self.cust_state, pay_token)
         self.assertTrue(is_pay_valid)
 
-    def test_pay_protocol_bad_payment_proof_fails(self):
-        amount = 10
+    def test_pay_protocol_bad_payment_proof_fail_handled(self):
+        """
+        Payment protocol fails as expected when customer sends a bad payment proof
+        :return:
+        """
+        amount = 15
         (payment_proof, new_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, self.cust_state, amount)
 
         bad_payment_proof = malformed_proof(payment_proof)
         (new_close_token, self.merch_state) = self.bolt.bidirectional_pay_verify_payment_proof(self.channel_state, bad_payment_proof, self.merch_state)
         self.assertTrue(new_close_token is None)
 
-    def test_pay_protocol_bad_revoke_token_fails(self):
-        pass
+    def test_pay_protocol_bad_close_token_fail_handled(self):
+        """
+        Payment protocol fails as expected when merchant returns a malformed/bad close token
+        :return:
+        """
+        amount = 10
+        (payment_proof, new_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, self.cust_state, amount)
 
-    def test_pay_protocol_bad_payment_token_fails(self):
-        pass
+        (new_close_token, self.merch_state) = self.bolt.bidirectional_pay_verify_payment_proof(self.channel_state, payment_proof, self.merch_state)
+        bad_close_token = malformed_token(new_close_token)
 
+        (revoke_token, self.cust_state) = self.bolt.bidirectional_pay_generate_revoke_token(self.channel_state, self.cust_state, new_cust_state, bad_close_token)
+        self.assertTrue(revoke_token is None)
+
+    def test_pay_protocol_bad_revoke_token_fail_handled(self):
+        """
+        Payment protocol fails as expected when customer sends a bad revoke token
+        :return:
+        """
+        amount = 20
+        (payment_proof, new_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, self.cust_state, amount)
+
+        (new_close_token, self.merch_state) = self.bolt.bidirectional_pay_verify_payment_proof(self.channel_state, payment_proof, self.merch_state)
+
+        (revoke_token, self.cust_state) = self.bolt.bidirectional_pay_generate_revoke_token(self.channel_state, self.cust_state, new_cust_state, new_close_token)
+
+        bad_revoke_token = malformed_token(revoke_token)
+        (pay_token, merch_state) = self.bolt.bidirectional_pay_verify_revoke_token(bad_revoke_token, self.merch_state)
+        self.assertTrue(pay_token is None)
+
+    def test_pay_protocol_bad_payment_token_fail_handled(self):
+        """
+        Payment protocol fails as expected when merchant returns a malformed pay token
+        :return:
+        """
+        amount = 25
+        (payment_proof, new_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, self.cust_state, amount)
+
+        (new_close_token, self.merch_state) = self.bolt.bidirectional_pay_verify_payment_proof(self.channel_state, payment_proof, self.merch_state)
+
+        (revoke_token, self.cust_state) = self.bolt.bidirectional_pay_generate_revoke_token(self.channel_state, self.cust_state, new_cust_state, new_close_token)
+
+        (pay_token, self.merch_state) = self.bolt.bidirectional_pay_verify_revoke_token(revoke_token, self.merch_state)
+        bad_pay_token = malformed_token(pay_token)
+
+        (cust_state, is_pay_valid) = self.bolt.bidirectional_pay_verify_payment_token(self.channel_state, self.cust_state, bad_pay_token)
+        self.assertTrue(is_pay_valid is None)
+
+class BoltMultiChannelTests(unittest.TestCase):
+    pass
+
+class BoltIntermediaryTests(unittest.TestCase):
+    pass
 
 if __name__ == '__main__':
     unittest.main()

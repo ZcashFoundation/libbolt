@@ -343,8 +343,10 @@ pub mod ffishim {
         let mut merch_state = handle_errors!(merch_state_result);
 
         // send revoke token and get pay-token in response
-        let pay_token = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
-        let ser = ["{\'pay_token\':\'", serde_json::to_string(&pay_token).unwrap().as_str(),
+        let pay_token_result = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
+        let pay_token = handle_errors!(pay_token_result);
+
+        let ser = ["{\'pay_token\':\'", serde_json::to_string(&pay_token.unwrap()).unwrap().as_str(),
                           "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

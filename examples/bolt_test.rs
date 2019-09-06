@@ -9,6 +9,7 @@ extern crate secp256k1;
 use bolt::bidirectional;
 use std::time::Instant;
 use pairing::bls12_381::{Bls12};
+use bolt::handle_bolt_result;
 
 macro_rules! measure_one_arg {
     ($x: expr) => {
@@ -96,10 +97,11 @@ fn main() {
     let revoke_token = bidirectional::generate_revoke_token(&channel_state, &mut cust_state, new_cust_state, &new_close_token);
 
     // send revoke token and get pay-token in response
-    let new_pay_token = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
+    let new_pay_token_result = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
+    let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
     // verify the pay token and update internal state
-    assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token));
+    assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token.unwrap()));
 
     println!("******************************************");
 
@@ -112,10 +114,11 @@ fn main() {
     let revoke_token2 = bidirectional::generate_revoke_token(&channel_state, &mut cust_state, new_cust_state2, &new_close_token2);
 
     // send revoke token and get pay-token in response
-    let new_pay_token2 = bidirectional::verify_revoke_token(&revoke_token2, &mut merch_state);
+    let new_pay_token_result2 = bidirectional::verify_revoke_token(&revoke_token2, &mut merch_state);
+    let new_pay_token2 = handle_bolt_result!(new_pay_token_result2);
 
     // verify the pay token and update internal state
-    assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token2));
+    assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token2.unwrap()));
 
     println!("Final Cust state: {}", cust_state);
 
