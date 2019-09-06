@@ -106,6 +106,14 @@ impl<'a> fmt::UpperHex for HexSlice<'a> {
 
 pub type BoltResult<T> = Result<Option<T>, String>;
 
+#[macro_export]
+macro_rules! handle_bolt_result {
+    ($e:expr) => (match $e {
+        Ok(val) => val,
+        Err(_) => None,
+    });
+}
+
 ////////////////////////////////// Utilities //////////////////////////////////
 
 /////////////////////////////// Bidirectional ////////////////////////////////
@@ -358,10 +366,14 @@ pub mod bidirectional {
     /// merchant state, from the customer. If the revocation token is valid,
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
-    pub fn verify_revoke_token<E: Engine>(rt: &RevokeToken, merch_state: &mut MerchantState<E>) -> cl::Signature<E> {
-        let new_pay_token = merch_state.verify_revoke_token(&rt.signature, &rt.message, &rt.message.wpk).unwrap();
+    pub fn verify_revoke_token<E: Engine>(rt: &RevokeToken, merch_state: &mut MerchantState<E>) -> BoltResult<cl::Signature<E>> {
+        let pay_token_result = merch_state.verify_revoke_token(&rt.signature, &rt.message, &rt.message.wpk);
+        let new_pay_token = match pay_token_result {
+            Ok(n) => n,
+            Err(err) => return Err(String::from(err.to_string()))
+        };
         update_merchant_state(&mut merch_state.keys, &rt.message.wpk, Some(rt.signature.clone()));
-        return new_pay_token;
+        Ok(Some(new_pay_token))
     }
 
     ///// end of pay protocol
@@ -444,10 +456,6 @@ pub mod bidirectional {
         }
         Err(String::from("merchant_close - Customer close message not valid!"))
     }
-
-//    pub fn wtp_sign_merch_close_message<E: Engine>(address: &Vec<u8>, revoke_token: &Option<secp256k1::Signature>, merch_state: &MerchantState<E>) -> ChannelcloseM {
-//        return merch_state.sign_revoke_message(&address, &revoke_token);
-//    }
 
     ///
     /// Used in open-channel WTP for validating that a close_token is a valid signature under <
@@ -583,10 +591,11 @@ mod tests {
         let revoke_token = bidirectional::generate_revoke_token(&channel_state, cust_state, new_cust_state, &new_close_token);
 
         // send revoke token and get pay-token in response
-        let new_pay_token = bidirectional::verify_revoke_token(&revoke_token, merch_state);
+        let new_pay_token_result: BoltResult<cl::Signature<Bls12>> = bidirectional::verify_revoke_token(&revoke_token, merch_state);
+        let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
-        assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token));
+        assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token.unwrap()));
      }
 
     #[test]
@@ -638,10 +647,11 @@ mod tests {
         let revoke_token = bidirectional::generate_revoke_token(&channel_state, &mut cust_state, new_cust_state, &new_close_token);
 
         // send revoke token and get pay-token in response
-        let new_pay_token = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
+        let new_pay_token_result: BoltResult<cl::Signature<Bls12>> = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
+        let new_pay_token = handle_bolt_result!(new_pay_token_result);
 
         // verify the pay token and update internal state
-        assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token));
+        assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token.unwrap()));
 
         println!("Successful payment!");
 

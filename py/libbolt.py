@@ -128,7 +128,7 @@ class Libbolt(object):
 	def bidirectional_pay_generate_payment_proof(self, channel_state, cust_state, amount):
 		output_string = self.lib.ffishim_bidirectional_pay_generate_payment_proof(channel_state.encode(), cust_state.encode(), amount)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['payment'], output_dictionary['cust_state']
+		return output_dictionary.get('payment'), output_dictionary.get('cust_state')
 
 	# verify payment proof
 	def bidirectional_pay_verify_payment_proof(self, channel_state, pay_proof, merch_state):
@@ -141,20 +141,20 @@ class Libbolt(object):
 		output_string = self.lib.ffishim_bidirectional_pay_generate_revoke_token(channel_state.encode(), cust_state.encode(),
 																				 new_cust_state.encode(), close_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['revoke_token'], output_dictionary['cust_state']
+		return output_dictionary.get('revoke_token'), output_dictionary.get('cust_state')
 
 	# verify revoke token
 	def bidirectional_pay_verify_revoke_token(self, revoke_token, merch_state):
 		output_string = self.lib.ffishim_bidirectional_pay_verify_revoke_token(revoke_token.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary['pay_token'], output_dictionary['merch_state'])
+		return (output_dictionary.get('pay_token'), output_dictionary.get('merch_state'))
 
 	# verify payment token
 	def bidirectional_pay_verify_payment_token(self, channel_state, cust_state, pay_token):
 		output_string = self.lib.ffishim_bidirectional_pay_verify_payment_token(channel_state.encode(), cust_state.encode(), pay_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		is_pay_valid = self._convert_boolean(output_dictionary.get('is_pay_valid'))
-		return (output_dictionary['cust_state'], is_pay_valid)
+		return (output_dictionary.get('cust_state'), is_pay_valid)
 
 	# CLOSE
 
