@@ -245,7 +245,45 @@ class BoltPayTests(unittest.TestCase):
         self.assertTrue(is_pay_valid is None)
 
 class BoltMultiChannelTests(unittest.TestCase):
-    pass
+    def setUp(self):
+        """
+        Setup init customer/merchant state and establish phase of Bolt protocol
+        :return:
+        """
+        self.bolt = libbolt.Libbolt('target/{}/{}bolt.{}'.format(libbolt.mode, libbolt.prefix, libbolt.ext))
+        self.channel_state = self.bolt.channel_setup("Test Channel")
+        self.b0_alice = self.b0_charlie = 150
+        self.b0_merch = 5
+        (self.channel_token, self.merch_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
+
+        (self.channel_token_a, self.alice_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
+                                                                                      self.b0_alice, self.b0_merch, "Alice")
+
+        (self.channel_token_c, self.charlie_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
+                                                                                      self.b0_charlie, self.b0_merch, "Charlie")
+
+    def _establish_channel(self, channel_token, cust_state, b0_cust, b0_merch):
+        (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)
+
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, b0_cust, b0_merch, self.merch_state)
+        self.assertTrue(close_token is not None)
+
+        (is_token_valid, self.channel_state, cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(self.channel_state, cust_state, close_token)
+        self.assertTrue(is_token_valid)
+
+        pay_token = self.bolt.bidirectional_establish_merchant_issue_pay_token(self.channel_state, com, self.merch_state)
+        self.assertTrue(pay_token is not None)
+
+        (is_channel_established, self.channel_state, cust_state) = self.bolt.bidirectional_establish_customer_final(self.channel_state, cust_state, pay_token)
+        self.assertTrue(is_channel_established)
+
+        return channel_token, cust_state
+
+    def test_multiple_channels_work(self):
+        """Establishing concurrent channels with a merchant works as expected
+        """
+        channel_token_a, alice_cust_state = self._establish_channel(self.channel_token, self.alice_state, self.b0_alice, self.merch_state)
+
 
 class BoltIntermediaryTests(unittest.TestCase):
     pass
