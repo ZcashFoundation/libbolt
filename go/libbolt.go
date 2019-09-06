@@ -30,104 +30,275 @@ type setupResp struct {
 	Result        string `json:"result"`
 }
 
+type MerchState struct {
+	KeyPair     KeyPair     `json:"keypair"`
+	InitBalance int         `json:"init_balance"`
+	Pk          string      `json:"pk"`
+	Sk          string      `json:"sk"`
+	ComParams   ComParams   `json:"comParams"`
+	Keys        interface{} `json:"keys"`
+	PayTokens   interface{} `json:"pay_tokens"`
+}
+
+type CustState struct {
+	Name         string               `json:"name"`
+	PkC          string               `json:"pk_c"`
+	SkC          string               `json:"sk_c"`
+	CustBalance  int                  `json:"cust_balance"`
+	MerchBalance int                  `json:"merch_balance"`
+	Wpk          string               `json:"wpk"`
+	Wsk          string               `json:"wsk"`
+	OldKP        *KP                  `json:"old_kp,omitempty"`
+	T            []uint64             `json:"t"`
+	Wallet       Wallet               `json:"wallet"`
+	WCom         Commitment           `json:"w_com"`
+	Index        int                  `json:"index"`
+	CloseTokens  map[string]Signature `json:"close_tokens"`
+	PayTokens    map[string]Signature `json:"pay_tokens"`
+}
+
+type KP struct {
+	Wpk string `json:"wpk,omitempty"`
+	Wsk string `json:"wsk,omitempty"`
+}
+
+type Commitment struct {
+	C string `json:"c"`
+}
+
+type Wallet struct {
+	Pkc   []uint64 `json:"pkc"`
+	Wpk   []uint64 `json:"wpk"`
+	Bc    int      `json:"bc"`
+	Bm    int      `json:"bm"`
+	Close []uint64 `json:"close"`
+}
+
+type KeyPair struct {
+	Secret SecretKey `json:"secret"`
+	Public PublicKey `json:"public"`
+}
+
+type SecretKey struct {
+	X []uint64   `json:"x"`
+	Y [][]uint64 `json:"y"`
+}
+
+type PublicKey struct {
+	X1 string   `json:"X1"`
+	X2 string   `json:"X2"`
+	Y1 []string `json:"Y1"`
+	Y2 []string `json:"Y2"`
+}
+
+type PublicKeySingle struct {
+	X string   `json:"X"`
+	Y []string `json:"Y"`
+}
+
+type ComParams struct {
+	PubBases []string `json:"pub_bases"`
+}
+
+type Signature struct {
+	H1 string `json:"h"`
+	H2 string `json:"H"`
+}
+
+type ChannelToken struct {
+	Pkc       *string         `json:"pk_c"`
+	Pkm       string          `json:"pk_m"`
+	ClPkM     PublicKeySingle `json:"cl_pk_m"`
+	Mpk       MPK             `json:"mpk"`
+	ComParams ComParams       `json:"comParams"`
+}
+
+type MPK struct {
+	G1 string `json:"g1"`
+	G2 string `json:"g2"`
+}
+
+type RevokeToken struct {
+	Message   Message `json:"message"`
+	Signature string  `json:"signature"`
+}
+
+type Message struct {
+	Type string `json:"msgtype"`
+	Wpk  string `json:"wpk"`
+}
+
+type CommitmentProof struct {
+	T      string     `json:"T"`
+	Z      [][]uint64 `json:"z"`
+	Ts     [][]uint64 `json:"t"`
+	Index  []int      `json:"index"`
+	Reveal [][]uint64 `json:"reveal"`
+}
+
+type CustClose struct {
+	Wpk       string    `json:"wpk"`
+	Message   Wallet    `json:"message"`
+	Signature Signature `json:"signature"`
+}
+
 func BidirectionalChannelSetup(name string, channelSupport bool) string {
 	resp := C.GoString(C.ffishim_bidirectional_channel_setup(C.CString(name), C.uint(btoi(channelSupport))))
 	r := processCResponse(resp)
 	return r.ChannelState
 }
 
-func BidirectionalInitMerchant(channelState string, balanceMerchant int, nameMerchant string) (string, string) {
+func BidirectionalInitMerchant(channelState string, balanceMerchant int, nameMerchant string) (ChannelToken, MerchState) {
 	resp := C.GoString(C.ffishim_bidirectional_init_merchant(C.CString(channelState), C.int(balanceMerchant), C.CString(nameMerchant)))
 	r := processCResponse(resp)
-	return r.ChannelToken, r.MerchState
+	merchState := MerchState{}
+	json.Unmarshal([]byte(r.MerchState), &merchState)
+	channelToken := ChannelToken{}
+	json.Unmarshal([]byte(r.ChannelToken), &channelToken)
+	return channelToken, merchState
 }
 
-func BidirectionalInitCustomer(channelState string, channelToken string, balanceCustomer int, balanceMerchant int, nameCustomer string) (string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_init_customer(C.CString(channelState), C.CString(channelToken), C.int(balanceCustomer), C.int(balanceMerchant), C.CString(nameCustomer)))
+func BidirectionalInitCustomer(channelState string, channelToken ChannelToken, balanceCustomer int, balanceMerchant int, nameCustomer string) (ChannelToken, CustState) {
+	serChannelToken, _ := json.Marshal(channelToken)
+	resp := C.GoString(C.ffishim_bidirectional_init_customer(C.CString(channelState), C.CString(string(serChannelToken)), C.int(balanceCustomer), C.int(balanceMerchant), C.CString(nameCustomer)))
 	r := processCResponse(resp)
-	return r.ChannelToken, r.CustState
+	custState := CustState{}
+	json.Unmarshal([]byte(r.CustState), &custState)
+	json.Unmarshal([]byte(r.ChannelToken), &channelToken)
+	return channelToken, custState
 }
 
-func BidirectionalEstablishCustomerGenerateProof(serChannelToken string, serCustomerWallet string) (string, string, string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_establish_customer_generate_proof(C.CString(serChannelToken), C.CString(serCustomerWallet)))
+func BidirectionalEstablishCustomerGenerateProof(channelToken ChannelToken, custState CustState) (ChannelToken, CustState, Commitment, CommitmentProof) {
+	serChannelToken, _ := json.Marshal(channelToken)
+	serCustState, _ := json.Marshal(custState)
+	resp := C.GoString(C.ffishim_bidirectional_establish_customer_generate_proof(C.CString(string(serChannelToken)), C.CString(string(serCustState))))
 	r := processCResponse(resp)
-	return r.ChannelToken, r.CustState, r.Com, r.ComProof
+	json.Unmarshal([]byte(r.CustState), &custState)
+	json.Unmarshal([]byte(r.ChannelToken), &channelToken)
+	com := Commitment{}
+	json.Unmarshal([]byte(r.Com), &com)
+	comProof := CommitmentProof{}
+	json.Unmarshal([]byte(r.ComProof), &comProof)
+	return channelToken, custState, com, comProof
 }
 
-func BidirectionalEstablishMerchantIssueCloseToken(serChannelState string, serCom string, serComProof string, initCustBal int, initMerchBal int, serMerchState string) string {
-	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_close_token(C.CString(serChannelState), C.CString(serCom), C.CString(serComProof), C.int(initCustBal), C.int(initMerchBal), C.CString(serMerchState)))
+func BidirectionalEstablishMerchantIssueCloseToken(serChannelState string, com Commitment, comProof CommitmentProof, initCustBal int, initMerchBal int, merchState MerchState) Signature {
+	serCom, _ := json.Marshal(com)
+	serMerchState, _ := json.Marshal(merchState)
+	serComProof, _ := json.Marshal(comProof)
+	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_close_token(C.CString(serChannelState), C.CString(string(serCom)), C.CString(string(serComProof)), C.int(initCustBal), C.int(initMerchBal), C.CString(string(serMerchState))))
 	r := processCResponse(resp)
-	return r.CloseToken
+	closeToken := &Signature{}
+	json.Unmarshal([]byte(r.CloseToken), closeToken)
+	return *closeToken
 }
 
-func BidirectionalEstablishMerchantIssuePayToken(serChannelState string, serCom string, serMerchState string) string {
-	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_pay_token(C.CString(serChannelState), C.CString(serCom), C.CString(serMerchState)))
+func BidirectionalEstablishMerchantIssuePayToken(serChannelState string, com Commitment, merchState MerchState) Signature {
+	serCom, _ := json.Marshal(com)
+	serMerchState, _ := json.Marshal(merchState)
+	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_pay_token(C.CString(serChannelState), C.CString(string(serCom)), C.CString(string(serMerchState))))
 	r := processCResponse(resp)
-	return r.PayToken
+	payToken := &Signature{}
+	json.Unmarshal([]byte(r.PayToken), payToken)
+	return *payToken
 }
 
-func BidirectionalVerifyCloseToken(serChannelState string, serCustomerWallet string, serCloseToken string) (bool, string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_verify_close_token(C.CString(serChannelState), C.CString(serCustomerWallet), C.CString(serCloseToken)))
+func BidirectionalVerifyCloseToken(serChannelState string, custState CustState, closeToken Signature) (bool, string, CustState) {
+	serCloseToken, _ := json.Marshal(closeToken)
+	serCustState, _ := json.Marshal(custState)
+	resp := C.GoString(C.ffishim_bidirectional_verify_close_token(C.CString(serChannelState), C.CString(string(serCustState)), C.CString(string(serCloseToken))))
 	r := processCResponse(resp)
-	return r.IsTokenValid, r.ChannelState, r.CustState
+	json.Unmarshal([]byte(r.CustState), &custState)
+	return r.IsTokenValid, r.ChannelState, custState
 }
 
-func BidirectionalEstablishCustomerFinal(serChannelState string, serCustomerWallet string, serPayToken string) (bool, string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_establish_customer_final(C.CString(serChannelState), C.CString(serCustomerWallet), C.CString(serPayToken)))
+func BidirectionalEstablishCustomerFinal(serChannelState string, custState CustState, payToken Signature) (bool, string, CustState) {
+	serPayToken, _ := json.Marshal(payToken)
+	serCustState, _ := json.Marshal(custState)
+	resp := C.GoString(C.ffishim_bidirectional_establish_customer_final(C.CString(serChannelState), C.CString(string(serCustState)), C.CString(string(serPayToken))))
 	r := processCResponse(resp)
-	return r.IsEstablished, r.ChannelState, r.CustState
+	json.Unmarshal([]byte(r.CustState), &custState)
+	return r.IsEstablished, r.ChannelState, custState
 }
 
-func BidirectionalPayGeneratePaymentProof(serChannelState string, serCustomerWallet string, amount int) (string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_pay_generate_payment_proof(C.CString(serChannelState), C.CString(serCustomerWallet), C.int(amount)))
+func BidirectionalPayGeneratePaymentProof(serChannelState string, custState CustState, amount int) (string, CustState) {
+	serCustState, _ := json.Marshal(custState)
+	resp := C.GoString(C.ffishim_bidirectional_pay_generate_payment_proof(C.CString(serChannelState), C.CString(string(serCustState)), C.int(amount)))
 	r := processCResponse(resp)
-	return r.Payment, r.CustState
+	json.Unmarshal([]byte(r.CustState), &custState)
+	return r.Payment, custState
 }
 
-func BidirectionalPayVerifyPaymentProof(serChannelState string, serPayProof string, serMerchState string) (string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_proof(C.CString(serChannelState), C.CString(serPayProof), C.CString(serMerchState)))
+func BidirectionalPayVerifyPaymentProof(serChannelState string, serPayProof string, merchState MerchState) (Signature, MerchState) {
+	serMerchState, _ := json.Marshal(merchState)
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_proof(C.CString(serChannelState), C.CString(serPayProof), C.CString(string(serMerchState))))
 	r := processCResponse(resp)
-	return r.CloseToken, r.MerchState
+	json.Unmarshal([]byte(r.MerchState), &merchState)
+	closeToken := &Signature{}
+	json.Unmarshal([]byte(r.CloseToken), closeToken)
+	return *closeToken, merchState
 }
 
-func BidirectionalPayGenerateRevokeToken(serChannelState string, serCustState string, serNewCustState string, serCloseToken string) (string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_pay_generate_revoke_token(C.CString(serChannelState), C.CString(serCustState), C.CString(serNewCustState), C.CString(serCloseToken)))
+func BidirectionalPayGenerateRevokeToken(serChannelState string, custState CustState, newCustState CustState, closeToken Signature) (RevokeToken, CustState) {
+	serCloseToken, _ := json.Marshal(closeToken)
+	serCustState, _ := json.Marshal(custState)
+	serNewCustState, _ := json.Marshal(newCustState)
+	resp := C.GoString(C.ffishim_bidirectional_pay_generate_revoke_token(C.CString(serChannelState), C.CString(string(serCustState)), C.CString(string(serNewCustState)), C.CString(string(serCloseToken))))
 	r := processCResponse(resp)
-	return r.RevokeToken, r.CustState
+	json.Unmarshal([]byte(r.CustState), &custState)
+	revokeToken := RevokeToken{}
+	json.Unmarshal([]byte(r.RevokeToken), &revokeToken)
+	return revokeToken, custState
 }
 
-func BidirectionalPayVerifyRevokeToken(serRevokeToken string, serMerchState string) (string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_revoke_token(C.CString(serRevokeToken), C.CString(serMerchState)))
+func BidirectionalPayVerifyRevokeToken(revokeToken RevokeToken, merchState MerchState) (Signature, MerchState) {
+	serMerchState, _ := json.Marshal(merchState)
+	serRevokeToken, _ := json.Marshal(revokeToken)
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_revoke_token(C.CString(string(serRevokeToken)), C.CString(string(serMerchState))))
 	r := processCResponse(resp)
-	return r.PayToken, r.MerchState
+	json.Unmarshal([]byte(r.MerchState), &merchState)
+	payToken := &Signature{}
+	json.Unmarshal([]byte(r.PayToken), payToken)
+	return *payToken, merchState
 }
 
-func BidirectionalPayVerifyPaymentToken(serChannelState string, serCustState string, serPayToken string) (string, bool) {
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_token(C.CString(serChannelState), C.CString(serCustState), C.CString(serPayToken)))
+func BidirectionalPayVerifyPaymentToken(serChannelState string, custState CustState, payToken Signature) (CustState, bool) {
+	serPayToken, _ := json.Marshal(payToken)
+	serCustState, _ := json.Marshal(custState)
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_token(C.CString(serChannelState), C.CString(string(serCustState)), C.CString(string(serPayToken))))
 	r := processCResponse(resp)
-	return r.CustState, r.IsPayValid
+	json.Unmarshal([]byte(r.CustState), &custState)
+	return custState, r.IsPayValid
 }
 
-func BidirectionalCustomerClose(serChannelState string, serCustState string) string {
-	resp := C.GoString(C.ffishim_bidirectional_customer_close(C.CString(serChannelState), C.CString(serCustState)))
+func BidirectionalCustomerClose(serChannelState string, custState CustState) CustClose {
+	serCustState, _ := json.Marshal(custState)
+	resp := C.GoString(C.ffishim_bidirectional_customer_close(C.CString(serChannelState), C.CString(string(serCustState))))
 	r := processCResponse(resp)
-	return r.CustClose
+	custClose:= CustClose{}
+	json.Unmarshal([]byte(r.CustClose), &custClose)
+	return custClose
 }
 
-func BidirectionalMerchantClose(serChannelState string, serChannelToken string, serAddress string, serCustClose string, serMerchState string) (string, string, string) {
-	resp := C.GoString(C.ffishim_bidirectional_merchant_close(C.CString(serChannelState), C.CString(serChannelToken), C.CString(serAddress), C.CString(serCustClose), C.CString(serMerchState)))
+func BidirectionalMerchantClose(serChannelState string, channelToken ChannelToken, serAddress string, custClose CustClose, merchState MerchState) (string, string, string) {
+	serMerchState, _ := json.Marshal(merchState)
+	serChannelToken, _ := json.Marshal(channelToken)
+	serCustClose, _ := json.Marshal(custClose)
+	resp := C.GoString(C.ffishim_bidirectional_merchant_close(C.CString(serChannelState), C.CString(string(serChannelToken)), C.CString(serAddress), C.CString(string(serCustClose)), C.CString(string(serMerchState))))
 	r := processCResponse(resp)
 	return r.Wpk, r.MerchClose, r.Error
 }
 
-func BidirectionalWtpVerifyCustCloseMessage(serChannelToken string, serWpk string, serCloseMsg string, serCloseToken string) string {
-	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_cust_close_message(C.CString(serChannelToken), C.CString(serWpk), C.CString(serCloseMsg), C.CString(serCloseToken)))
+func BidirectionalWtpVerifyCustCloseMessage(channelToken ChannelToken, serWpk string, serCloseMsg string, serCloseToken string) string {
+	serChannelToken, _ := json.Marshal(channelToken)
+	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_cust_close_message(C.CString(string(serChannelToken)), C.CString(serWpk), C.CString(serCloseMsg), C.CString(string(serCloseToken))))
 	r := processCResponse(resp)
 	return r.Result
 }
 
-func BidirectionalWtpVerifyMerchCloseMessage(serChannelToken string, serWpk string, serMerchClose string) string {
-	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_merch_close_message(C.CString(serChannelToken), C.CString(serWpk), C.CString(serMerchClose)))
+func BidirectionalWtpVerifyMerchCloseMessage(channelToken ChannelToken, serWpk string, serMerchClose string) string {
+	serChannelToken, _ := json.Marshal(channelToken)
+	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_merch_close_message(C.CString(string(serChannelToken)), C.CString(serWpk), C.CString(serMerchClose)))
 	r := processCResponse(resp)
 	return r.Result
 }

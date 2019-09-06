@@ -13,7 +13,7 @@ func Test_ChannelSetup(t *testing.T) {
 	assert.NotEqual(t, "", channelToken)
 }
 
-func setup(b0Cust int, b0Merch int) (string, string, string, string) {
+func setup(b0Cust int, b0Merch int) (string, ChannelToken, MerchState, CustState) {
 	channelState := BidirectionalChannelSetup("Test Channel", false)
 	channelToken, merchState := BidirectionalInitMerchant(channelState, b0Merch, "Bob")
 	channelToken, custState := BidirectionalInitCustomer(channelState, channelToken, b0Cust, b0Merch, "Alice")
