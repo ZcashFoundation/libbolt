@@ -15,7 +15,7 @@ pub mod ffishim {
     use std::alloc::handle_alloc_error;
 
     fn error_message(s: String) -> *mut c_char {
-        let ser = ["{\'error\':", serde_json::to_string(&s).unwrap().as_str(), "}"].concat();
+        let ser = ["{\'error\':\'", &s, "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
