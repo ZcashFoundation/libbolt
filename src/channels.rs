@@ -183,7 +183,6 @@ impl<E: Engine> ChannelState<E> {
     pub fn keygen<R: Rng>(&mut self, csprng: &mut R, id: String) -> cl::BlindKeyPair<E> {
         let cp = self.cp.as_ref();
         let keypair = BlindKeyPair::<E>::generate(csprng, &cp.unwrap().pub_params.mpk, cp.unwrap().l);
-        println!("Generating keypair for '{}'", id);
         // print the keypair as well
         return keypair;
     }
@@ -365,8 +364,6 @@ impl<E: Engine> CustomerState<E> {
         let new_cust_bal= self.cust_balance - amount;
         let new_merch_bal = self.merch_balance + amount;
         let new_t = E::Fr::rand(csprng);
-
-        //println!("old wallet close => {}", self.wallet.close.unwrap());
 
         let cp = channel.cp.as_ref().unwrap();
         let old_wallet = Wallet { pkc: self.wallet.pkc.clone(), wpk: self.wallet.wpk.clone(), bc: self.cust_balance, bm: self.merch_balance, close: None };

@@ -161,11 +161,11 @@ To spend on the channel, execute the pay protocol API (can be executed as many t
 
 To close a channel, the customer must execute the `bidirectional::customer_refund()` routine as follows:
 
-	let cust_close_msg = bidirectional::customer_refund(&channel_state, &cust_state);
+	let cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
 	
 If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `bidirectional::merchant_retute()` routine as follows:
 
-	let merch_close = bidirectional::merchant_refute(&channel_state, &channel_token, &cust_close_msg, &revoke_token);
+	let merch_close = bidirectional::merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
 
 	
 To resolve a dispute between a customer and a merchant, the following routine is executed by the network:
@@ -228,7 +228,8 @@ To contribute code improvements, please checkout the repository, make your chang
 Here are some TODOs (not in any particular order):
 
 * Fix warnings
-* Add more unit tests for other dispute resolution scenarios and pay protocol (to ensure appopriate aborts), third-party test cases, etc.
+* Add more unit tests for other dispute resolution scenarios and third-party test cases
+* Optimize the NIZK params and range proofs
 	
 # License
 
