@@ -278,7 +278,12 @@ pub mod bidirectional {
     /// new wallet (minus blind signature and refund token) and payment proof.
     ///
     pub fn generate_payment_proof<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>, cust_state: &CustomerState<E>, amount: i32) -> (Payment<E>, CustomerState<E>) {
-        let (proof, com, wpk, new_cust_state) = cust_state.generate_payment(csprng, &channel_state, amount);
+        let tx_fee = channel_state.get_channel_fee();
+        let payment_amount = match tx_fee > 0 {
+            true => amount + tx_fee,
+            false => amount
+        };
+        let (proof, com, wpk, new_cust_state) = cust_state.generate_payment(csprng, &channel_state, payment_amount);
         let payment = Payment { proof, com, wpk, amount };
         return (payment, new_cust_state);
     }
@@ -292,8 +297,13 @@ pub mod bidirectional {
                                             payment: &Payment<E>, merch_state: &mut MerchantState<E>) -> cl::Signature<E> {
         // if payment proof verifies, then returns close-token and records wpk => pay-token
         // if valid revoke_token is provided later for wpk, then release pay-token
+        let tx_fee = channel_state.get_channel_fee();
+        let payment_amount = match tx_fee > 0 {
+            true => payment.amount + tx_fee,
+            false => payment.amount
+        };
         let new_close_token = merch_state.verify_payment(csprng, &channel_state,
-                                                          &payment.proof, &payment.com, &payment.wpk, payment.amount).unwrap();
+                                                          &payment.proof, &payment.com, &payment.wpk, payment_amount).unwrap();
         // store the wpk since it has been revealed
         update_merchant_state(&mut merch_state.keys, &payment.wpk, None);
         return new_close_token;
@@ -674,6 +684,10 @@ mod tests {
 
         channel_state.setup(&mut rng); // or load_setup params
 
+        // set fee for channel
+        let fee = 5;
+        channel_state.set_channel_fee(fee);
+
         let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
@@ -692,7 +706,8 @@ mod tests {
                 // scope localizes the immutable borrow here (for debug purposes only)
                 println!("Customer balance: {:?}", &cust_state.cust_balance);
                 println!("Merchant balance: {:?}", &cust_state.merch_balance);
-                assert!(cust_state.cust_balance == (b0_customer - total_owed) && cust_state.merch_balance == total_owed + b0_merchant);
+                let total_owed_with_fees = (fee * num_payments) + total_owed;
+                assert!(cust_state.cust_balance == (b0_customer - total_owed_with_fees) && cust_state.merch_balance == total_owed_with_fees + b0_merchant);
             }
 
             let cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
