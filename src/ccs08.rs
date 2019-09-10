@@ -74,8 +74,8 @@ pub struct ProofUL<E: Engine> {
 pub struct RangeProofState<E: Engine> {
     pub com1: Commitment<E>,
     pub ps1: ProofULState<E>,
-    pub com2: Option<Commitment<E>>,
-    pub ps2: Option<ProofULState<E>>,
+    pub com2: Commitment<E>,
+    pub ps2: ProofULState<E>,
 }
 
 /**
@@ -94,7 +94,7 @@ RangeProof contains the necessary elements for the ZK range proof.
 ))]
 pub struct RangeProof<E: Engine> {
     pub p1: ProofUL<E>,
-    pub p2: Option<ProofUL<E>>,
+    pub p2: ProofUL<E>,
 }
 
 /**
@@ -184,7 +184,7 @@ impl<E: Engine> ParamsUL<E> {
                 let mut g = self.csParams.pub_bases[i].clone();
                 let s1: E::Fr;
                 if sVec.len() >= i {
-                    s1 = sVec[i - 1];
+                    s1 = sVec[i-1];
                 } else {
                     s1 = E::Fr::rand(rng);
                 }
@@ -355,14 +355,9 @@ impl<E: Engine> RPPublicParams<E> {
         let mut a = Vec::<E::Fqk>::with_capacity(self.p.l as usize);
         for i in 0..rpState.ps1.proofStates.len() {
             a.push(rpState.ps1.proofStates[i].a);
-            if rpState.ps2.is_some() {
-                a.push(rpState.ps2.clone().unwrap().proofStates[i].a);
-            }
+            a.push(rpState.ps2.proofStates[i].a);
         }
-        let ch = match rpState.ps2.is_some() {
-            true => hash::<E>(a, vec!(rpState.ps1.D.clone(), rpState.ps2.clone().unwrap().D)),
-            false => hash::<E>(a, vec!(rpState.ps1.D.clone()))
-        };
+        let ch = hash::<E>(a, vec!(rpState.ps1.D.clone(), rpState.ps2.D.clone()));
 
         self.prove_response(r, &rpState, ch, k, otherM)
     }
@@ -385,29 +380,20 @@ impl<E: Engine> RPPublicParams<E> {
         comXB.c.add_assign(&gul);
         let firstState = self.p.prove_ul_commitment(rng, xb, k, sOptional.clone(), mOptional.clone());
         // x - a
-        let mut comXAOption = None;
-        let mut secondState = None;
-        if self.a != 0 || x < 0 {
-            let xa = x - self.a;
-            let mut ga = self.p.csParams.pub_bases[k].clone();
-            let mut a = E::Fr::from_str(&(self.a.to_string())).unwrap();
-            a.negate();
-            ga.mul_assign(a.into_repr());
-            let mut comXA = C.clone();
-            comXA.c.add_assign(&ga);
-            comXAOption = Some(comXA);
-            secondState = Some(self.p.prove_ul_commitment(rng, xa, k, sOptional.clone(), mOptional.clone()));
-        }
-
-        RangeProofState { com1: comXB, ps1: firstState, com2: comXAOption, ps2: secondState }
+        let xa = x - self.a;
+        let mut ga = self.p.csParams.pub_bases[k].clone();
+        let mut a = E::Fr::from_str(&(self.a.to_string())).unwrap();
+        a.negate();
+        ga.mul_assign(a.into_repr());
+        let mut comXA = C.clone();
+        comXA.c.add_assign(&ga);
+        let secondState = self.p.prove_ul_commitment(rng, xa, k, sOptional.clone(), mOptional.clone());
+        RangeProofState { com1: comXB, ps1: firstState, com2: comXA, ps2: secondState }
     }
 
     pub fn prove_response(&self, r: E::Fr, rpState: &RangeProofState<E>, ch: E::Fr, k: usize, otherM: Vec<E::Fr>) -> RangeProof<E> {
         let first = self.p.prove_ul_response(r.clone(), rpState.com1.clone(), &rpState.ps1, ch.clone(), k, otherM.clone());
-        let mut second = None;
-        if rpState.com2.is_some() && rpState.ps2.is_some() {
-            second = Some(self.p.prove_ul_response(r.clone(), rpState.com2.clone().unwrap(), &rpState.ps2.clone().unwrap(), ch.clone(), k, otherM.clone()));
-        }
+        let second = self.p.prove_ul_response(r.clone(), rpState.com2.clone(), &rpState.ps2, ch.clone(), k, otherM.clone());
         RangeProof { p1: first, p2: second }
     }
 
@@ -416,26 +402,17 @@ impl<E: Engine> RPPublicParams<E> {
     */
     pub fn verify(&self, proof: RangeProof<E>, ch: E::Fr, k: usize) -> bool {
         let first = self.p.verify_ul(&proof.p1, ch.clone(), k);
-        let mut second = true;
-        if proof.p2.is_some() {
-            second = self.p.verify_ul(&proof.p2.unwrap(), ch.clone(), k);
-        }
-        first && second
+        let second = self.p.verify_ul(&proof.p2, ch.clone(), k);
+        first & &second
     }
 
     pub fn compute_challenge(&self, proof: &RangeProof<E>) -> E::Fr {
         let mut a = Vec::<E::Fqk>::with_capacity(self.p.l as usize);
         for i in 0..proof.p1.sigProofs.len() {
             a.push(proof.p1.sigProofs[i].a);
-            if proof.p2.is_some() {
-                a.push(proof.p2.clone().unwrap().sigProofs[i].a);
-            }
+            a.push(proof.p2.sigProofs[i].a);
         }
-
-        match proof.p2.is_some() {
-            true => hash::<E>(a.clone(), vec!(proof.p1.D.clone(), proof.p2.clone().unwrap().D)),
-            false => hash::<E>(a, vec!(proof.p1.D.clone()))
-        }
+        hash::<E>(a, vec!(proof.p1.D.clone(), proof.p2.D.clone()))
     }
 }
 
@@ -470,7 +447,7 @@ mod tests {
         let fr = Fr::rand(rng);
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
-        let proof = params.prove_ul(rng, 10, fr, C, 1, vec! {});
+        let proof = params.prove_ul(rng, 10, fr, C, 1, vec!{});
         assert_eq!(proof.V.len(), 4);
         assert_eq!(proof.sigProofs.len(), 4);
     }
@@ -484,7 +461,7 @@ mod tests {
         let fr = Fr::rand(rng);
         let modx = Fr::from_str(&(100.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
-        params.prove_ul(rng, 100, fr, C, 1, vec! {});
+        params.prove_ul(rng, 100, fr, C, 1, vec!{});
     }
 
     #[test]
@@ -495,7 +472,7 @@ mod tests {
         let fr = Fr::rand(rng);
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
-        let proof = params.prove_ul(rng, 10, fr, C, 1, vec! {});
+        let proof = params.prove_ul(rng, 10, fr, C, 1, vec!{});
         let ch = params.compute_challenge(&proof);
         assert_eq!(params.verify_part1(&proof, ch, 1), true);
     }
@@ -508,7 +485,7 @@ mod tests {
         let fr = Fr::rand(rng);
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
-        let proof = params.prove_ul(rng, 10, fr, C, 1, vec! {});
+        let proof = params.prove_ul(rng, 10, fr, C, 1, vec!{});
         let ch = params.compute_challenge(&proof);
         assert_eq!(params.verify_part2(&proof, ch), true);
     }
@@ -521,7 +498,7 @@ mod tests {
         let fr = Fr::rand(rng);
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
-        let proof = params.prove_ul(rng, 10, fr, C, 1, vec! {});
+        let proof = params.prove_ul(rng, 10, fr, C, 1, vec!{});
         let ch = params.compute_challenge(&proof);
         assert_eq!(params.verify_ul(&proof, ch, 1), true);
     }
@@ -536,7 +513,7 @@ mod tests {
         let fr1 = Fr::rand(rng);
         let fr2 = Fr::rand(rng);
         let C = csParams.commit(&vec!(fr1, modx, fr2), &fr.clone());
-        let proof = params.prove_ul(rng, 10, fr, C, 2, vec! {fr1, fr2});
+        let proof = params.prove_ul(rng, 10, fr, C, 2, vec!{fr1, fr2});
         let ch = params.compute_challenge(&proof);
         assert_eq!(params.verify_ul(&proof, ch, 2), true);
     }
@@ -549,7 +526,7 @@ mod tests {
         let fr = Fr::rand(rng);
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
-        let proof = params.prove(rng, 10, C, fr, 1, vec! {});
+        let proof = params.prove(rng, 10, C, fr, 1, vec!{});
         let ch = params.compute_challenge(&proof);
 
         assert_eq!(params.verify(proof, ch, 1), true);
@@ -565,7 +542,7 @@ mod tests {
         let fr1 = Fr::rand(rng);
         let fr2 = Fr::rand(rng);
         let C = csParams.commit(&vec!(fr1, modx, fr2), &fr.clone());
-        let proof = params.prove(rng, 10, C, fr, 2, vec! {fr1, fr2});
+        let proof = params.prove(rng, 10, C, fr, 2, vec!{fr1, fr2});
         let ch = params.compute_challenge(&proof);
 
         assert_eq!(params.verify(proof, ch, 2), true);
@@ -580,7 +557,7 @@ mod tests {
         let fr = Fr::rand(rng);
         let modx = Fr::from_str(&(26.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
-        params.prove(rng, 26, C, fr, 1, vec! {});
+        params.prove(rng, 26, C, fr, 1, vec!{});
     }
 
     #[test]
@@ -608,7 +585,7 @@ mod tests {
             let fr = Fr::rand(rng);
             let modx = Fr::from_str(&(x.to_string())).unwrap();
             let C = csParams.commit(&vec!(modx), &fr.clone());
-            let proof = params.prove(rng, x, C, fr, 1, vec! {});
+            let proof = params.prove(rng, x, C, fr, 1, vec!{});
             averageProve = averageProve.add(sProve.to(PreciseTime::now()));
             averageProofSize += mem::size_of_val(&proof);
 

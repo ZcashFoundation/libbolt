@@ -100,10 +100,7 @@ impl<E: Engine> NIZKPublicParams<E> {
         let rpStateBM = self.rpParamsBM.prove_commitment(rng, newWallet.bm.clone(), newWalletCom.clone(), 4, None, None);
 
         //Compute challenge
-        let challenge = match rpStateBC.ps2.is_some() && rpStateBM.ps2.is_some() {
-            true => NIZKPublicParams::<E>::hash(proofState.a, vec! {D, rpStateBC.ps1.D, rpStateBC.ps2.clone().unwrap().D, rpStateBM.ps1.D, rpStateBM.ps2.clone().unwrap().D}),
-            false => NIZKPublicParams::<E>::hash(proofState.a, vec! {D, rpStateBC.ps1.D, rpStateBM.ps1.D})
-        };
+        let challenge = NIZKPublicParams::<E>::hash(proofState.a, vec! {D, rpStateBC.ps1.D, rpStateBC.ps2.D, rpStateBM.ps1.D, rpStateBM.ps2.D});
 
         //Response phase
         //response for signature
@@ -144,10 +141,7 @@ impl<E: Engine> NIZKPublicParams<E> {
         let r0 = proof.sig.h != E::G1::one();
 
         //compute challenge
-        let challenge = match proof.rpBC.p2.is_some() && proof.rpBM.p2.is_some() {
-            true => NIZKPublicParams::<E>::hash(proof.sigProof.a.clone(), vec! {proof.comProof.T, proof.rpBC.p1.D, proof.rpBC.p2.clone().unwrap().D, proof.rpBM.p1.D, proof.rpBM.p2.clone().unwrap().D}),
-            false => NIZKPublicParams::<E>::hash(proof.sigProof.a.clone(), vec! {proof.comProof.T, proof.rpBC.p1.D, proof.rpBM.p1.D})
-        };
+        let challenge = NIZKPublicParams::<E>::hash(proof.sigProof.a, vec! {proof.comProof.T, proof.rpBC.p1.D, proof.rpBC.p2.D, proof.rpBM.p1.D, proof.rpBM.p2.D});
 
         //verify knowledge of signature
         let mut r1 = self.keypair.public.verify_proof(&self.mpk, proof.sig, proof.sigProof.clone(), challenge);
