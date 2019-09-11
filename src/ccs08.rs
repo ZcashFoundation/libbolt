@@ -22,7 +22,7 @@ This must be computed in a trusted setup.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, <E as pairing::Engine>::G1: serde::Serialize, <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
-struct ParamsUL<E: Engine> {
+pub struct ParamsUL<E: Engine> {
     pub mpk: PublicParams<E>,
     pub signatures: HashMap<String, Signature<E>>,
     pub csParams: CSMultiParams<E>,
@@ -44,9 +44,9 @@ This must be computed in a trusted setup.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, <E as pairing::Engine>::G1: serde::Serialize, <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
-struct SecretParamsUL<E: Engine> {
+pub struct SecretParamsUL<E: Engine> {
     pub pubParams: ParamsUL<E>,
-    kp: BlindKeyPair<E>,
+    pub kp: BlindKeyPair<E>,
 }
 
 #[derive(Clone)]
@@ -117,9 +117,9 @@ This must be computed in a trusted setup.
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, <E as pairing::Engine>::G1: serde::Serialize, <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct RPPublicParams<E: Engine> {
-    p: ParamsUL<E>,
-    a: i32,
-    b: i32,
+    pub p: ParamsUL<E>,
+    pub a: i32,
+    pub b: i32,
 }
 
 /**
@@ -131,7 +131,7 @@ This must be computed in a trusted setup.
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct RPSecretParams<E: Engine> {
     pub pubParams: RPPublicParams<E>,
-    p: SecretParamsUL<E>,
+    pub p: SecretParamsUL<E>,
 }
 
 impl<E: Engine> SecretParamsUL<E> {
