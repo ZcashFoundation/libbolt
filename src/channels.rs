@@ -551,9 +551,6 @@ impl<E: Engine> MerchantState<E> {
     }
 
     pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, cust_balance: i32, merch_balance: i32) -> ResultBoltType<(Signature<E>, Signature<E>)> {
-        if (merch_balance != self.init_balance) {
-            return Err(BoltError::new("verify_proof - initial balance of merchant inconsistent with specified balance"));
-        }
         let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, cust_balance, merch_balance);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {

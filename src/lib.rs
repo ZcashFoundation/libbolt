@@ -682,7 +682,7 @@ mod tests {
         let fee = 5;
         channel_state.set_channel_fee(fee);
 
-        let (mut channel_token, mut merch_state, mut cust_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
