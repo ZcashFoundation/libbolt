@@ -50,16 +50,12 @@ fn main() {
     let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
     let mut rng = &mut rand::thread_rng();
 
-    channel_state.setup(&mut rng); // or load_setup params
-
     let b0_customer = 150;
     let b0_merchant = 10;
     let pay_inc = 20;
     let pay_inc2 = 10;
 
-    let (mut channel_token, mut merch_state) = bidirectional::init_merchant(rng, &mut channel_state, "Merchant Bob");
-    // initialize the balance for merch_state
-    merch_state.init_balance(b0_merchant);
+    let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Merchant Bob");
 
     let mut cust_state = bidirectional::init_customer(rng, &mut channel_state, &mut channel_token, b0_customer, b0_merchant, "Alice");
 

@@ -95,7 +95,6 @@ pub mod ffishim {
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(name.to_string(), tps);
         let mut rng = &mut rand::thread_rng();
 
-        channel_state.setup(&mut rng);
         let ser = ["{\'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -112,9 +111,7 @@ pub mod ffishim {
 	    let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
 	    let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
-        let (channel_token, mut merch_state) = bidirectional::init_merchant(rng, &mut channel_state, name);
-        // initialize the balance for merch_state
-        merch_state.init_balance(balance);
+        let (channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, name);
 
         let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
 
