@@ -31,13 +31,13 @@ type setupResp struct {
 }
 
 type MerchState struct {
-	KeyPair     KeyPair     `json:"keypair"`
-	InitBalance int         `json:"init_balance"`
-	Pk          string      `json:"pk"`
-	Sk          string      `json:"sk"`
-	ComParams   ComParams   `json:"comParams"`
-	Keys        interface{} `json:"keys"`
-	PayTokens   interface{} `json:"pay_tokens"`
+	KeyPair    KeyPair     `json:"keypair"`
+	NizkParams interface{} `json:"nizkParams"`
+	Pk         string      `json:"pk"`
+	Sk         string      `json:"sk"`
+	ComParams  ComParams   `json:"comParams"`
+	Keys       interface{} `json:"keys"`
+	PayTokens  interface{} `json:"pay_tokens"`
 }
 
 type CustState struct {
@@ -151,20 +151,20 @@ func BidirectionalChannelSetup(name string, channelSupport bool) (string, error)
 	return r.ChannelState, nil
 }
 
-func BidirectionalInitMerchant(channelState string, balanceMerchant int, nameMerchant string) (ChannelToken, MerchState, error) {
+func BidirectionalInitMerchant(channelState string, balanceMerchant int, nameMerchant string) (ChannelToken, MerchState, string, error) {
 	resp := C.GoString(C.ffishim_bidirectional_init_merchant(C.CString(channelState), C.int(balanceMerchant), C.CString(nameMerchant)))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return ChannelToken{}, MerchState{}, err
+		return ChannelToken{}, MerchState{}, "", err
 	}
 	merchState := MerchState{}
 	err = json.Unmarshal([]byte(r.MerchState), &merchState)
 	if err != nil {
-		return ChannelToken{}, MerchState{}, err
+		return ChannelToken{}, MerchState{}, "", err
 	}
 	channelToken := ChannelToken{}
 	err = json.Unmarshal([]byte(r.ChannelToken), &channelToken)
-	return channelToken, merchState, err
+	return channelToken, merchState, r.ChannelState, err
 }
 
 func BidirectionalInitCustomer(channelState string, channelToken ChannelToken, balanceCustomer int, balanceMerchant int, nameCustomer string) (ChannelToken, CustState, error) {
