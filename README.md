@@ -99,7 +99,7 @@ To initialize state/keys for both parties, call the ``bidirectional::init_mercha
 	let b0_cust = 100;
 
 	// initialize the merchant state and initialize with balance
-    let (mut channel_token, mut merch_state) = bidirectional::init_merchant(rng, &mut channel_state, "Bob");
+    let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Bob");
 	
     // initialize the balance for merch_state
     merch_state.init_balance(b0_merch);
