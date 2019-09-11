@@ -19,7 +19,7 @@ func setup(b0Cust int, b0Merch int) (string, ChannelToken, MerchState, CustState
 	if err != nil {
 		return "", ChannelToken{}, MerchState{}, CustState{}, err
 	}
-	channelToken, merchState, err := BidirectionalInitMerchant(channelState, b0Merch, "Bob")
+	channelToken, merchState, channelState, err := BidirectionalInitMerchant(channelState, b0Merch, "Bob")
 	if err != nil {
 		return "", ChannelToken{}, MerchState{}, CustState{}, err
 	}

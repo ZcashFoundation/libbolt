@@ -28,7 +28,7 @@ class BoltEstablishTests(unittest.TestCase):
         self.channel_state = self.bolt.channel_setup("Test Channel")
         self.b0_cust = 1000
         self.b0_merch = 100
-        (self.channel_token, self.merch_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
+        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
         (channel_token, self.cust_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
                                                                                  self.b0_cust, self.b0_merch, "Alice")
 
@@ -148,7 +148,7 @@ class BoltPayTests(unittest.TestCase):
         self.channel_state = self.bolt.channel_setup("Test Channel")
         self.b0_cust = 500
         self.b0_merch = 10
-        (self.channel_token, self.merch_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
+        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
         (self.channel_token, self.cust_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
                                                                                       self.b0_cust, self.b0_merch, "Alice")
 
@@ -254,7 +254,7 @@ class BoltMultiChannelTests(unittest.TestCase):
         self.channel_state = self.bolt.channel_setup("Test Channel")
         self.b0_alice = self.b0_charlie = 150
         self.b0_merch = 5
-        (self.channel_token, self.merch_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
+        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
 
         (self.channel_token_a, self.alice_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
                                                                                       self.b0_alice, self.b0_merch, "Alice")
@@ -282,7 +282,7 @@ class BoltMultiChannelTests(unittest.TestCase):
     def test_multiple_channels_work(self):
         """Establishing concurrent channels with a merchant works as expected
         """
-        channel_token_a, alice_cust_state = self._establish_channel(self.channel_token, self.alice_state, self.b0_alice, self.merch_state)
+        channel_token_a, alice_cust_state = self._establish_channel(self.channel_token, self.alice_state, self.b0_alice, self.b0_merch)
 
 
 class BoltIntermediaryTests(unittest.TestCase):

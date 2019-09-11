@@ -11,7 +11,7 @@ extern crate rand;
 
 use super::*;
 use pairing::{Engine, CurveProjective};
-use pairing::bls12_381::{Bls12};
+use pairing::bls12_381::Bls12;
 use ff::PrimeField;
 use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
 use ped92::{CSParams, Commitment, CSMultiParams, CommitmentProof};
@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use serde::{Serialize, Deserialize};
 use std::ptr::hash;
-use nizk::{NIZKPublicParams, NIZKProof};
+use nizk::{NIZKPublicParams, NIZKSecretParams, NIZKProof};
 use wallet::Wallet;
 use std::error::Error;
 use std::fmt;
@@ -34,13 +34,13 @@ pub type ResultBoltType<E> = Result<E, BoltError>;
 
 impl BoltError {
     fn new(msg: &str) -> BoltError {
-        BoltError{details: msg.to_string()}
+        BoltError { details: msg.to_string() }
     }
 }
 
 impl fmt::Display for BoltError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,"{}",self.details)
+        write!(f, "{}", self.details)
     }
 }
 
@@ -54,7 +54,7 @@ impl Error for BoltError {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PubKeyMap {
     pub wpk: secp256k1::PublicKey,
-    pub revoke_token: Option<secp256k1::Signature>
+    pub revoke_token: Option<secp256k1::Signature>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -68,8 +68,9 @@ pub struct PubKeyMap {
 ))]
 pub struct ChannelParams<E: Engine> {
     pub pub_params: NIZKPublicParams<E>,
-    l: usize, // messages for commitment
-    extra_verify: bool // extra verification for certain points in the establish/pay protocol
+    l: usize,
+    // messages for commitment
+    extra_verify: bool, // extra verification for certain points in the establish/pay protocol
 }
 
 
@@ -89,7 +90,7 @@ pub struct ChannelState<E: Engine> {
     pub name: String,
     pub pay_init: bool,
     pub channel_established: bool,
-    pub third_party: bool
+    pub third_party: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -102,10 +103,14 @@ pub struct ChannelState<E: Engine> {
 <E as pairing::Engine>::G2: serde::Deserialize<'de>"
 ))]
 pub struct ChannelToken<E: Engine> {
-    pub pk_c: Option<secp256k1::PublicKey>, // pk_c
-    pub pk_m: secp256k1::PublicKey, // pk_m
-    pub cl_pk_m: cl::PublicKey<E>, // PK_m (used for verifying blind signatures)
-    pub mpk: cl::PublicParams<E>, // mpk for PK_m
+    pub pk_c: Option<secp256k1::PublicKey>,
+    // pk_c
+    pub pk_m: secp256k1::PublicKey,
+    // pk_m
+    pub cl_pk_m: cl::PublicKey<E>,
+    // PK_m (used for verifying blind signatures)
+    pub mpk: cl::PublicParams<E>,
+    // mpk for PK_m
     pub comParams: CSMultiParams<E>,
 }
 
@@ -119,9 +124,9 @@ impl<E: Engine> ChannelToken<E> {
     }
 
     pub fn compute_id(&self) -> [u8; 32]
-         where <E as pairing::Engine>::G1: serde::Serialize,
-               <E as pairing::Engine>::G2: serde::Serialize,
-               <E as ff::ScalarEngine>::Fr: serde::Serialize
+        where <E as pairing::Engine>::G1: serde::Serialize,
+              <E as pairing::Engine>::G2: serde::Serialize,
+              <E as ff::ScalarEngine>::Fr: serde::Serialize
     {
         let mut input = Vec::new();
 
@@ -140,7 +145,6 @@ impl<E: Engine> ChannelToken<E> {
 
         return hash_to_slice(&input);
     }
-
 }
 // add methods to check if channel token is initialized
 // (only if
@@ -149,7 +153,6 @@ impl<E: Engine> ChannelToken<E> {
 /// Channel state for generating/loading channel parameters and generating keypairs
 ///
 impl<E: Engine> ChannelState<E> {
-
     pub fn new(name: String, third_party_support: bool) -> ChannelState<E> {
         ChannelState {
             R: 0,
@@ -158,23 +161,12 @@ impl<E: Engine> ChannelState<E> {
             name: name.to_string(),
             pay_init: false,
             channel_established: false,
-            third_party: third_party_support
+            third_party: third_party_support,
         }
     }
 
     pub fn init() {
         sodiumoxide::init();
-    }
-
-    ///
-    /// setup - generate public parameters for bidirectional payment channels
-    ///
-    pub fn setup<R: Rng>(&mut self, csprng: &mut R) {
-        let l = 5;
-        let pubParams = NIZKPublicParams::<E>::setup(csprng, l);
-
-        let cp = ChannelParams { pub_params: pubParams, l: l, extra_verify: true };
-        self.cp = Some(cp);
     }
 
     ///
@@ -203,7 +195,7 @@ impl<E: Engine> ChannelState<E> {
 #[derive(Copy, Clone, Serialize, Deserialize)]
 struct WalletKeyPair {
     pub wpk: secp256k1::PublicKey,
-    pub wsk: secp256k1::SecretKey
+    pub wsk: secp256k1::SecretKey,
 }
 
 ///
@@ -222,17 +214,23 @@ pub struct CustomerState<E: Engine> {
     pub name: String,
     pub pk_c: secp256k1::PublicKey,
     sk_c: secp256k1::SecretKey,
-    pub cust_balance: i32, //
+    pub cust_balance: i32,
+    //
     pub merch_balance: i32,
-    pub wpk: secp256k1::PublicKey, // keypair bound to the wallet
+    pub wpk: secp256k1::PublicKey,
+    // keypair bound to the wallet
     wsk: secp256k1::SecretKey,
-    old_kp: Option<WalletKeyPair>, // old wallet key pair
-    t: E::Fr, // randomness used to form the commitment
-    wallet: Wallet<E>, // vector of field elements that represent wallet
-    pub w_com: Commitment<E>, // commitment to the current state of the wallet
+    old_kp: Option<WalletKeyPair>,
+    // old wallet key pair
+    t: E::Fr,
+    // randomness used to form the commitment
+    wallet: Wallet<E>,
+    // vector of field elements that represent wallet
+    pub w_com: Commitment<E>,
+    // commitment to the current state of the wallet
     index: i32,
     close_tokens: HashMap<i32, Signature<E>>,
-    pay_tokens: HashMap<i32, Signature<E>>
+    pay_tokens: HashMap<i32, Signature<E>>,
 }
 
 impl<E: Engine> CustomerState<E> {
@@ -251,7 +249,7 @@ impl<E: Engine> CustomerState<E> {
         // randomness for commitment
         let t = E::Fr::rand(csprng);
         // initialize wallet vector
-        let wallet = Wallet {  pkc: pk_h, wpk: wpk_h, bc: cust_bal, bm: merch_bal, close: None };
+        let wallet = Wallet { pkc: pk_h, wpk: wpk_h, bc: cust_bal, bm: merch_bal, close: None };
 
         let w_com = channel_token.comParams.commit(&wallet.as_fr_vec(), &t);
 
@@ -259,8 +257,8 @@ impl<E: Engine> CustomerState<E> {
 
         assert!(channel_token.is_init());
 
-        let ct_db= HashMap::new();
-        let pt_db= HashMap::new();
+        let ct_db = HashMap::new();
+        let pt_db = HashMap::new();
 
         return CustomerState {
             name: name,
@@ -276,8 +274,8 @@ impl<E: Engine> CustomerState<E> {
             wallet: wallet,
             index: 0,
             close_tokens: ct_db,
-            pay_tokens: pt_db
-        }
+            pay_tokens: pt_db,
+        };
     }
 
     pub fn get_wallet(&self) -> Wallet<E> {
@@ -304,21 +302,21 @@ impl<E: Engine> CustomerState<E> {
         let mpk = cp.pub_params.mpk.clone();
         //println!("verify_close_token - Wallet: {}", &self.wallet);
 
-        let is_close_valid = cp.pub_params.keypair.verify(&mpk, &close_wallet, &self.t, &close_token);
+        let is_close_valid = cp.pub_params.pk.verify_blind(&mpk, &close_wallet, &self.t, &close_token);
         if is_close_valid {
             //println!("verify_close_token - Blinded close token is valid!!");
-            let pk = cp.pub_params.keypair.get_public_key(&mpk);
-            let unblind_close_token = cp.pub_params.keypair.unblind(&self.t, &close_token);
+            let unblind_close_token = cp.pub_params.pk.unblind(&self.t, &close_token);
+            let pk = cp.pub_params.pk.get_pub_key();
             let is_valid = pk.verify(&mpk, &close_wallet, &unblind_close_token);
             if is_valid {
                 // record the unblinded close token
-                self.close_tokens.insert( self.index, unblind_close_token);
+                self.close_tokens.insert(self.index, unblind_close_token);
             }
             return is_valid;
         }
 
         //println!("Customer - Verification failed for close token!");
-        return false;
+        return is_close_valid;
     }
 
     pub fn verify_pay_token(&mut self, channel: &ChannelState<E>, pay_token: &Signature<E>) -> bool {
@@ -329,11 +327,11 @@ impl<E: Engine> CustomerState<E> {
         let wallet = self.wallet.without_close();
         //println!("verify_pay_token - Wallet: {}", &self.wallet);
 
-        let is_pay_valid = cp.pub_params.keypair.verify(&mpk, &wallet, &self.t, &pay_token);
+        let is_pay_valid = cp.pub_params.pk.verify_blind(&mpk, &wallet, &self.t, &pay_token);
         if is_pay_valid {
             //println!("verify_pay_token - Blinded pay token is valid!!");
-            let unblind_pay_token = cp.pub_params.keypair.unblind(&self.t, &pay_token);
-            let pk = cp.pub_params.keypair.get_public_key(&mpk);
+            let unblind_pay_token = cp.pub_params.pk.unblind(&self.t, &pay_token);
+            let pk = cp.pub_params.pk.get_pub_key();
             let is_valid = pk.verify(&mpk, &wallet, &unblind_pay_token);
             if is_valid {
                 self.pay_tokens.insert(self.index, unblind_pay_token);
@@ -342,7 +340,7 @@ impl<E: Engine> CustomerState<E> {
         }
 
         //println!("Customer - Verification failed for pay token!");
-        return false;
+        return is_pay_valid;
     }
 
     pub fn has_tokens(&self) -> bool {
@@ -361,13 +359,13 @@ impl<E: Engine> CustomerState<E> {
         let wpk_h = hash_pubkey_to_fr::<E>(&new_wpk);
 
         // 2 - form new wallet and commitment
-        let new_cust_bal= self.cust_balance - amount;
+        let new_cust_bal = self.cust_balance - amount;
         let new_merch_bal = self.merch_balance + amount;
         let new_t = E::Fr::rand(csprng);
 
         let cp = channel.cp.as_ref().unwrap();
         let old_wallet = Wallet { pkc: self.wallet.pkc.clone(), wpk: self.wallet.wpk.clone(), bc: self.cust_balance, bm: self.merch_balance, close: None };
-        let new_wallet = Wallet {  pkc: self.wallet.pkc.clone(), wpk: wpk_h, bc: new_cust_bal, bm: new_merch_bal, close: Some(self.wallet.close.unwrap()) };
+        let new_wallet = Wallet { pkc: self.wallet.pkc.clone(), wpk: wpk_h, bc: new_cust_bal, bm: new_merch_bal, close: Some(self.wallet.close.unwrap()) };
         let new_wcom = cp.pub_params.comParams.commit(&new_wallet.as_fr_vec(), &new_t);
 
         // 3 - generate new blinded and randomized pay token
@@ -376,7 +374,7 @@ impl<E: Engine> CustomerState<E> {
         //println!("Found prev pay token: {}", prev_pay_token);
 
         let pay_proof = cp.pub_params.prove(csprng, old_wallet, new_wallet.clone(),
-                          new_wcom.clone(), new_t, &prev_pay_token);
+                                            new_wcom.clone(), new_t, &prev_pay_token);
 
         // update internal state after proof has been verified by remote
         let new_cw = CustomerState {
@@ -393,7 +391,7 @@ impl<E: Engine> CustomerState<E> {
             wallet: new_wallet.clone(),
             index: self.index, // increment index here
             close_tokens: self.close_tokens.clone(),
-            pay_tokens: self.pay_tokens.clone()
+            pay_tokens: self.pay_tokens.clone(),
         };
 
         return (pay_proof, new_wcom, self.wpk, new_cw);
@@ -433,7 +431,6 @@ impl<E: Engine> CustomerState<E> {
 
         Err(BoltError::new("generate_revoke_token - could not verify the close token."))
     }
-
 }
 
 impl<E: Engine> fmt::Display for CustomerState<E> {
@@ -468,7 +465,7 @@ impl<E: Engine> fmt::Display for CustomerState<E> {
 pub struct ChannelcloseM {
     pub address: String,
     pub revoke: Option<secp256k1::Signature>,
-    pub signature: secp256k1::Signature
+    pub signature: secp256k1::Signature,
 }
 
 ///
@@ -485,55 +482,55 @@ pub struct ChannelcloseM {
 ))]
 pub struct MerchantState<E: Engine> {
     keypair: cl::BlindKeyPair<E>,
-    pub init_balance: i32,
-    pk: secp256k1::PublicKey, // pk_m
-    sk: secp256k1::SecretKey, // sk_m
+    nizkParams: NIZKSecretParams<E>,
+    pk: secp256k1::PublicKey,
+    // pk_m
+    sk: secp256k1::SecretKey,
+    // sk_m
     comParams: CSMultiParams<E>,
     pub keys: HashMap<String, PubKeyMap>,
-    pub pay_tokens: HashMap<String, cl::Signature<E>>
+    pub pay_tokens: HashMap<String, cl::Signature<E>>,
 }
 
 impl<E: Engine> MerchantState<E> {
-    pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelState<E>, id: String) -> Self {
+    pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelState<E>, id: String) -> (Self, ChannelState<E>) {
+        let l = 5;
         // generate keys here
         let mut tx_kp = secp256k1::Secp256k1::new();
         tx_kp.randomize(csprng);
         let (wsk, wpk) = tx_kp.generate_keypair(csprng);
-        let cp = channel.cp.as_ref().unwrap(); // if not set, then panic!
+        let mut ch = channel.clone();
+        let nizkParams = NIZKSecretParams::<E>::setup(csprng, l);
+        ch.cp = Some(ChannelParams::<E> { pub_params: nizkParams.pubParams.clone(), l, extra_verify: true });
 
-        MerchantState {
-            keypair: cp.pub_params.keypair.clone(),
-            init_balance: 0,
+        (MerchantState {
+            keypair: nizkParams.keypair.clone(),
+            nizkParams: nizkParams.clone(),
             pk: wpk,
             sk: wsk,
-            comParams: cp.pub_params.comParams.clone(),
+            comParams: nizkParams.pubParams.comParams.clone(),
             keys: HashMap::new(), // store wpks/revoke_tokens
-            pay_tokens: HashMap::new()
-        }
+            pay_tokens: HashMap::new(),
+        }, ch)
     }
 
     pub fn init<R: Rng>(&mut self, csprng: &mut R, channel: &mut ChannelState<E>) -> ChannelToken<E> {
         let cp = channel.cp.as_ref().unwrap(); // if not set, then panic!
         let mpk = cp.pub_params.mpk.clone();
-        let cl_pk = cp.pub_params.keypair.get_public_key(&mpk);
+        let cl_pk = self.keypair.get_public_key(&mpk);
 
         return ChannelToken {
             pk_c: None,
             cl_pk_m: cl_pk.clone(), // extract the regular public key
             pk_m: self.pk.clone(),
             mpk: mpk,
-            comParams: self.comParams.clone()
-        }
-    }
-
-    pub fn init_balance(&mut self, balance: i32) {
-        // set by the escrow/funding transactionf for the channel
-        self.init_balance = balance;
+            comParams: self.comParams.clone(),
+        };
     }
 
     pub fn issue_close_token<R: Rng>(&self, csprng: &mut R, cp: &ChannelParams<E>, com: &Commitment<E>, extend_close: bool) -> Signature<E> {
         //println!("issue_close_token => generating token");
-        let x = hash_to_fr::<E>(String::from("close").into_bytes() );
+        let x = hash_to_fr::<E>(String::from("close").into_bytes());
         let close_com = match extend_close {
             true => self.comParams.extend_commit(com, &x),
             false => com.clone()
@@ -544,7 +541,7 @@ impl<E: Engine> MerchantState<E> {
 
     pub fn issue_pay_token<R: Rng>(&self, csprng: &mut R, cp: &ChannelParams<E>, com: &Commitment<E>, remove_close: bool) -> Signature<E> {
         //println!("issue_pay_token => generating token");
-        let x = hash_to_fr::<E>(String::from("close").into_bytes() );
+        let x = hash_to_fr::<E>(String::from("close").into_bytes());
         let pay_com = match remove_close {
             true => self.comParams.remove_commit(com, &x),
             false => com.clone()
@@ -554,9 +551,6 @@ impl<E: Engine> MerchantState<E> {
     }
 
     pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, cust_balance: i32, merch_balance: i32) -> ResultBoltType<(Signature<E>, Signature<E>)> {
-        if (merch_balance != self.init_balance) {
-            return Err(BoltError::new("verify_proof - initial balance of merchant inconsistent with specified balance"));
-        }
         let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, cust_balance, merch_balance);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
@@ -584,7 +578,7 @@ impl<E: Engine> MerchantState<E> {
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);
         let epsilon = util::convert_int_to_fr::<E>(amount);
 
-        if cp.pub_params.verify(pay_proof, epsilon, com, prev_wpk) {
+        if self.nizkParams.verify(pay_proof, epsilon, com, prev_wpk) {
             // 1 - proceed with generating close and pay token
             let close_token = self.issue_close_token(csprng, cp, com, false);
             let pay_token = self.issue_pay_token(csprng, cp, com, true);
@@ -613,11 +607,10 @@ impl<E: Engine> MerchantState<E> {
             let r = revoke_token.unwrap().serialize_der().to_vec();
             msg.extend(r);
         }
-        let msg2 = secp256k1::Message::from_slice(&hash_to_slice(&msg) ).unwrap();
+        let msg2 = secp256k1::Message::from_slice(&hash_to_slice(&msg)).unwrap();
         let merch_sig = secp.sign(&msg2, &self.sk);
         return ChannelcloseM { address: address.clone(), revoke: revoke_token.clone(), signature: merch_sig };
     }
-
 }
 
 #[cfg(test)]
@@ -625,8 +618,8 @@ mod tests {
     use super::*;
 
     use ff::Rand;
-    use pairing::bls12_381::{Bls12};
-    use rand::{SeedableRng};
+    use pairing::bls12_381::Bls12;
+    use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
 
     #[test]
@@ -634,16 +627,12 @@ mod tests {
         let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
         let mut rng = &mut rand::thread_rng();
 
-        // run setup to generate the public parameters
-        channel.setup(&mut rng); // or load_setup params
-
         let b0_cust = 100;
         let b0_merch = 20;
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let mut merch_state = MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
-        merch_state.init_balance(b0_merch);
+        let (mut merch_state, mut channel) = MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
         let mut channel_token = merch_state.init(rng, &mut channel);
