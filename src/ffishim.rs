@@ -113,7 +113,7 @@ pub mod ffishim {
 
         let (channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, name);
 
-        let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
+        let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str() ,"\'}"].concat();
 
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
