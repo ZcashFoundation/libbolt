@@ -24,9 +24,6 @@ serde_with = "1.0"
 serde_bytes = "0.11.2"
 time = "*"
 secp256k1 = { version = "0.15.0", features = ["rand", "serde"] }
-curve25519-dalek = { version = "1", features = ["serde"] }
-merlin = "1.0.0"
-bulletproofs = { git = "https://github.com/dalek-cryptography/bulletproofs", tag = "1.0.2" }
 sha2 = { version = "0.8", default-features = false }
 
 [dev-dependencies.bincode]

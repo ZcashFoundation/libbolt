@@ -27,9 +27,6 @@ extern crate bincode;
 extern crate sodiumoxide;
 extern crate secp256k1;
 extern crate time;
-extern crate merlin;
-extern crate bulletproofs;
-extern crate curve25519_dalek;
 extern crate sha2;
 
 extern crate serde;
@@ -49,10 +46,6 @@ use sodiumoxide::randombytes;
 use sodiumoxide::crypto::hash::sha512;
 use sha2::Sha512;
 use std::collections::HashMap;
-use curve25519_dalek::digest::*;
-use curve25519_dalek::scalar::Scalar;
-use merlin::Transcript;
-use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use ff::{Rand, Field};
 
 use serde::{Serialize, Deserialize};
