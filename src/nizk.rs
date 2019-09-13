@@ -7,7 +7,7 @@ use cl::{Signature, PublicParams, setup, BlindKeyPair, SignatureProof, PublicKey
 use ped92::{Commitment, CSMultiParams, CommitmentProof};
 use pairing::{Engine, CurveProjective};
 use wallet::Wallet;
-use ccs08::{RPPublicParams, RPSecretParams, RangeProof};
+use ccs08::{SecretParamsUL, ParamsUL, ProofUL};
 use serde::{Serialize, Deserialize};
 use util;
 use std::borrow::BorrowMut;
@@ -28,8 +28,8 @@ pub struct NIZKProof<E: Engine> {
     pub sig: Signature<E>,
     pub sigProof: SignatureProof<E>,
     pub comProof: CommitmentProof<E>,
-    pub rpBC: RangeProof<E>,
-    pub rpBM: RangeProof<E>,
+    pub rpBC: ProofUL<E>,
+    pub rpBM: ProofUL<E>,
 }
 
 /// NIZKPublicParams are public parameters to perform a NIZK Proof of Knowledge during the payment and closing protocol
@@ -46,8 +46,7 @@ pub struct NIZKPublicParams<E: Engine> {
     pub mpk: PublicParams<E>,
     pub pk: BlindPublicKey<E>,
     pub comParams: CSMultiParams<E>,
-    pub rpParamsBC: RPPublicParams<E>,
-    pub rpParamsBM: RPPublicParams<E>,
+    pub rpParams: ParamsUL<E>,
 }
 
 /// NIZKSecretParams are secret parameters to perform the verification of a NIZK Proof of Knowledge during the payment and closing protocol
@@ -63,8 +62,7 @@ pub struct NIZKPublicParams<E: Engine> {
 pub struct NIZKSecretParams<E: Engine> {
     pub pubParams: NIZKPublicParams<E>,
     pub keypair: BlindKeyPair<E>,
-    pub rpParamsBC: RPSecretParams<E>,
-    pub rpParamsBM: RPSecretParams<E>,
+    pub rpParams: SecretParamsUL<E>,
 }
 
 impl<E: Engine> NIZKSecretParams<E> {
@@ -74,11 +72,12 @@ impl<E: Engine> NIZKSecretParams<E> {
         let mpk = setup(rng);
         let keypair = BlindKeyPair::<E>::generate(rng, &mpk, messageLength);
         let comParams = keypair.generate_cs_multi_params(&mpk);
-        let rpParamsBC = RPSecretParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
-        let rpParamsBM = RPSecretParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
-        let pubParams = NIZKPublicParams { mpk, pk: keypair.public.clone(), comParams, rpParamsBC: rpParamsBC.pubParams.clone(), rpParamsBM: rpParamsBM.pubParams.clone() };
+        let u = 57; //TODO: optimize u?
+        let l = (std::i16::MAX as f32).log(u as f32).floor() as i32;
+        let rpParams = SecretParamsUL::setup_ul(rng, u, l, comParams.clone());
+        let pubParams = NIZKPublicParams { mpk, pk: keypair.public.clone(), comParams, rpParams: rpParams.pubParams.clone() };
 
-        NIZKSecretParams{pubParams, keypair, rpParamsBC, rpParamsBM}
+        NIZKSecretParams { pubParams, keypair, rpParams }
     }
 
     /**
@@ -94,7 +93,7 @@ impl<E: Engine> NIZKSecretParams<E> {
         let r0 = proof.sig.h != E::G1::one();
 
         //compute challenge
-        let challenge = NIZKPublicParams::<E>::hash(proof.sigProof.a, vec! {proof.comProof.T, proof.rpBC.p1.D, proof.rpBC.p2.D, proof.rpBM.p1.D, proof.rpBM.p2.D});
+        let challenge = NIZKPublicParams::<E>::hash(proof.sigProof.a, vec! {proof.comProof.T, proof.rpBC.D, proof.rpBM.D});
 
         //verify knowledge of signature
         let mut r1 = self.keypair.public.verify_proof(&self.pubParams.mpk, proof.sig, proof.sigProof.clone(), challenge);
@@ -103,11 +102,11 @@ impl<E: Engine> NIZKSecretParams<E> {
         r1 = r1 && proof.sigProof.zsig[1] == wpkc;
 
         //verify knowledge of commitment
-        let r2 = proof.comProof.verify_proof(&self.pubParams.comParams, &com.c.clone(), &challenge);
+        let r2 = proof.comProof.verify_proof(&self.pubParams.comParams, &com.c.clone(), &challenge, None);
 
         //verify range proofs
-        let r3 = self.rpParamsBC.verify(proof.rpBC.clone(), challenge.clone(), 3);
-        let r4 = self.rpParamsBM.verify(proof.rpBM.clone(), challenge.clone(), 4);
+        let r3 = self.rpParams.verify_ul(&proof.rpBC.clone(), challenge.clone(), 3);
+        let r4 = self.rpParams.verify_ul(&proof.rpBM.clone(), challenge.clone(), 4);
 
         //verify linear relationship
         let mut r5 = proof.comProof.z[1] == proof.sigProof.zsig[0];
@@ -147,7 +146,7 @@ impl<E: Engine> NIZKPublicParams<E> {
             false => self.comParams.pub_bases.len()
         };
 
-        let (D, t, rt) = CommitmentProof::<E>::prove_commitment(rng, &self.comParams, &newWallet.as_fr_vec(), &vec! {});
+        let (D, t) = CommitmentProof::<E>::prove_commitment(rng, &self.comParams, &newWallet.as_fr_vec(), None);
 
         //commit signature
         let zero = E::Fr::zero();
@@ -158,11 +157,11 @@ impl<E: Engine> NIZKPublicParams<E> {
         let proofState = self.pk.prove_commitment(rng, &self.mpk, &paymentToken, tOptional, None);
 
         //commit range proof
-        let rpStateBC = self.rpParamsBC.prove_commitment(rng, newWallet.bc.clone(), newWalletCom.clone(), 3, None, None);
-        let rpStateBM = self.rpParamsBM.prove_commitment(rng, newWallet.bm.clone(), newWalletCom.clone(), 4, None, None);
+        let rpStateBC = self.rpParams.prove_ul_commitment(rng, newWallet.bc.clone(), 3, None, None);
+        let rpStateBM = self.rpParams.prove_ul_commitment(rng, newWallet.bm.clone(), 4, None, None);
 
         //Compute challenge
-        let challenge = NIZKPublicParams::<E>::hash(proofState.a, vec! {D, rpStateBC.ps1.D, rpStateBC.ps2.D, rpStateBM.ps1.D, rpStateBM.ps2.D});
+        let challenge = NIZKPublicParams::<E>::hash(proofState.a, vec! {D, rpStateBC.D, rpStateBM.D});
 
         //Response phase
         //response for signature
@@ -171,7 +170,7 @@ impl<E: Engine> NIZKPublicParams<E> {
 
         //response commitment
         let newWalletVec = newWallet.as_fr_vec();
-        let comProof = CommitmentProof::<E>::prove_response(&newWalletVec, &rPrime, &vec! {}, D, &t, rt, &challenge);
+        let comProof = CommitmentProof::<E>::prove_response(&newWalletVec, &rPrime, D, &t, &challenge);
 
         //response range proof
         let mut vec01 = newWalletVec[0..2].to_vec();
@@ -184,8 +183,8 @@ impl<E: Engine> NIZKPublicParams<E> {
             let mut vec4 = newWalletVec[4..].to_vec();
             vec01.append(&mut vec4);
         }
-        let rpBC = self.rpParamsBC.prove_response(rPrime.clone(), &rpStateBC, challenge.clone(), 3, vecWithout2.to_vec());
-        let rpBM = self.rpParamsBM.prove_response(rPrime.clone(), &rpStateBM, challenge.clone(), 4, vec01.to_vec());
+        let rpBC = self.rpParams.prove_ul_response(rPrime.clone(), newWalletCom.clone(), &rpStateBC, challenge.clone(), 3, vecWithout2.to_vec());
+        let rpBM = self.rpParams.prove_ul_response(rPrime.clone(), newWalletCom.clone(), &rpStateBM, challenge.clone(), 4, vec01.to_vec());
 
         NIZKProof { sig: proofState.blindSig, sigProof, comProof, rpBC, rpBM }
     }
@@ -204,40 +203,14 @@ impl<E: Engine> NIZKPublicParams<E> {
 ///
 /// Verify PoK for the opening of a commitment during the establishment protocol
 ///
-pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>, init_cust: i32, init_merch: i32) -> bool {
+pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>, pkc: &E::Fr, init_cust: i32, init_merch: i32) -> bool {
     let xvec: Vec<E::G1> = vec![proof.T.clone(), com.clone()];
     let challenge = util::hash_g1_to_fr::<E>(&xvec);
 
     // compute the
-    let com_equal = proof.verify_proof(com_params, com, &challenge);
+    let com_equal = proof.verify_proof(com_params, com, &challenge, Some(vec!{None, Some(pkc.clone()), None, Some(util::convert_int_to_fr::<E>(init_cust)), Some(util::convert_int_to_fr::<E>(init_merch))}));
 
-    if proof.index.len() == 0 {
-        println!("verify_opening - doing any partial reveals?");
-        return false;
-    }
-
-    // verify linear relationshps
-    // pkc: index = 1
-    let mut s1 = proof.reveal[1].clone();
-    s1.mul_assign(&challenge);
-    s1.add_assign(&proof.t[1]);
-    let pkc_equal = (s1 == proof.z[1]);
-
-    // cust init balances: index = 3
-    let mut s3 = proof.reveal[3].clone();
-    s3.mul_assign(&challenge);
-    s3.add_assign(&proof.t[3]);
-    let init_c = util::convert_int_to_fr::<E>(init_cust);
-    let bc_equal = (s3 == proof.z[3]) && (proof.reveal[3] == init_c);
-
-    // merch init balances: index = 4
-    let mut s4 = proof.reveal[4].clone();
-    s4.mul_assign(&challenge);
-    s4.add_assign(&proof.t[4]);
-    let init_m = util::convert_int_to_fr::<E>(init_merch);
-    let bm_equal = (s4 == proof.z[4]) && (proof.reveal[4] == init_m);
-
-    return com_equal && pkc_equal && bc_equal && bm_equal;
+    return com_equal;
 }
 
 
@@ -274,7 +247,7 @@ mod tests {
         let paymentToken = secParams.keypair.unblind(&r, &blindPaymentToken);
 
         let proof = secParams.pubParams.prove(rng, wallet1, wallet2,
-                                    commitment2.clone(), rprime, &paymentToken);
+                                              commitment2.clone(), rprime, &paymentToken);
         let fr = convert_int_to_fr::<Bls12>(*epsilon);
         assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
     }
@@ -304,7 +277,7 @@ mod tests {
         let paymentToken = secParams.keypair.unblind(&r, &blindPaymentToken);
 
         let proof = secParams.pubParams.prove(rng, wallet1, wallet2,
-                                    commitment2.clone(), rprime, &paymentToken);
+                                              commitment2.clone(), rprime, &paymentToken);
         let fr = convert_int_to_fr::<Bls12>(*epsilon);
         assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
     }
@@ -345,7 +318,7 @@ mod tests {
         assert!(pk.verify(&secParams.pubParams.mpk, &wallet2.as_fr_vec(), &closeToken));
 
         let proof = secParams.pubParams.prove(rng, wallet1, wallet2,
-                                    commitment2.clone(), rprime, &paymentToken);
+                                              commitment2.clone(), rprime, &paymentToken);
 
         assert_eq!(secParams.verify(proof, Fr::from_str(&epsilon.to_string()).unwrap(), &commitment2, wpk), true);
     }
@@ -407,7 +380,7 @@ mod tests {
         let com_proof = CommitmentProof::<Bls12>::new(rng, &secParams.pubParams.comParams,
                                                       &com.c, &wallet.as_fr_vec(), &t, &vec![1, 3, 4]);
 
-        assert!(verify_opening(&secParams.pubParams.comParams, &com.c, &com_proof, bc, bm));
+        assert!(verify_opening(&secParams.pubParams.comParams, &com.c, &com_proof, &pkc.clone(), bc, bm));
     }
 
     #[test]
@@ -430,8 +403,8 @@ mod tests {
         let com1_proof = CommitmentProof::<Bls12>::new(rng, &secParams.pubParams.comParams,
                                                        &com1.c, &wallet1.as_fr_vec(), &t, &vec![1, 3, 4]);
 
-        assert!(verify_opening(&secParams.pubParams.comParams, &com1.c, &com1_proof, bc, bm));
-        assert!(!verify_opening(&secParams.pubParams.comParams, &com2.c, &com1_proof, bc2, bm));
+        assert!(verify_opening(&secParams.pubParams.comParams, &com1.c, &com1_proof, &pkc.clone(), bc, bm));
+        assert!(!verify_opening(&secParams.pubParams.comParams, &com2.c, &com1_proof, &pkc.clone(), bc2, bm));
     }
 
 
@@ -443,10 +416,11 @@ mod tests {
         let mpk = setup(&mut rng);
         let blindkeypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
         let comParams = blindkeypair.generate_cs_multi_params(&mpk);
-        let rpParamsBC = ccs08::RPSecretParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
-        let rpParamsBM = ccs08::RPSecretParams::setup(rng, 0, std::i16::MAX as i32, comParams.clone());
+        let u = 57; //TODO: optimize u?
+        let l = (std::i16::MAX as f32).log(u as f32).floor() as i32;
+        let rpParams = ccs08::SecretParamsUL::setup_ul(rng, u, l, comParams.clone());
 
-        let nizk_params = NIZKPublicParams { mpk: mpk, pk: blindkeypair.public, comParams: comParams, rpParamsBC: rpParamsBC.pubParams, rpParamsBM: rpParamsBM.pubParams };
+        let nizk_params = NIZKPublicParams { mpk: mpk, pk: blindkeypair.public, comParams: comParams, rpParams: rpParams.pubParams.clone() };
 
         let is_serialized = serde_json::to_vec(&nizk_params).unwrap();
         println!("NIZK Struct len: {}", is_serialized.len());

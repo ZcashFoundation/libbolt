@@ -22,7 +22,7 @@ This must be computed in a trusted setup.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, <E as pairing::Engine>::G1: serde::Serialize, <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
-struct ParamsUL<E: Engine> {
+pub struct ParamsUL<E: Engine> {
     pub mpk: PublicParams<E>,
     pub signatures: HashMap<String, Signature<E>>,
     pub csParams: CSMultiParams<E>,
@@ -44,9 +44,9 @@ This must be computed in a trusted setup.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, <E as pairing::Engine>::G1: serde::Serialize, <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
-struct SecretParamsUL<E: Engine> {
+pub struct SecretParamsUL<E: Engine> {
     pub pubParams: ParamsUL<E>,
-    kp: BlindKeyPair<E>,
+    pub kp: BlindKeyPair<E>,
 }
 
 #[derive(Clone)]
@@ -117,9 +117,9 @@ This must be computed in a trusted setup.
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, <E as pairing::Engine>::G1: serde::Serialize, <E as pairing::Engine>::G2: serde::Serialize"))]
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct RPPublicParams<E: Engine> {
-    p: ParamsUL<E>,
-    a: i32,
-    b: i32,
+    pub p: ParamsUL<E>,
+    pub a: i32,
+    pub b: i32,
 }
 
 /**
@@ -131,7 +131,7 @@ This must be computed in a trusted setup.
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct RPSecretParams<E: Engine> {
     pub pubParams: RPPublicParams<E>,
-    p: SecretParamsUL<E>,
+    pub p: SecretParamsUL<E>,
 }
 
 impl<E: Engine> SecretParamsUL<E> {
@@ -233,7 +233,7 @@ impl<E: Engine> ParamsUL<E> {
         self.prove_ul_response(r, C, &proofUlState, c, k, otherM)
     }
 
-    fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i32, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
+    pub fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i32, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
         if x > self.u.pow(self.l as u32) || x < 0 {
             panic!("x is not within the range.");
         }
@@ -286,7 +286,7 @@ impl<E: Engine> ParamsUL<E> {
         ProofULState { decx, proofStates, V, D, m, s }
     }
 
-    fn prove_ul_response(&self, r: E::Fr, C: Commitment<E>, proofUlState: &ProofULState<E>, c: E::Fr, k: usize, otherM: Vec<E::Fr>) -> ProofUL<E> {
+    pub fn prove_ul_response(&self, r: E::Fr, C: Commitment<E>, proofUlState: &ProofULState<E>, c: E::Fr, k: usize, otherM: Vec<E::Fr>) -> ProofUL<E> {
         let mut sigProofs = Vec::<SignatureProof<E>>::with_capacity(self.l as usize);
         let mut zr = proofUlState.m.clone();
         let mut rc = r.clone();

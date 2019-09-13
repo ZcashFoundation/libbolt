@@ -550,8 +550,8 @@ impl<E: Engine> MerchantState<E> {
         return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, pay_com);
     }
 
-    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, cust_balance: i32, merch_balance: i32) -> ResultBoltType<(Signature<E>, Signature<E>)> {
-        let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, cust_balance, merch_balance);
+    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, pkc: &E::Fr, cust_balance: i32, merch_balance: i32) -> ResultBoltType<(Signature<E>, Signature<E>)> {
+        let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, &pkc, cust_balance, merch_balance);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
             let close_token = self.issue_close_token(csprng, cp, com, true);
@@ -646,7 +646,8 @@ mod tests {
 
         // first return the close token, then wait for escrow-tx confirmation
         // then send the pay-token after confirmation
-        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof, b0_cust, b0_merch).unwrap();
+        let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
+        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof, &pk_h, b0_cust, b0_merch).unwrap();
         // unblind tokens and verify signatures
         assert!(cust_state.verify_close_token(&channel, &close_token));
 
