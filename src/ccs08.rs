@@ -233,7 +233,7 @@ impl<E: Engine> ParamsUL<E> {
         self.prove_ul_response(r, C, &proofUlState, c, k, otherM)
     }
 
-    fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i32, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
+    pub fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i32, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
         if x > self.u.pow(self.l as u32) || x < 0 {
             panic!("x is not within the range.");
         }
@@ -286,7 +286,7 @@ impl<E: Engine> ParamsUL<E> {
         ProofULState { decx, proofStates, V, D, m, s }
     }
 
-    fn prove_ul_response(&self, r: E::Fr, C: Commitment<E>, proofUlState: &ProofULState<E>, c: E::Fr, k: usize, otherM: Vec<E::Fr>) -> ProofUL<E> {
+    pub fn prove_ul_response(&self, r: E::Fr, C: Commitment<E>, proofUlState: &ProofULState<E>, c: E::Fr, k: usize, otherM: Vec<E::Fr>) -> ProofUL<E> {
         let mut sigProofs = Vec::<SignatureProof<E>>::with_capacity(self.l as usize);
         let mut zr = proofUlState.m.clone();
         let mut rc = r.clone();
