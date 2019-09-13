@@ -4,7 +4,7 @@ pub mod ffishim {
 
     use bidirectional;
     use ff::Rand;
-    use pairing::bls12_381::{Bls12};
+    use pairing::bls12_381::{Bls12, Fr};
 
     use serde::Deserialize;
 
@@ -13,6 +13,8 @@ pub mod ffishim {
     use std::str;
     use channels::{ChannelcloseM, ResultBoltType, BoltError};
     use std::alloc::handle_alloc_error;
+    use util::hash_pubkey_to_fr;
+    use std::str::FromStr;
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -166,7 +168,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, init_cust_bal: i32, init_merch_bal: i32, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_pk_c: *mut c_char, init_cust_bal: i32, init_merch_bal: i32, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
@@ -184,7 +186,14 @@ pub mod ffishim {
         let merch_state_result: ResultSerdeType<bidirectional::MerchantState<Bls12>> = deserialize_result_object(ser_merch_state);
         let merch_state = handle_errors!(merch_state_result);
 
-        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, init_cust_bal, init_merch_bal, &merch_state));
+        // Deserialize the pk_c
+        let bytes = unsafe { CStr::from_ptr(ser_pk_c).to_bytes() };
+        let string: &str = str::from_utf8(bytes).unwrap();
+        let pk_c_result = secp256k1::PublicKey::from_str(string);
+        let pk_c = handle_errors!(pk_c_result);
+        let pk_h = hash_pubkey_to_fr::<Bls12>(&pk_c);
+
+        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_h, init_cust_bal, init_merch_bal, &merch_state));
 
         let ser = ["{\'close_token\':\'", serde_json::to_string(&close_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();

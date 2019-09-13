@@ -16,7 +16,8 @@
 #![feature(exclusive_range_pattern)]
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
-#[cfg(all(test, feature = "unstable"))] extern crate test;
+#[cfg(all(test, feature = "unstable"))]
+extern crate test;
 
 extern crate ff;
 extern crate pairing;
@@ -115,10 +116,12 @@ pub mod bidirectional {
     use util;
     use wallet;
     use pairing::Engine;
-    use pairing::bls12_381::{Bls12};
+    use pairing::bls12_381::Bls12;
     use sodiumoxide;
-    use cl; // for blind signature
-    use secp256k1; // for on-chain keys
+    use cl;
+    // for blind signature
+    use secp256k1;
+    // for on-chain keys
     use HashMap;
     use sodiumoxide::crypto::hash::sha512;
     use sha2::Sha512;
@@ -144,7 +147,7 @@ pub mod bidirectional {
     pub struct ChannelcloseC<E: Engine> {
         pub wpk: secp256k1::PublicKey,
         pub message: wallet::Wallet<E>,
-        pub signature: cl::Signature<E>
+        pub signature: cl::Signature<E>,
     }
 
     #[derive(Clone, Serialize, Deserialize)]
@@ -168,7 +171,7 @@ pub mod bidirectional {
     #[derive(Clone, Serialize, Deserialize)]
     pub struct RevokeToken {
         message: util::RevokedMessage,
-        pub signature: secp256k1::Signature
+        pub signature: secp256k1::Signature,
     }
 
     pub fn init() {
@@ -195,8 +198,8 @@ pub mod bidirectional {
     /// and wallet commitment.
     ///
     pub fn init_customer<'a, R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
-                                            channel_token: &mut ChannelToken<E>,
-                                            b0_cust: i32, b0_merch: i32, name: &'a str) -> CustomerState<E> {
+                                                channel_token: &mut ChannelToken<E>,
+                                                b0_cust: i32, b0_merch: i32, name: &'a str) -> CustomerState<E> {
         assert!(b0_cust >= 0);
         assert!(b0_merch >= 0);
 
@@ -221,10 +224,10 @@ pub mod bidirectional {
     ///
     pub fn establish_merchant_issue_close_token<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
                                                                    com: &Commitment<E>, com_proof: &CommitmentProof<E>,
-                                                                   init_cust_balance: i32, init_merch_balance: i32,
+                                                                   pkc: &E::Fr, init_cust_balance: i32, init_merch_balance: i32,
                                                                    merch_state: &MerchantState<E>) -> BoltResult<cl::Signature<E>> {
         // verifies proof of committed values and derives blind signature on the committed values to the customer's initial wallet
-        match merch_state.verify_proof(csprng, channel_state, com, com_proof, init_cust_balance, init_merch_balance) {
+        match merch_state.verify_proof(csprng, channel_state, com, com_proof, pkc, init_cust_balance, init_merch_balance) {
             Ok(n) => Ok(Some(n.0)), // just close token
             Err(err) => Err(String::from(err.to_string()))
         }
@@ -236,7 +239,7 @@ pub mod bidirectional {
     /// signature) over the contents of the customer's wallet.
     ///
     pub fn establish_merchant_issue_pay_token<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
-                                       com: &Commitment<E>, merch_state: &MerchantState<E>) -> cl::Signature<E> {
+                                                                 com: &Commitment<E>, merch_state: &MerchantState<E>) -> cl::Signature<E> {
         let cp = channel_state.cp.as_ref().unwrap();
         let pay_token = merch_state.issue_pay_token(csprng, cp, com, false);
         return pay_token;
@@ -287,7 +290,7 @@ pub mod bidirectional {
     /// (i.e., partially blind signature on IOU with updated balance)
     ///
     pub fn verify_payment_proof<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
-                                            payment: &Payment<E>, merch_state: &mut MerchantState<E>) -> cl::Signature<E> {
+                                                   payment: &Payment<E>, merch_state: &mut MerchantState<E>) -> cl::Signature<E> {
         // if payment proof verifies, then returns close-token and records wpk => pay-token
         // if valid revoke_token is provided later for wpk, then release pay-token
         let tx_fee = channel_state.get_channel_fee();
@@ -296,7 +299,7 @@ pub mod bidirectional {
             false => payment.amount
         };
         let new_close_token = merch_state.verify_payment(csprng, &channel_state,
-                                                          &payment.proof, &payment.com, &payment.wpk, payment_amount).unwrap();
+                                                         &payment.proof, &payment.com, &payment.wpk, payment_amount).unwrap();
         // store the wpk since it has been revealed
         update_merchant_state(&mut merch_state.keys, &payment.wpk, None);
         return new_close_token;
@@ -352,16 +355,15 @@ pub mod bidirectional {
     /// a revocation token for the old wallet public key.
     ///
     pub fn generate_revoke_token<E: Engine>(channel_state: &ChannelState<E>,
-                                  old_cust_state: &mut CustomerState<E>,
-                                  new_cust_state: CustomerState<E>,
-                                  new_close_token: &cl::Signature<E>) -> RevokeToken {
+                                            old_cust_state: &mut CustomerState<E>,
+                                            new_cust_state: CustomerState<E>,
+                                            new_close_token: &cl::Signature<E>) -> RevokeToken {
         // let's update the old wallet
         assert!(old_cust_state.update(new_cust_state));
         // generate the token after verifying that the close token is valid
         let (message, signature) = old_cust_state.generate_revoke_token(channel_state, new_close_token).unwrap();
         // return the revoke token (msg + sig pair)
         return RevokeToken { message, signature };
-
     }
 
     ///
@@ -391,7 +393,7 @@ pub mod bidirectional {
             panic!("Cannot close a channel that has not been established!");
         }
 
-        let mut wallet= cust_state.get_wallet();
+        let mut wallet = cust_state.get_wallet();
         let close_token = cust_state.get_close_token();
 
         let cp = channel_state.cp.as_ref().unwrap();
@@ -523,14 +525,14 @@ mod benches {
 mod tests {
     use super::*;
     use ff::Rand;
-    use pairing::bls12_381::{Bls12};
+    use pairing::bls12_381::Bls12;
     use rand::Rng;
     use channels::ChannelState;
+    use util::hash_pubkey_to_fr;
 
     fn setup_new_channel_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
                                 init_cust_bal: i32, init_merch_bal: i32)
-                              -> (bidirectional::ChannelToken<Bls12>, bidirectional::MerchantState<Bls12>, bidirectional::CustomerState<Bls12>, bidirectional::ChannelState<Bls12>) {
-
+                                -> (bidirectional::ChannelToken<Bls12>, bidirectional::MerchantState<Bls12>, bidirectional::CustomerState<Bls12>, bidirectional::ChannelState<Bls12>) {
         let mut rng = &mut rand::thread_rng();
         let merch_name = "Bob";
         let cust_name = "Alice";
@@ -550,20 +552,20 @@ mod tests {
     }
 
     fn execute_establish_protocol_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
-                                   channel_token: &mut bidirectional::ChannelToken<Bls12>,
-                                   cust_balance: i32,
-                                   merch_balance: i32,
-                                   merch_state: &mut bidirectional::MerchantState<Bls12>,
-                                   cust_state: &mut bidirectional::CustomerState<Bls12>) {
-
+                                         channel_token: &mut bidirectional::ChannelToken<Bls12>,
+                                         cust_balance: i32,
+                                         merch_balance: i32,
+                                         merch_state: &mut bidirectional::MerchantState<Bls12>,
+                                         cust_state: &mut bidirectional::CustomerState<Bls12>) {
         let mut rng = &mut rand::thread_rng();
 
         // lets establish the channel
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, channel_token, cust_state);
 
         // obtain close token for closing out channel
-        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, cust_balance, merch_balance, &merch_state);
-        let close_token= match option {
+        let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_h, cust_balance, merch_balance, &merch_state);
+        let close_token = match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
         };
@@ -580,11 +582,10 @@ mod tests {
     }
 
     fn execute_payment_protocol_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
-                                   channel_token: &mut bidirectional::ChannelToken<Bls12>,
-                                   merch_state: &mut bidirectional::MerchantState<Bls12>,
-                                   cust_state: &mut bidirectional::CustomerState<Bls12>,
-                                   payment_increment: i32) {
-
+                                       channel_token: &mut bidirectional::ChannelToken<Bls12>,
+                                       merch_state: &mut bidirectional::MerchantState<Bls12>,
+                                       cust_state: &mut bidirectional::CustomerState<Bls12>,
+                                       payment_increment: i32) {
         let mut rng = &mut rand::thread_rng();
 
         let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, channel_state, &cust_state, payment_increment);
@@ -599,7 +600,7 @@ mod tests {
 
         // verify the pay token and update internal state
         assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token.unwrap()));
-     }
+    }
 
     #[test]
     fn bidirectional_payment_basics_work() {
@@ -622,9 +623,10 @@ mod tests {
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
 
         // obtain close token for closing out channel
-        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof,
-                                                                                            b0_customer, b0_merchant, &merch_state);
-        let close_token= match option {
+        let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_h,
+                                                                         b0_customer, b0_merchant, &merch_state);
+        let close_token = match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
         };
@@ -662,7 +664,6 @@ mod tests {
 
     #[test]
     fn bidirectional_multiple_payments_work() {
-
         let total_owed = 40;
         let b0_customer = 380;
         let b0_merchant = 20;
@@ -675,7 +676,7 @@ mod tests {
         let fee = 5;
         channel_state.set_channel_fee(fee);
 
-        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
@@ -685,7 +686,7 @@ mod tests {
         {
             // make multiple payments in a loop
             let num_payments = total_owed / payment_increment;
-            for i in 0 .. num_payments {
+            for i in 0..num_payments {
                 execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, payment_increment);
             }
 
@@ -702,7 +703,6 @@ mod tests {
             println!("{}", cust_close_msg.message);
             println!("{}", cust_close_msg.signature);
         }
-
     }
 
     #[test]
@@ -716,7 +716,7 @@ mod tests {
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
         let mut rng = &mut rand::thread_rng();
 
-        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
@@ -744,7 +744,7 @@ mod tests {
 
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
 
-        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
@@ -765,9 +765,9 @@ mod tests {
         let cur_cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
 
         let merch_close_result = bidirectional::merchant_close(&channel_state,
-                                                            &channel_token,
-                                                            &old_cust_close_msg,
-                                                            &merch_state);
+                                                               &channel_token,
+                                                               &old_cust_close_msg,
+                                                               &merch_state);
         let merch_close_msg = match merch_close_result {
             Ok(n) => n.unwrap(),
             Err(err) => panic!("Merchant close msg: {}", err)
@@ -789,7 +789,7 @@ mod tests {
 
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
 
-        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper( &mut channel_state, b0_customer, b0_merchant);
+        let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
         // run establish protocol for customer and merchant channel
         execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_customer, b0_merchant, &mut merch_state, &mut cust_state);
@@ -808,9 +808,9 @@ mod tests {
         let cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
 
         let merch_close_result = bidirectional::merchant_close(&channel_state,
-                                                            &channel_token,
-                                                            &cust_close_msg,
-                                                            &merch_state);
+                                                               &channel_token,
+                                                               &cust_close_msg,
+                                                               &merch_state);
         let merch_close_msg = match merch_close_result {
             Ok(n) => n.unwrap(),
             Err(err) => panic!("Merchant close msg: {}", err)
@@ -942,5 +942,4 @@ mod tests {
 
         let des_cw: bidirectional::CustomerState<Bls12> = serde_json::from_str(&serlalized_cw).unwrap();
     }
-
 }

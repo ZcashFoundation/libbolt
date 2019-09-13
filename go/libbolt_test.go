@@ -36,7 +36,7 @@ func Test_Establish(t *testing.T) {
 	channelToken, custState, com, comProof, err := BidirectionalEstablishCustomerGenerateProof(channelToken, custState)
 	assert.Nil(t, err)
 
-	closeToken, err := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, b0Cust, b0Merch, merchState)
+	closeToken, err := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, custState.PkC, b0Cust, b0Merch, merchState)
 	assert.Nil(t, err)
 	assert.NotNil(t, closeToken)
 
@@ -61,7 +61,7 @@ func Test_Pay(t *testing.T) {
 	assert.Nil(t, err)
 	channelToken, custState, com, comProof, err := BidirectionalEstablishCustomerGenerateProof(channelToken, custState)
 	assert.Nil(t, err)
-	closeToken, err := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, b0Cust, b0Merch, merchState)
+	closeToken, err := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, custState.PkC, b0Cust, b0Merch, merchState)
 	assert.Nil(t, err)
 	_, channelState, custState, err = BidirectionalVerifyCloseToken(channelState, custState, closeToken)
 	assert.Nil(t, err)
@@ -90,7 +90,7 @@ func Test_Close(t *testing.T) {
 	assert.Nil(t, err)
 	channelToken, custState, com, comProof, err := BidirectionalEstablishCustomerGenerateProof(channelToken, custState)
 	assert.Nil(t, err)
-	closeToken, err := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, b0Cust, b0Merch, merchState)
+	closeToken, err := BidirectionalEstablishMerchantIssueCloseToken(channelState, com, comProof, custState.PkC, b0Cust, b0Merch, merchState)
 	assert.Nil(t, err)
 	_, channelState, custState, err = BidirectionalVerifyCloseToken(channelState, custState, closeToken)
 	assert.Nil(t, err)

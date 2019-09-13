@@ -102,7 +102,7 @@ impl<E: Engine> NIZKSecretParams<E> {
         r1 = r1 && proof.sigProof.zsig[1] == wpkc;
 
         //verify knowledge of commitment
-        let r2 = proof.comProof.verify_proof(&self.pubParams.comParams, &com.c.clone(), &challenge);
+        let r2 = proof.comProof.verify_proof(&self.pubParams.comParams, &com.c.clone(), &challenge, None);
 
         //verify range proofs
         let r3 = self.rpParams.verify_ul(&proof.rpBC.clone(), challenge.clone(), 3);
@@ -146,7 +146,7 @@ impl<E: Engine> NIZKPublicParams<E> {
             false => self.comParams.pub_bases.len()
         };
 
-        let (D, t, rt) = CommitmentProof::<E>::prove_commitment(rng, &self.comParams, &newWallet.as_fr_vec(), &vec! {});
+        let (D, t) = CommitmentProof::<E>::prove_commitment(rng, &self.comParams, &newWallet.as_fr_vec(), None);
 
         //commit signature
         let zero = E::Fr::zero();
@@ -170,7 +170,7 @@ impl<E: Engine> NIZKPublicParams<E> {
 
         //response commitment
         let newWalletVec = newWallet.as_fr_vec();
-        let comProof = CommitmentProof::<E>::prove_response(&newWalletVec, &rPrime, &vec! {}, D, &t, rt, &challenge);
+        let comProof = CommitmentProof::<E>::prove_response(&newWalletVec, &rPrime, D, &t, &challenge);
 
         //response range proof
         let mut vec01 = newWalletVec[0..2].to_vec();
@@ -203,40 +203,14 @@ impl<E: Engine> NIZKPublicParams<E> {
 ///
 /// Verify PoK for the opening of a commitment during the establishment protocol
 ///
-pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>, init_cust: i32, init_merch: i32) -> bool {
+pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>, pkc: &E::Fr, init_cust: i32, init_merch: i32) -> bool {
     let xvec: Vec<E::G1> = vec![proof.T.clone(), com.clone()];
     let challenge = util::hash_g1_to_fr::<E>(&xvec);
 
     // compute the
-    let com_equal = proof.verify_proof(com_params, com, &challenge);
+    let com_equal = proof.verify_proof(com_params, com, &challenge, Some(vec!{None, Some(pkc.clone()), None, Some(util::convert_int_to_fr::<E>(init_cust)), Some(util::convert_int_to_fr::<E>(init_merch))}));
 
-    if proof.index.len() == 0 {
-        println!("verify_opening - doing any partial reveals?");
-        return false;
-    }
-
-    // verify linear relationshps
-    // pkc: index = 1
-    let mut s1 = proof.reveal[1].clone();
-    s1.mul_assign(&challenge);
-    s1.add_assign(&proof.t[1]);
-    let pkc_equal = (s1 == proof.z[1]);
-
-    // cust init balances: index = 3
-    let mut s3 = proof.reveal[3].clone();
-    s3.mul_assign(&challenge);
-    s3.add_assign(&proof.t[3]);
-    let init_c = util::convert_int_to_fr::<E>(init_cust);
-    let bc_equal = (s3 == proof.z[3]) && (proof.reveal[3] == init_c);
-
-    // merch init balances: index = 4
-    let mut s4 = proof.reveal[4].clone();
-    s4.mul_assign(&challenge);
-    s4.add_assign(&proof.t[4]);
-    let init_m = util::convert_int_to_fr::<E>(init_merch);
-    let bm_equal = (s4 == proof.z[4]) && (proof.reveal[4] == init_m);
-
-    return com_equal && pkc_equal && bc_equal && bm_equal;
+    return com_equal;
 }
 
 
@@ -406,7 +380,7 @@ mod tests {
         let com_proof = CommitmentProof::<Bls12>::new(rng, &secParams.pubParams.comParams,
                                                       &com.c, &wallet.as_fr_vec(), &t, &vec![1, 3, 4]);
 
-        assert!(verify_opening(&secParams.pubParams.comParams, &com.c, &com_proof, bc, bm));
+        assert!(verify_opening(&secParams.pubParams.comParams, &com.c, &com_proof, &pkc.clone(), bc, bm));
     }
 
     #[test]
@@ -429,8 +403,8 @@ mod tests {
         let com1_proof = CommitmentProof::<Bls12>::new(rng, &secParams.pubParams.comParams,
                                                        &com1.c, &wallet1.as_fr_vec(), &t, &vec![1, 3, 4]);
 
-        assert!(verify_opening(&secParams.pubParams.comParams, &com1.c, &com1_proof, bc, bm));
-        assert!(!verify_opening(&secParams.pubParams.comParams, &com2.c, &com1_proof, bc2, bm));
+        assert!(verify_opening(&secParams.pubParams.comParams, &com1.c, &com1_proof, &pkc.clone(), bc, bm));
+        assert!(!verify_opening(&secParams.pubParams.comParams, &com2.c, &com1_proof, &pkc.clone(), bc2, bm));
     }
 
 

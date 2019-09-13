@@ -29,7 +29,7 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_establish_customer_generate_proof.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_establish_customer_generate_proof.restype = c_void_p
 
-		self.lib.ffishim_bidirectional_establish_merchant_issue_close_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_establish_merchant_issue_close_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_establish_merchant_issue_close_token.restype = c_void_p
 
 		self.lib.ffishim_bidirectional_establish_merchant_issue_pay_token.argtypes = (c_void_p, c_void_p, c_void_p)
@@ -100,8 +100,8 @@ class Libbolt(object):
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary['channel_token'], output_dictionary['cust_state'], output_dictionary['com'], output_dictionary['com_proof']
 
-	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, init_cust, init_merch, merch_state):
-		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), init_cust, init_merch, merch_state.encode())
+	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, pkc, init_cust, init_merch, merch_state):
+		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), pkc.encode(), init_cust, init_merch, merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('close_token')
 
@@ -241,7 +241,8 @@ def run_unit_test():
 	print("channel token: => ", channel_token)
 	print("com: ", com)
 
-	close_token = libbolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, b0_cust, b0_merch, merch_state)
+	cust_state_dict = json.loads(cust_state)
+	close_token = libbolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, cust_state_dict["pk_c"], b0_cust, b0_merch, merch_state)
 	print("close token: ", close_token)
 
 	(is_token_valid, channel_state, cust_state) = libbolt.bidirectional_establish_customer_verify_close_token(channel_state, cust_state, close_token)

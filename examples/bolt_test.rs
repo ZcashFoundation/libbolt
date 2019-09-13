@@ -10,6 +10,7 @@ use bolt::bidirectional;
 use std::time::Instant;
 use pairing::bls12_381::{Bls12};
 use bolt::handle_bolt_result;
+use bolt::util::hash_pubkey_to_fr;
 
 macro_rules! measure_one_arg {
     ($x: expr) => {
@@ -66,8 +67,9 @@ fn main() {
     println!(">> Time to generate proof for establish: {} ms", est_time);
 
     // obtain close token for closing out channel
+    let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c);
     let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof,
-                                                                                         b0_customer, b0_merchant, &merch_state);
+                                                                                         &pk_h, b0_customer, b0_merchant, &merch_state);
     let close_token= match option {
         Ok(n) => n.unwrap(),
         Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)

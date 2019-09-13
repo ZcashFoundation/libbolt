@@ -187,88 +187,85 @@ impl<E: Engine> CSMultiParams<E> {
 pub struct CommitmentProof<E: Engine> {
     pub T: E::G1,
     pub z: Vec<E::Fr>,
-    pub t: Vec<E::Fr>,
-    pub index: Vec<usize>,
-    pub reveal: Vec<E::Fr>
 }
 
 impl<E: Engine> CommitmentProof<E> {
     pub fn new<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, com: &E::G1, wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>) -> Self {
-        let (Tvals, t, rt) = CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, wallet, reveal_index);
+        let mut rt = Vec::new();
+        for i in 0..wallet.len() + 1 {
+            if reveal_index.contains(&i) {
+                rt.push(E::Fr::zero());
+            } else {
+                rt.push(E::Fr::rand(csprng));
+            }
+        }
+
+        let (Tvals, t) = CommitmentProof::<E>::prove_commitment::<R>(csprng, com_params, wallet, Some(rt));
 
         // compute the challenge
         let x: Vec<E::G1> = vec![Tvals, com.clone()];
         let challenge = util::hash_g1_to_fr::<E>(&x);
 
         // compute the response
-        CommitmentProof::<E>::prove_response(wallet, r, reveal_index, Tvals, &t, rt, &challenge)
+        CommitmentProof::<E>::prove_response(wallet, r, Tvals, &t, &challenge)
     }
 
-    pub fn prove_commitment<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, wallet: &Vec<E::Fr>, reveal_index: &Vec<usize>) -> (E::G1, Vec<E::Fr>, Vec<E::Fr>) {
+    pub fn prove_commitment<R: Rng>(csprng: &mut R, com_params: &CSMultiParams<E>, wallet: &Vec<E::Fr>, tOptional: Option<Vec<E::Fr>>) -> (E::G1, Vec<E::Fr>) {
         let mut Tvals = E::G1::zero();
         assert!(wallet.len() <= com_params.pub_bases.len());
-        let mut t = Vec::<E::Fr>::with_capacity(wallet.len() + 1);
-        let mut rt: Vec<E::Fr> = Vec::new();
+        let mut t = tOptional.unwrap_or(Vec::<E::Fr>::with_capacity(wallet.len() + 1));
         // aspects of wallet being revealed
         for i in 0..wallet.len() + 1 {
-            let ti = E::Fr::rand(csprng);
-            t.push(ti);
-            // check if we are revealing this index
-            if reveal_index.contains(&i) {
-                rt.push(ti);
-            } else {
-                rt.push(E::Fr::zero());
+            if t.len() == i {
+                t.push(E::Fr::rand(csprng));
             }
+            let ti = t[i].clone();
             let mut gt = com_params.pub_bases[i].clone();
             gt.mul_assign(ti.into_repr());
             Tvals.add_assign(&gt);
         }
-        (Tvals, t, rt)
+        (Tvals, t)
     }
 
-    pub fn prove_response(wallet: &Vec<E::Fr>, r: &E::Fr, reveal_index: &Vec<usize>, Tvals: E::G1, t: &Vec<E::Fr>, rt: Vec<E::Fr>, challenge: &E::Fr) -> CommitmentProof<E> {
+    pub fn prove_response(wallet: &Vec<E::Fr>, r: &E::Fr, Tvals: E::G1, t: &Vec<E::Fr>, challenge: &E::Fr) -> CommitmentProof<E> {
         let mut z: Vec<E::Fr> = Vec::new();
         let mut z0 = r.clone();
         z0.mul_assign(&challenge);
         z0.add_assign(&t[0]);
         z.push(z0);
-        // t values that will be revealed
-        let mut reveal_wallet: Vec<E::Fr> = Vec::new();
-        reveal_wallet.push(E::Fr::zero());
         for i in 1..t.len() {
             let mut zi = wallet[i - 1].clone();
             zi.mul_assign(&challenge);
             zi.add_assign(&t[i]);
             z.push(zi);
-            // check if we are revealing this index
-            if reveal_index.contains(&i) {
-                reveal_wallet.push(wallet[i - 1].clone());
-            } else {
-                reveal_wallet.push(E::Fr::zero());
-            }
         }
 
         CommitmentProof {
             T: Tvals, // commitment challenge
             z: z, // response values
-            t: rt, // randomness for verifying partial reveals
-            index: reveal_index.clone(),
-            reveal: reveal_wallet.clone()
         }
     }
 
-    pub fn verify_proof(&self, com_params: &CSMultiParams<E>, com: &<E as Engine>::G1, challenge: &E::Fr) -> bool {
+    pub fn verify_proof(&self, com_params: &CSMultiParams<E>, com: &<E as Engine>::G1, challenge: &E::Fr, revealOption: Option<Vec<Option<E::Fr>>>) -> bool {
         let mut comc = com.clone();
         let T = self.T.clone();
         comc.mul_assign(challenge.into_repr());
         comc.add_assign(&T);
         let mut x = E::G1::zero();
+        let reveal = revealOption.unwrap_or(vec!{});
+        let mut revealBool = true;
         for i in 0..self.z.len() {
             let mut base = com_params.pub_bases[i].clone();
             base.mul_assign(self.z[i].into_repr());
             x.add_assign(&base);
+
+            if reveal.len() > i && reveal[i].is_some() {
+                let mut el = reveal[i].unwrap();
+                el.mul_assign(&challenge.clone());
+                revealBool = revealBool && self.z[i] == el;
+            }
         }
-        comc == x
+        revealBool && comc == x
     }
 }
 
@@ -370,7 +367,7 @@ mod tests {
 
         let xvec: Vec<G1> = vec![proof.T.clone(), com.c];
         let challenge = util::hash_g1_to_fr::<Bls12>(&xvec);
-        assert_eq!(proof.verify_proof(&comParams, &com.c, &challenge), true);
+        assert_eq!(proof.verify_proof(&comParams, &com.c, &challenge, None), true);
     }
 
     // add tests for extend/remove commits dynamically
