@@ -22,7 +22,6 @@ test:
 	cargo +nightly test --release #-- --nocapture
 
 update:
-	# updates local git repos (for forked bn lib)
 	cargo +nightly update
 
 doc:
