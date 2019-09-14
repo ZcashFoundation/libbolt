@@ -79,7 +79,7 @@ class Libbolt(object):
 	def channel_setup(self, name, third_party_support=0):
 		output_string = self.lib.ffishim_bidirectional_channel_setup(name.encode(), third_party_support)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['channel_state']
+		return output_dictionary.get('channel_state')
 
 	# INIT PROTOCOL
 
@@ -91,14 +91,14 @@ class Libbolt(object):
 	def bidirectional_init_customer(self, channel_state, channel_token, b0_cust, b0_merch, name):
 		output_string = self.lib.ffishim_bidirectional_init_customer(channel_state.encode(), channel_token.encode(), b0_cust, b0_merch, name.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return (output_dictionary['channel_token'], output_dictionary['cust_state'])
+		return (output_dictionary.get('channel_token'), output_dictionary.get('cust_state'))
 
 	# ESTABLISH PROTOCOL
 
 	def bidirectional_establish_customer_generate_proof(self, channel_token, cust_state):
 		output_string = self.lib.ffishim_bidirectional_establish_customer_generate_proof(channel_token.encode(), cust_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
-		return output_dictionary['channel_token'], output_dictionary['cust_state'], output_dictionary['com'], output_dictionary['com_proof']
+		return output_dictionary.get('channel_token'), output_dictionary.get('cust_state'), output_dictionary.get('com'), output_dictionary.get('com_proof')
 
 	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, pkc, init_cust, init_merch, merch_state):
 		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), pkc.encode(), init_cust, init_merch, merch_state.encode())

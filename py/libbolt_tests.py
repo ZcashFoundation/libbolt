@@ -267,28 +267,62 @@ class BoltMultiChannelTests(unittest.TestCase):
         (self.channel_token_c, self.charlie_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
                                                                                       self.b0_charlie, self.b0_merch, "Charlie")
 
-    def _establish_channel(self, channel_token, cust_state, pkc, b0_cust, b0_merch):
+    def _establish_channel(self, channel_token, channel_state, cust_state, pkc, b0_cust, b0_merch):
         (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)
 
-        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, pkc, b0_cust, b0_merch, self.merch_state)
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, pkc, b0_cust, b0_merch, self.merch_state)
         self.assertTrue(close_token is not None)
 
-        (is_token_valid, self.channel_state, cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(self.channel_state, cust_state, close_token)
+        (is_token_valid, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(channel_state, cust_state, close_token)
         self.assertTrue(is_token_valid)
 
-        pay_token = self.bolt.bidirectional_establish_merchant_issue_pay_token(self.channel_state, com, self.merch_state)
+        pay_token = self.bolt.bidirectional_establish_merchant_issue_pay_token(channel_state, com, self.merch_state)
         self.assertTrue(pay_token is not None)
 
-        (is_channel_established, self.channel_state, cust_state) = self.bolt.bidirectional_establish_customer_final(self.channel_state, cust_state, pay_token)
+        (is_channel_established, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_final(channel_state, cust_state, pay_token)
         self.assertTrue(is_channel_established)
 
-        return channel_token, cust_state
+        return channel_token, channel_state, cust_state
+
+    def _pay_on_channel(self, channel_state, cust_state, amount):
+        (payment_proof, new_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(channel_state, cust_state, amount)
+
+        (new_close_token, self.merch_state) = self.bolt.bidirectional_pay_verify_payment_proof(channel_state, payment_proof, self.merch_state)
+
+        (revoke_token, cust_state) = self.bolt.bidirectional_pay_generate_revoke_token(channel_state, cust_state, new_cust_state, new_close_token)
+
+        (pay_token, self.merch_state) = self.bolt.bidirectional_pay_verify_revoke_token(revoke_token, self.merch_state)
+
+        (cust_state, is_pay_valid) = self.bolt.bidirectional_pay_verify_payment_token(channel_state, cust_state, pay_token)
+        self.assertTrue(is_pay_valid)
+
+        return channel_state, cust_state
+
 
     def test_multiple_channels_work(self):
         """Establishing concurrent channels with a merchant works as expected
         """
-        cust_state_dict = json.loads(self.alice_state)
-        channel_token_a, alice_cust_state = self._establish_channel(self.channel_token, self.alice_state, cust_state_dict["pk_c"], self.b0_alice, self.b0_merch)
+        alice_cust_state_dict = json.loads(self.alice_state)
+        self.channel_token_a, self.channel_state_a, alice_cust_state = self._establish_channel(self.channel_token_a, self.channel_state,
+                                                                                               self.alice_state, alice_cust_state_dict["pk_c"],
+                                                                                               self.b0_alice, self.b0_merch)
+
+        charlie_cust_state_dict = json.loads(self.charlie_state)
+        self.channel_token_c, self.channel_state_c, charlie_cust_state = self._establish_channel(self.channel_token_c, self.channel_state,
+                                                                                                 self.charlie_state, charlie_cust_state_dict["pk_c"],
+                                                                                                 self.b0_charlie, self.b0_merch)
+
+        self.channel_state_a, alice_cust_state = self._pay_on_channel(self.channel_state_a, alice_cust_state, 15)
+        #print("Alice cust state => ", alice_cust_state)
+        self.channel_state_c, charlie_cust_state = self._pay_on_channel(self.channel_state_c, charlie_cust_state, 10)
+        self.channel_state_c, charlie_cust_state = self._pay_on_channel(self.channel_state_c, charlie_cust_state, 20)
+        #print("Charlie cust state => ", charlie_cust_state)
+
+        alice_bal = json.loads(alice_cust_state)["cust_balance"]
+        charlie_bal = json.loads(charlie_cust_state)["cust_balance"]
+
+        self.assertTrue(alice_bal != charlie_bal)
+
 
 
 class BoltIntermediaryTests(unittest.TestCase):
