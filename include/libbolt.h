@@ -17,8 +17,8 @@ extern "C" {
 
 // channel init
 char* ffishim_bidirectional_channel_setup(const char *channel_name, unsigned int third_party_support);
-char* ffishim_bidirectional_init_merchant(const char *ser_channel_state, int balance, const char *name_ptr);
-char* ffishim_bidirectional_init_customer(const char *ser_channel_state, const char *ser_channel_token, int balance_customer,  int balance_merchant, const char *name_ptr);
+char* ffishim_bidirectional_init_merchant(const char *ser_channel_state, const char *name_ptr);
+char* ffishim_bidirectional_init_customer(const char *ser_channel_token, int balance_customer,  int balance_merchant, const char *name_ptr);
 
 // channel establish protocol routines
 char* ffishim_bidirectional_establish_customer_generate_proof(const char *ser_channel_token, const char *ser_customer_wallet);

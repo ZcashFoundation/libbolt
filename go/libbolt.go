@@ -163,12 +163,12 @@ func BidirectionalChannelSetup(name string, channelSupport bool) (ChannelState, 
 	return channelState, err
 }
 
-func BidirectionalInitMerchant(channelState ChannelState, balanceMerchant int, nameMerchant string) (ChannelToken, MerchState, ChannelState, error) {
+func BidirectionalInitMerchant(channelState ChannelState, nameMerchant string) (ChannelToken, MerchState, ChannelState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return ChannelToken{}, MerchState{}, ChannelState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_init_merchant(C.CString(string(serChannelState)), C.int(balanceMerchant), C.CString(nameMerchant)))
+	resp := C.GoString(C.ffishim_bidirectional_init_merchant(C.CString(string(serChannelState)), C.CString(nameMerchant)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, MerchState{}, ChannelState{}, err
@@ -187,16 +187,12 @@ func BidirectionalInitMerchant(channelState ChannelState, balanceMerchant int, n
 	return channelToken, merchState, channelState, err
 }
 
-func BidirectionalInitCustomer(channelState ChannelState, channelToken ChannelToken, balanceCustomer int, balanceMerchant int, nameCustomer string) (ChannelToken, CustState, error) {
-	serChannelState, err := json.Marshal(channelState)
-	if err != nil {
-		return ChannelToken{}, CustState{}, err
-	}
+func BidirectionalInitCustomer(channelToken ChannelToken, balanceCustomer int, balanceMerchant int, nameCustomer string) (ChannelToken, CustState, error) {
 	serChannelToken, err := json.Marshal(channelToken)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_init_customer(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.int(balanceCustomer), C.int(balanceMerchant), C.CString(nameCustomer)))
+	resp := C.GoString(C.ffishim_bidirectional_init_customer(C.CString(string(serChannelToken)), C.int(balanceCustomer), C.int(balanceMerchant), C.CString(nameCustomer)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err

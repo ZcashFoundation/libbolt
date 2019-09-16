@@ -3,9 +3,7 @@ use sodiumoxide::crypto::hash::sha512;
 use pairing::Engine;
 use ff::{PrimeField};
 use rand::Rng;
-use ped92::CSMultiParams;
 use secp256k1::{Signature, PublicKey};
-use cl::Signature as clSignature;
 
 pub fn is_vec_fr_equal<E: Engine>(a: &Vec<E::Fr>, b: &Vec<E::Fr>) -> bool {
     (a.len() == b.len()) &&

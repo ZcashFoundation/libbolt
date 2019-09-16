@@ -4,7 +4,7 @@ pub mod ffishim {
 
     use bidirectional;
     use ff::Rand;
-    use pairing::bls12_381::{Bls12, Fr};
+    use pairing::bls12_381::{Bls12};
 
     use serde::Deserialize;
 
@@ -12,7 +12,6 @@ pub mod ffishim {
     use std::ffi::{CStr, CString};
     use std::str;
     use channels::{ChannelcloseM, ResultBoltType, BoltError};
-    use std::alloc::handle_alloc_error;
     use util::hash_pubkey_to_fr;
     use std::str::FromStr;
 
@@ -76,7 +75,7 @@ pub mod ffishim {
     #[no_mangle]
     pub extern fn ffishim_bidirectional_wtp_check_wpk(ser_wpk: *mut c_char) -> *mut c_char {
         let wpk_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_wpk);
-        let wpk = handle_errors!(wpk_result);
+        let _wpk = handle_errors!(wpk_result);
 
         let res = true;
         let ser = ["{\'result\':\'", serde_json::to_string(&res).unwrap().as_str(), "\'}"].concat();
@@ -94,8 +93,7 @@ pub mod ffishim {
         if third_party_support > 1 {
             tps = true;
         }
-        let mut channel_state = bidirectional::ChannelState::<Bls12>::new(name.to_string(), tps);
-        let mut rng = &mut rand::thread_rng();
+        let channel_state = bidirectional::ChannelState::<Bls12>::new(name.to_string(), tps);
 
         let ser = ["{\'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
@@ -105,7 +103,7 @@ pub mod ffishim {
     // INIT
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_init_merchant(ser_channel_state: *mut c_char, balance: i32, name_ptr: *const c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_init_merchant(ser_channel_state: *mut c_char, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
@@ -113,7 +111,7 @@ pub mod ffishim {
 	    let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
 	    let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
-        let (channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, name);
+        let (channel_token, merch_state, channel_state) = bidirectional::init_merchant(rng, &mut channel_state, name);
 
         let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str() ,"\'}"].concat();
 
@@ -122,12 +120,8 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_init_customer(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, balance_customer: i32,  balance_merchant: i32, name_ptr: *const c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_init_customer(ser_channel_token: *mut c_char, balance_customer: i32,  balance_merchant: i32, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
-        // Deserialize the channel state
-        let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
-        let channel_state = handle_errors!(channel_state_result);
-
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<Bls12>> = deserialize_result_object(ser_channel_token);
         let mut channel_token = handle_errors!(channel_token_result);
@@ -137,7 +131,7 @@ pub mod ffishim {
 	    let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
-        let cust_state = bidirectional::init_customer(rng, &channel_state, &mut channel_token, balance_customer, balance_merchant, name);
+        let cust_state = bidirectional::init_customer(rng, &mut channel_token, balance_customer, balance_merchant, name);
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str() ,"\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()

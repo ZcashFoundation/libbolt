@@ -142,6 +142,7 @@ impl<E: Engine> ChannelToken<E> {
         input.extend_from_slice(&ser_pk_m);
         input.extend(&ser_cl_pk_m);
         input.extend(&ser_mpk);
+        input.extend(&ser_comParams);
 
         return hash_to_slice(&input);
     }
@@ -199,7 +200,7 @@ struct WalletKeyPair {
 }
 
 ///
-/// Customer wallet consists of a keypair (NEW)
+/// Customer state
 ///
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -234,7 +235,7 @@ pub struct CustomerState<E: Engine> {
 }
 
 impl<E: Engine> CustomerState<E> {
-    pub fn new<R: Rng>(csprng: &mut R, channel: &ChannelState<E>, channel_token: &mut ChannelToken<E>, cust_bal: i32, merch_bal: i32, name: String) -> Self {
+    pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelToken<E>, cust_bal: i32, merch_bal: i32, name: String) -> Self {
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
 
@@ -436,7 +437,7 @@ impl<E: Engine> CustomerState<E> {
 impl<E: Engine> fmt::Display for CustomerState<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut content = String::new();
-        content = format!("name = {}\n", &self.name);
+        content = format!("id = {}\n", &self.name);
         content = format!("{}pk = {}\n", content, &self.pk_c);
         content = format!("{}sk = {}\n", content, &self.sk_c);
         content = format!("{}cust-bal = {}\n", content, &self.cust_balance);
@@ -469,7 +470,7 @@ pub struct ChannelcloseM {
 }
 
 ///
-/// Merchant wallet (NEW)
+/// Merchant State
 ///
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "<E as ff::ScalarEngine>::Fr: serde::Serialize, \
@@ -481,6 +482,7 @@ pub struct ChannelcloseM {
 <E as pairing::Engine>::G2: serde::Deserialize<'de>"
 ))]
 pub struct MerchantState<E: Engine> {
+    id: String,
     keypair: cl::BlindKeyPair<E>,
     nizkParams: NIZKSecretParams<E>,
     pk: secp256k1::PublicKey,
@@ -504,6 +506,7 @@ impl<E: Engine> MerchantState<E> {
         ch.cp = Some(ChannelParams::<E> { pub_params: nizkParams.pubParams.clone(), l, extra_verify: true });
 
         (MerchantState {
+            id: id.clone(),
             keypair: nizkParams.keypair.clone(),
             nizkParams: nizkParams.clone(),
             pk: wpk,

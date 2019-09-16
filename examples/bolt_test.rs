@@ -58,7 +58,7 @@ fn main() {
 
     let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Merchant Bob");
 
-    let mut cust_state = bidirectional::init_customer(rng, &mut channel_state, &mut channel_token, b0_customer, b0_merchant, "Alice");
+    let mut cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
 
     println!("{}", cust_state);
 

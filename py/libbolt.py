@@ -8,7 +8,7 @@ import ast
 import json
 
 class Libbolt(object):
-	"""docstring for Libbolt C API"""
+	"""Libbolt Py/C low-level API"""
 
 	def __init__(self, path):
 		self.lib = cdll.LoadLibrary(path)
@@ -20,10 +20,10 @@ class Libbolt(object):
 
 		# ESTABLISH PROTOCOL
 
-		self.lib.ffishim_bidirectional_init_merchant.argtypes = (c_void_p, ctypes.c_int32, c_void_p)
+		self.lib.ffishim_bidirectional_init_merchant.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_init_merchant.restype = c_void_p
 
-		self.lib.ffishim_bidirectional_init_customer.argtypes = (c_void_p, c_void_p, ctypes.c_int32, ctypes.c_int32, c_void_p)
+		self.lib.ffishim_bidirectional_init_customer.argtypes = (c_void_p, ctypes.c_int32, ctypes.c_int32, c_void_p)
 		self.lib.ffishim_bidirectional_init_customer.restype = c_void_p
 
 		self.lib.ffishim_bidirectional_establish_customer_generate_proof.argtypes = (c_void_p, c_void_p)
@@ -83,13 +83,13 @@ class Libbolt(object):
 
 	# INIT PROTOCOL
 
-	def bidirectional_init_merchant(self, channel_state, b0_merch, name):
-		output_string = self.lib.ffishim_bidirectional_init_merchant(channel_state.encode(), b0_merch, name.encode())
+	def bidirectional_init_merchant(self, channel_state, name):
+		output_string = self.lib.ffishim_bidirectional_init_merchant(channel_state.encode(), name.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('channel_token'), output_dictionary.get('merch_state'), output_dictionary.get('channel_state')
 
-	def bidirectional_init_customer(self, channel_state, channel_token, b0_cust, b0_merch, name):
-		output_string = self.lib.ffishim_bidirectional_init_customer(channel_state.encode(), channel_token.encode(), b0_cust, b0_merch, name.encode())
+	def bidirectional_init_customer(self, channel_token, b0_cust, b0_merch, name):
+		output_string = self.lib.ffishim_bidirectional_init_customer(channel_token.encode(), b0_cust, b0_merch, name.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('channel_token'), output_dictionary.get('cust_state'))
 
@@ -229,12 +229,12 @@ def run_unit_test():
 
 	print("channel state new: ", len(channel_state))
 
-	(channel_token, merch_state, channel_state) = libbolt.bidirectional_init_merchant(channel_state, b0_merch, "Bob")
+	(channel_token, merch_state, channel_state) = libbolt.bidirectional_init_merchant(channel_state, "Bob")
 
 	print("merch_state: ", len(merch_state))
 	#print("channel_token: ", type(_channel_token))
 
-	(channel_token, cust_state) = libbolt.bidirectional_init_customer(channel_state, channel_token, b0_cust, b0_merch, "Alice")
+	(channel_token, cust_state) = libbolt.bidirectional_init_customer(channel_token, b0_cust, b0_merch, "Alice")
 	print("cust_state: ", len(cust_state))
 
 	(channel_token, cust_state, com, com_proof) = libbolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)

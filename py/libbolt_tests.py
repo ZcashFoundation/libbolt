@@ -28,14 +28,12 @@ class BoltEstablishTests(unittest.TestCase):
         self.channel_state = self.bolt.channel_setup("Test Channel")
         self.b0_cust = 1000
         self.b0_merch = 100
-        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
-        (channel_token, self.cust_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
-                                                                                 self.b0_cust, self.b0_merch, "Alice")
+        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, "Bob")
+        (channel_token, self.cust_state) = self.bolt.bidirectional_init_customer(self.channel_token, self.b0_cust, self.b0_merch, "Alice")
 
         # generate some bad stuff here
         larger_b0_cust = 2000
-        (channel_token_bad, self.cust_state_bad) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
-                                                                                         larger_b0_cust, self.b0_merch, "Alice")
+        (channel_token_bad, self.cust_state_bad) = self.bolt.bidirectional_init_customer(self.channel_token, larger_b0_cust, self.b0_merch, "Alice")
 
         # set them
         self.channel_token = channel_token
@@ -152,9 +150,8 @@ class BoltPayTests(unittest.TestCase):
         self.channel_state = self.bolt.channel_setup("Test Channel")
         self.b0_cust = 500
         self.b0_merch = 10
-        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
-        (self.channel_token, self.cust_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
-                                                                                      self.b0_cust, self.b0_merch, "Alice")
+        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, "Bob")
+        (self.channel_token, self.cust_state) = self.bolt.bidirectional_init_customer(self.channel_token, self.b0_cust, self.b0_merch, "Alice")
 
         (self.channel_token, self.cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token, self.cust_state)
 
@@ -259,13 +256,11 @@ class BoltMultiChannelTests(unittest.TestCase):
         self.channel_state = self.bolt.channel_setup("Test Channel")
         self.b0_alice = self.b0_charlie = 150
         self.b0_merch = 5
-        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, self.b0_merch, "Bob")
+        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, "Bob")
 
-        (self.channel_token_a, self.alice_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
-                                                                                      self.b0_alice, self.b0_merch, "Alice")
+        (self.channel_token_a, self.alice_state) = self.bolt.bidirectional_init_customer(self.channel_token, self.b0_alice, self.b0_merch, "Alice")
 
-        (self.channel_token_c, self.charlie_state) = self.bolt.bidirectional_init_customer(self.channel_state, self.channel_token,
-                                                                                      self.b0_charlie, self.b0_merch, "Charlie")
+        (self.channel_token_c, self.charlie_state) = self.bolt.bidirectional_init_customer(self.channel_token, self.b0_charlie, self.b0_merch, "Charlie")
 
     def _establish_channel(self, channel_token, channel_state, cust_state, pkc, b0_cust, b0_merch):
         (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)

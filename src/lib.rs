@@ -116,7 +116,6 @@ pub mod bidirectional {
     use util;
     use wallet;
     use pairing::Engine;
-    use pairing::bls12_381::Bls12;
     use sodiumoxide;
     use cl;
     // for blind signature
@@ -127,7 +126,6 @@ pub mod bidirectional {
     use sha2::Sha512;
 
     use serde::{Serialize, Deserialize};
-    use std::sync::mpsc::channel;
     use util::{RevokedMessage, hash_to_slice};
     pub use ped92::Commitment;
     pub use cl::{PublicKey, Signature};
@@ -197,14 +195,13 @@ pub mod bidirectional {
     /// and initial balance for customer and merchant. Generate initial customer channel token,
     /// and wallet commitment.
     ///
-    pub fn init_customer<'a, R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
-                                                channel_token: &mut ChannelToken<E>,
+    pub fn init_customer<'a, R: Rng, E: Engine>(csprng: &mut R, channel_token: &mut ChannelToken<E>,
                                                 b0_cust: i32, b0_merch: i32, name: &'a str) -> CustomerState<E> {
         assert!(b0_cust >= 0);
         assert!(b0_merch >= 0);
 
         let cust_name = String::from(name);
-        return CustomerState::<E>::new(csprng, channel_state, channel_token, b0_cust, b0_merch, cust_name);
+        return CustomerState::<E>::new(csprng, channel_token, b0_cust, b0_merch, cust_name);
     }
 
     ///
@@ -546,7 +543,7 @@ mod tests {
         let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, channel_state, merch_name);
 
         // initialize on the customer side with balance: b0_cust
-        let cust_state = bidirectional::init_customer(rng, &channel_state, &mut channel_token, b0_cust, b0_merch, cust_name);
+        let cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_cust, b0_merch, cust_name);
 
         return (channel_token, merch_state, cust_state, channel_state);
     }
@@ -615,7 +612,7 @@ mod tests {
 
         let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Merchant Bob");
 
-        let mut cust_state = bidirectional::init_customer(rng, &mut channel_state, &mut channel_token, b0_customer, b0_merchant, "Alice");
+        let mut cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_customer, b0_merchant, "Alice");
 
         println!("{}", cust_state);
 
@@ -926,7 +923,7 @@ mod tests {
 
         let b0_cust = 100;
         let b0_merch = 10;
-        let cust_state = bidirectional::init_customer(rng, &channel_state, &mut channel_token, b0_cust, b0_merch, "Customer A");
+        let cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_cust, b0_merch, "Customer A");
 
         let serlalized_ct = serde_json::to_string(&channel_token).unwrap();
 

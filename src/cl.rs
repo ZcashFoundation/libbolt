@@ -4,7 +4,7 @@ extern crate pairing;
 extern crate rand;
 
 use super::*;
-use pairing::{CurveAffine, CurveProjective, Engine};
+use pairing::{CurveProjective, Engine};
 use ff::{PrimeField, ScalarEngine};
 use rand::Rng;
 use ped92::{Commitment, CSMultiParams};
@@ -174,7 +174,7 @@ pub struct SignatureProof<E: Engine> {
 impl<E: Engine> SecretKey<E> {
     pub fn generate<R: Rng>(csprng: &mut R, l: usize) -> Self {
         let mut y: Vec<E::Fr> = Vec::new();
-        for i in 0..l {
+        for _i in 0..l {
             let _y = E::Fr::rand(csprng);
             y.push(_y);
         }
