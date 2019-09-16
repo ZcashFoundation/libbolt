@@ -41,6 +41,7 @@ type ChannelState struct {
 }
 
 type MerchState struct {
+    Id         string      `json:"id"`
 	KeyPair    KeyPair     `json:"keypair"`
 	NizkParams interface{} `json:"nizkParams"`
 	Pk         string      `json:"pk"`

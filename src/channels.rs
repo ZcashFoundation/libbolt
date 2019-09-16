@@ -283,6 +283,12 @@ impl<E: Engine> CustomerState<E> {
         return self.wallet.clone();
     }
 
+    pub fn get_public_key(&self) -> E::Fr {
+        // hash the channel pub key
+        let pk_h = hash_pubkey_to_fr::<E>(&self.pk_c);
+        return pk_h;
+    }
+
     pub fn get_close_token(&self) -> cl::Signature<E> {
         let index = self.index;
         let close_token = self.close_tokens.get(&index).unwrap();

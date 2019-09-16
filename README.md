@@ -223,7 +223,6 @@ Here are some TODOs (not in any particular order):
 
 * Fix warnings
 * Add more unit tests for other dispute resolution scenarios and third-party test cases
-* Optimize the NIZK params and range proofs
 	
 # License
 

@@ -560,8 +560,10 @@ mod tests {
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, channel_token, cust_state);
 
         // obtain close token for closing out channel
-        let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
-        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_h, cust_balance, merch_balance, &merch_state);
+        //let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
+        let pk_c = cust_state.get_public_key();
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_c,
+                                                                                            cust_balance, merch_balance, &merch_state);
         let close_token = match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
