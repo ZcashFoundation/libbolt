@@ -98,13 +98,9 @@ To initialize state/keys for both parties, call the ``bidirectional::init_mercha
 
 	// initialize the merchant state and initialize with balance
     let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Bob");
-	
-    // initialize the balance for merch_state
-    merch_state.init_balance(b0_merch);
-			    
+				    
     // generate the customer state using the channel token from the merchant
 	let mut cust_state = bidirectional::init_customer(rng, // rng
-	                                              &mut channel_state, // channel state
 	                                              &mut channel_token, // channel token
 	                                              b0_cust, // init customer balance
 	                                              b0_merch, // init merchant balance

@@ -59,7 +59,7 @@ type CustState struct {
 	Wpk          string               `json:"wpk"`
 	Wsk          string               `json:"wsk"`
 	OldKP        *KP                  `json:"old_kp,omitempty"`
-	T            []uint64             `json:"t"`
+	T            []string             `json:"t"`
 	Wallet       Wallet               `json:"wallet"`
 	WCom         Commitment           `json:"w_com"`
 	Index        int                  `json:"index"`
@@ -77,11 +77,11 @@ type Commitment struct {
 }
 
 type Wallet struct {
-	Pkc   []uint64 `json:"pkc"`
-	Wpk   []uint64 `json:"wpk"`
+	Pkc   []string `json:"pkc"`
+	Wpk   []string `json:"wpk"`
 	Bc    int      `json:"bc"`
 	Bm    int      `json:"bm"`
-	Close []uint64 `json:"close"`
+	Close []string `json:"close"`
 }
 
 type KeyPair struct {
@@ -90,8 +90,8 @@ type KeyPair struct {
 }
 
 type SecretKey struct {
-	X []uint64   `json:"x"`
-	Y [][]uint64 `json:"y"`
+	X []string   `json:"x"`
+	Y [][]string `json:"y"`
 }
 
 type PublicKey struct {
@@ -140,10 +140,10 @@ type Message struct {
 
 type CommitmentProof struct {
 	T      string     `json:"T"`
-	Z      [][]uint64 `json:"z"`
-	Ts     [][]uint64 `json:"t"`
+	Z      [][]string `json:"z"`
+	Ts     [][]string `json:"t"`
 	Index  []int      `json:"index"`
-	Reveal [][]uint64 `json:"reveal"`
+	Reveal [][]string `json:"reveal"`
 }
 
 type CustClose struct {
