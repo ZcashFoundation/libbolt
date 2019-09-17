@@ -648,7 +648,7 @@ mod tests {
 
         // retrieve commitment setup params (using merchant long lived pk params)
         // initialize on the customer side with balance: b0_cust
-        let mut cust_state = CustomerState::<Bls12>::new(rng, &mut channel, &mut channel_token, b0_cust, b0_merch, String::from("Alice"));
+        let mut cust_state = CustomerState::<Bls12>::new(rng, &mut channel_token, b0_cust, b0_merch, String::from("Alice"));
 
         // lets establish the channel
         let cust_com_proof = cust_state.generate_proof(rng, &mut channel_token);

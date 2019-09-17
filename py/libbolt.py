@@ -204,7 +204,6 @@ class Libbolt(object):
 			return False
 		return bool_str
 
-
 if platform == 'darwin':
 	prefix = 'lib'
 	ext = 'dylib'
