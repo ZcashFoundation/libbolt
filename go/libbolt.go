@@ -32,7 +32,7 @@ type setupResp struct {
 
 type ChannelState struct {
 	R                  int         `json:"R"`
-	TxFee              int         `json:"tx_fee"`
+	TxFee              int64         `json:"tx_fee"`
 	Cp                 interface{} `json:"cp"`
 	Name               string      `json:"name"`
 	PayInit            bool        `json:"pay_init"`
@@ -55,8 +55,8 @@ type CustState struct {
 	Name         string               `json:"name"`
 	PkC          string               `json:"pk_c"`
 	SkC          string               `json:"sk_c"`
-	CustBalance  int                  `json:"cust_balance"`
-	MerchBalance int                  `json:"merch_balance"`
+	CustBalance  int64                  `json:"cust_balance"`
+	MerchBalance int64                  `json:"merch_balance"`
 	Wpk          string               `json:"wpk"`
 	Wsk          string               `json:"wsk"`
 	OldKP        *KP                  `json:"old_kp,omitempty"`
@@ -80,8 +80,8 @@ type Commitment struct {
 type Wallet struct {
 	Pkc   []string `json:"pkc"`
 	Wpk   []string `json:"wpk"`
-	Bc    int      `json:"bc"`
-	Bm    int      `json:"bm"`
+	Bc    int64      `json:"bc"`
+	Bm    int64      `json:"bm"`
 	Close []string `json:"close"`
 }
 
@@ -193,7 +193,7 @@ func BidirectionalInitCustomer(channelToken ChannelToken, balanceCustomer int, b
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_init_customer(C.CString(string(serChannelToken)), C.int(balanceCustomer), C.int(balanceMerchant), C.CString(nameCustomer)))
+	resp := C.GoString(C.ffishim_bidirectional_init_customer(C.CString(string(serChannelToken)), C.longlong(balanceCustomer), C.longlong(balanceMerchant), C.CString(nameCustomer)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
@@ -256,7 +256,7 @@ func BidirectionalEstablishMerchantIssueCloseToken(channelState ChannelState, co
 	if err != nil {
 		return Signature{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_close_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serComProof)), C.CString(pkc), C.int(initCustBal), C.int(initMerchBal), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_close_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serComProof)), C.CString(pkc), C.longlong(initCustBal), C.longlong(initMerchBal), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, err
@@ -350,7 +350,7 @@ func BidirectionalPayGeneratePaymentProof(channelState ChannelState, custState C
 	if err != nil {
 		return "", CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_generate_payment_proof(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.int(amount)))
+	resp := C.GoString(C.ffishim_bidirectional_pay_generate_payment_proof(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.longlong(amount)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", CustState{}, err

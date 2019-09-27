@@ -72,8 +72,8 @@ impl<E: Engine> NIZKSecretParams<E> {
         let mpk = setup(rng);
         let keypair = BlindKeyPair::<E>::generate(rng, &mpk, messageLength);
         let comParams = keypair.generate_cs_multi_params(&mpk);
-        let u = 57; //TODO: optimize u?
-        let l = (std::i16::MAX as f32).log(u as f32).floor() as i32;
+        let u = 128; //TODO: make u and l configurable
+        let l = 9;
         let rpParams = SecretParamsUL::setup_ul(rng, u, l, comParams.clone());
         let pubParams = NIZKPublicParams { mpk, pk: keypair.public.clone(), comParams, rpParams: rpParams.pubParams.clone() };
 
@@ -203,12 +203,12 @@ impl<E: Engine> NIZKPublicParams<E> {
 ///
 /// Verify PoK for the opening of a commitment during the establishment protocol
 ///
-pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>, pkc: &E::Fr, init_cust: i32, init_merch: i32) -> bool {
+pub fn verify_opening<E: Engine>(com_params: &CSMultiParams<E>, com: &E::G1, proof: &CommitmentProof<E>, pkc: &E::Fr, init_cust: i64, init_merch: i64) -> bool {
     let xvec: Vec<E::G1> = vec![proof.T.clone(), com.clone()];
     let challenge = util::hash_g1_to_fr::<E>(&xvec);
 
     // compute the
-    let com_equal = proof.verify_proof(com_params, com, &challenge, Some(vec!{None, Some(pkc.clone()), None, Some(util::convert_int_to_fr::<E>(init_cust)), Some(util::convert_int_to_fr::<E>(init_merch))}));
+    let com_equal = proof.verify_proof(com_params, com, &challenge, Some(vec!{None, Some(pkc.clone()), None, Some(util::convert_int_to_fr::<E>(init_cust as i64)), Some(util::convert_int_to_fr::<E>(init_merch as i64))}));
 
     return com_equal;
 }
@@ -228,13 +228,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000);
+        let bc = rng.gen_range(100, 1000) as i64;
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000) as i64;
         let mut bm2 = bm.clone();
-        let epsilon = &rng.gen_range(1, 100);
-        bc2 -= epsilon;
-        bm2 += epsilon;
+        let epsilon = rng.gen_range(1, 100) as i64;
+        bc2 = (bc2 as i64 - epsilon) as i64;
+        bm2 = (bm2 as i64 + epsilon) as i64;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -248,7 +248,7 @@ mod tests {
 
         let proof = secParams.pubParams.prove(rng, wallet1, wallet2,
                                               commitment2.clone(), rprime, &paymentToken);
-        let fr = convert_int_to_fr::<Bls12>(*epsilon);
+        let fr = convert_int_to_fr::<Bls12>(epsilon);
         assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
     }
 
@@ -258,13 +258,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000);
+        let bc = rng.gen_range(100, 1000) as i64;
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000) as i64;
         let mut bm2 = bm.clone();
-        let epsilon = &rng.gen_range(-100, -1);
-        bc2 -= epsilon;
-        bm2 += epsilon;
+        let epsilon = rng.gen_range(-100, -1) as i64;
+        bc2 = (bc2 as i64 - epsilon) as i64;
+        bm2 = (bm2 as i64 + epsilon) as i64;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -278,7 +278,7 @@ mod tests {
 
         let proof = secParams.pubParams.prove(rng, wallet1, wallet2,
                                               commitment2.clone(), rprime, &paymentToken);
-        let fr = convert_int_to_fr::<Bls12>(*epsilon);
+        let fr = convert_int_to_fr::<Bls12>(epsilon);
         assert_eq!(secParams.verify(proof, fr, &commitment2, wpk), true);
     }
 
@@ -288,13 +288,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000);
+        let bc = rng.gen_range(100, 1000) as i64;
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000) as i64;
         let mut bm2 = bm.clone();
-        let epsilon = &rng.gen_range(1, 100);
-        bc2 -= epsilon;
-        bm2 += epsilon;
+        let epsilon = rng.gen_range(1, 100) as i64;
+        bc2 = (bc2 as i64 - epsilon) as i64;
+        bm2 = (bm2 as i64 + epsilon) as i64;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -329,13 +329,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000);
+        let bc = rng.gen_range(100, 1000) as i64;
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000) as i64;
         let mut bm2 = bm.clone();
-        let epsilon = &rng.gen_range(1, 100);
-        bc2 -= epsilon;
-        bm2 += epsilon;
+        let epsilon = rng.gen_range(1, 100) as i64;
+        bc2 = (bc2 as i64 - epsilon) as i64;
+        bm2 = (bm2 as i64 + epsilon) as i64;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -370,8 +370,8 @@ mod tests {
         let wpk = Fr::rand(rng);
         let t = Fr::rand(rng);
 
-        let bc = rng.gen_range(100, 1000);
-        let bm = rng.gen_range(100, 1000);
+        let bc = rng.gen_range(100, 1000) as i64;
+        let bm = rng.gen_range(100, 1000) as i64;
         let wallet = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
 
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
@@ -390,9 +390,9 @@ mod tests {
         let wpk = Fr::rand(rng);
         let t = Fr::rand(rng);
 
-        let bc = rng.gen_range(100, 1000);
-        let bc2 = rng.gen_range(100, 1000);
-        let bm = rng.gen_range(100, 1000);
+        let bc = rng.gen_range(100, 1000) as i64;
+        let bc2 = rng.gen_range(100, 1000) as i64;
+        let bm = rng.gen_range(100, 1000) as i64;
         let wallet1 = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
         let wallet2 = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc2, bm: bm, close: None };
 
@@ -416,8 +416,8 @@ mod tests {
         let mpk = setup(&mut rng);
         let blindkeypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
         let comParams = blindkeypair.generate_cs_multi_params(&mpk);
-        let u = 57; //TODO: optimize u?
-        let l = (std::i16::MAX as f32).log(u as f32).floor() as i32;
+        let u = 256; //TODO: optimize u?
+        let l = 8;
         let rpParams = ccs08::SecretParamsUL::setup_ul(rng, u, l, comParams.clone());
 
         let nizk_params = NIZKPublicParams { mpk: mpk, pk: blindkeypair.public, comParams: comParams, rpParams: rpParams.pubParams.clone() };

@@ -33,7 +33,7 @@ pythontests:
 	cargo +nightly update
 	cargo +nightly build --release
 	python py/libbolt.py
-	python py/tests.py
+	python py/libbolt_tests.py
 
 cpptests:
 	@cargo +nightly build --release

@@ -77,7 +77,7 @@ pub fn hash_pubkey_to_fr<E: Engine>(wpk: &secp256k1::PublicKey) -> E::Fr {
     return result.unwrap();
 }
 
-pub fn convert_int_to_fr<E: Engine>(value: i32) -> E::Fr {
+pub fn convert_int_to_fr<E: Engine>(value: i64) -> E::Fr {
     if value > 0 {
         return E::Fr::from_str(value.to_string().as_str()).unwrap();
     } else {

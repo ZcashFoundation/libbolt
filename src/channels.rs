@@ -85,7 +85,7 @@ pub struct ChannelParams<E: Engine> {
 ))]
 pub struct ChannelState<E: Engine> {
     R: i32,
-    tx_fee: i32,
+    tx_fee: i64,
     pub cp: Option<ChannelParams<E>>,
     pub name: String,
     pub pay_init: bool,
@@ -184,12 +184,12 @@ impl<E: Engine> ChannelState<E> {
         // load external params
     }
 
-    pub fn set_channel_fee(&mut self, fee: i32) {
+    pub fn set_channel_fee(&mut self, fee: i64) {
         self.tx_fee = fee;
     }
 
-    pub fn get_channel_fee(&self) -> i32 {
-        return self.tx_fee as i32;
+    pub fn get_channel_fee(&self) -> i64 {
+        return self.tx_fee as i64;
     }
 }
 
@@ -215,9 +215,9 @@ pub struct CustomerState<E: Engine> {
     pub name: String,
     pub pk_c: secp256k1::PublicKey,
     sk_c: secp256k1::SecretKey,
-    pub cust_balance: i32,
+    pub cust_balance: i64,
     //
-    pub merch_balance: i32,
+    pub merch_balance: i64,
     pub wpk: secp256k1::PublicKey,
     // keypair bound to the wallet
     wsk: secp256k1::SecretKey,
@@ -235,7 +235,7 @@ pub struct CustomerState<E: Engine> {
 }
 
 impl<E: Engine> CustomerState<E> {
-    pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelToken<E>, cust_bal: i32, merch_bal: i32, name: String) -> Self {
+    pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelToken<E>, cust_bal: i64, merch_bal: i64, name: String) -> Self {
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
 
@@ -358,7 +358,7 @@ impl<E: Engine> CustomerState<E> {
     }
 
     // for channel pay
-    pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i32) -> (NIZKProof<E>, Commitment<E>, secp256k1::PublicKey, CustomerState<E>) {
+    pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i64) -> (NIZKProof<E>, Commitment<E>, secp256k1::PublicKey, CustomerState<E>) {
         // 1 - chooose new wpk/wsk pair
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
@@ -559,7 +559,7 @@ impl<E: Engine> MerchantState<E> {
         return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, pay_com);
     }
 
-    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, pkc: &E::Fr, cust_balance: i32, merch_balance: i32) -> ResultBoltType<(Signature<E>, Signature<E>)> {
+    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, pkc: &E::Fr, cust_balance: i64, merch_balance: i64) -> ResultBoltType<(Signature<E>, Signature<E>)> {
         let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, &pkc, cust_balance, merch_balance);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
@@ -581,7 +581,7 @@ impl<E: Engine> MerchantState<E> {
         return self.pay_tokens.get(&wpk_str).unwrap().clone();
     }
 
-    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &NIZKProof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i32) -> ResultBoltType<Signature<E>> {
+    pub fn verify_payment<R: Rng>(&mut self, csprng: &mut R, channel: &ChannelState<E>, proof: &NIZKProof<E>, com: &Commitment<E>, wpk: &secp256k1::PublicKey, amount: i64) -> ResultBoltType<Signature<E>> {
         let cp = channel.cp.as_ref().unwrap();
         let pay_proof = proof.clone();
         let prev_wpk = hash_pubkey_to_fr::<E>(&wpk);

@@ -120,7 +120,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_init_customer(ser_channel_token: *mut c_char, balance_customer: i32,  balance_merchant: i32, name_ptr: *const c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_init_customer(ser_channel_token: *mut c_char, balance_customer: i64,  balance_merchant: i64, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<Bls12>> = deserialize_result_object(ser_channel_token);
@@ -162,7 +162,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_pk_c: *mut c_char, init_cust_bal: i32, init_merch_bal: i32, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_pk_c: *mut c_char, init_cust_bal: i64, init_merch_bal: i64, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
@@ -266,7 +266,7 @@ pub mod ffishim {
     // PAY
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_pay_generate_payment_proof(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, amount: i32) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_pay_generate_payment_proof(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, amount: i64) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
@@ -277,6 +277,7 @@ pub mod ffishim {
         let cust_state = handle_errors!(cust_state_result);
 
         // Generate the payment proof
+        println!("{}", amount);
         let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &cust_state, amount);
         // Serialize the results and return to caller
         let ser = ["{\'payment\':\'", serde_json::to_string(&payment).unwrap().as_str(),

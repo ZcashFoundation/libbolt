@@ -30,11 +30,11 @@ pub struct ParamsUL<E: Engine> {
     // u determines the amount of signatures we need in the public params.
     // Each signature can be compressed to just 1 field element of 256 bits.
     // Then the parameters have minimum size equal to 256*u bits.
-    u: i32,
+    u: i64,
     // l determines how many pairings we need to compute, then in order to improve
     // verifier`s performance we want to minize it.
     // Namely, we have 2*l pairings for the prover and 3*l for the verifier.
-    l: i32,
+    l: i64,
 }
 
 /**
@@ -51,7 +51,7 @@ pub struct SecretParamsUL<E: Engine> {
 
 #[derive(Clone)]
 pub struct ProofULState<E: Engine> {
-    pub decx: Vec<i32>,
+    pub decx: Vec<i64>,
     pub proofStates: Vec<ProofState<E>>,
     pub V: Vec<Signature<E>>,
     pub D: E::G1,
@@ -118,8 +118,8 @@ This must be computed in a trusted setup.
 #[serde(bound(deserialize = "<E as ff::ScalarEngine>::Fr: serde::Deserialize<'de>, <E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct RPPublicParams<E: Engine> {
     pub p: ParamsUL<E>,
-    pub a: i32,
-    pub b: i32,
+    pub a: i64,
+    pub b: i64,
 }
 
 /**
@@ -140,7 +140,7 @@ impl<E: Engine> SecretParamsUL<E> {
         The value of u should be roughly b/log(b), but we can choose smaller values in
         order to get smaller parameters, at the cost of having worse performance.
     */
-    pub fn setup_ul<R: Rng>(rng: &mut R, u: i32, l: i32, csParams: CSMultiParams<E>) -> Self {
+    pub fn setup_ul<R: Rng>(rng: &mut R, u: i64, l: i64, csParams: CSMultiParams<E>) -> Self {
         let mpk = setup(rng);
         let kp = BlindKeyPair::<E>::generate(rng, &mpk, 1);
 
@@ -220,7 +220,7 @@ impl<E: Engine> ParamsUL<E> {
     /**
         prove_ul method is used to produce the ZKRP proof that secret x belongs to the interval [0,U^L).
     */
-    pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i32, r: E::Fr, C: Commitment<E>, k: usize, otherM: Vec<E::Fr>) -> ProofUL<E> {
+    pub fn prove_ul<R: Rng>(&self, rng: &mut R, x: i64, r: E::Fr, C: Commitment<E>, k: usize, otherM: Vec<E::Fr>) -> ProofUL<E> {
         let proofUlState = self.prove_ul_commitment(rng, x, k, None, None);
 
         // Fiat-Shamir heuristic
@@ -233,8 +233,8 @@ impl<E: Engine> ParamsUL<E> {
         self.prove_ul_response(r, C, &proofUlState, c, k, otherM)
     }
 
-    pub fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i32, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
-        if x > self.u.pow(self.l as u32) || x < 0 {
+    pub fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i64, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
+        if x > self.u.pow(self.l as u32) - 1 || x < 0 {
             panic!("x is not within the range.");
         }
         let decx = decompose(x, self.u, self.l);
@@ -340,7 +340,7 @@ fn hash<E: Engine>(a: Vec<E::Fqk>, D: Vec<E::G1>) -> E::Fr {
 Decompose receives as input an integer x and outputs an array of integers such that
 x = sum(xi.u^i), i.e. it returns the decomposition of x into base u.
 */
-fn decompose(x: i32, u: i32, l: i32) -> Vec<i32> {
+fn decompose(x: i64, u: i64, l: i64) -> Vec<i64> {
     let mut result = Vec::with_capacity(l as usize);
     let mut decomposer = x.clone();
     for _i in 0..l {
@@ -354,7 +354,7 @@ impl<E: Engine> RPSecretParams<E> {
     /**
         Setup receives integers a and b, and configures the parameters for the rangeproof scheme.
     */
-    pub fn setup<R: Rng>(rng: &mut R, a: i32, b: i32, csParams: CSMultiParams<E>) -> Self {
+    pub fn setup<R: Rng>(rng: &mut R, a: i64, b: i64, csParams: CSMultiParams<E>) -> Self {
 // Compute optimal values for u and l
         if a > b {
             panic!("a must be less than or equal to b");
@@ -363,9 +363,9 @@ impl<E: Engine> RPSecretParams<E> {
         let logb = (b as f32).log2();
         let loglogb = logb.log2();
         if loglogb > 0.0 {
-            let mut u = (logb / loglogb) as i32;
+            let mut u = (logb / loglogb) as i64;
             u = 57; //TODO: optimize u?
-            let l = (b as f32).log(u as f32).ceil() as i32;
+            let l = (b as f64).log(u as f64).ceil() as i64;
 
             let secParamsOut = SecretParamsUL::<E>::setup_ul(rng, u, l, csParams.clone());
             let pubParams = RPPublicParams { p: secParamsOut.pubParams.clone(), a, b };
@@ -398,7 +398,7 @@ impl<E: Engine> RPPublicParams<E> {
     /**
         Prove method is responsible for generating the zero knowledge range proof.
     */
-    pub fn prove<R: Rng>(&self, rng: &mut R, x: i32, C: Commitment<E>, r: E::Fr, k: usize, otherM: Vec<E::Fr>) -> RangeProof<E> {
+    pub fn prove<R: Rng>(&self, rng: &mut R, x: i64, C: Commitment<E>, r: E::Fr, k: usize, otherM: Vec<E::Fr>) -> RangeProof<E> {
         let rpState = self.prove_commitment(rng, x, C, k, None, None);
 
         let mut a = Vec::<E::Fqk>::with_capacity(self.p.l as usize);
@@ -411,7 +411,7 @@ impl<E: Engine> RPPublicParams<E> {
         self.prove_response(r, &rpState, ch, k, otherM)
     }
 
-    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, x: i32, C: Commitment<E>, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> RangeProofState<E> {
+    pub fn prove_commitment<R: Rng>(&self, rng: &mut R, x: i64, C: Commitment<E>, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> RangeProofState<E> {
         if x > self.b || x < self.a {
             panic!("x is not within the range.");
         }
@@ -646,14 +646,14 @@ mod tests {
         let vec1 = decompose(25, 3, 5);
         let mut result = 0;
         for i in 0..5 {
-            result += vec1[i] * 3i32.pow(i as u32);
+            result += vec1[i] * 3i64.pow(i as u32);
         }
         assert_eq!(result, 25);
 
         let vec1 = decompose(143225, 6, 7);
         let mut result = 0;
         for i in 0..7 {
-            result += vec1[i] * 6i32.pow(i as u32);
+            result += vec1[i] * 6i64.pow(i as u32);
         }
         assert_eq!(result, 143225);
     }
