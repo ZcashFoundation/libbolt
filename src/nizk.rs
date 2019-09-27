@@ -228,13 +228,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000) as i64;
+        let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000) as i64;
+        let bm = rng.gen_range(100, 1000);
         let mut bm2 = bm.clone();
-        let epsilon = rng.gen_range(1, 100) as i64;
-        bc2 = (bc2 as i64 - epsilon) as i64;
-        bm2 = (bm2 as i64 + epsilon) as i64;
+        let epsilon = rng.gen_range(1, 100);
+        bc2 -= epsilon;
+        bm2 += epsilon;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -258,13 +258,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000) as i64;
+        let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000) as i64;
+        let bm = rng.gen_range(100, 1000);
         let mut bm2 = bm.clone();
-        let epsilon = rng.gen_range(-100, -1) as i64;
-        bc2 = (bc2 as i64 - epsilon) as i64;
-        bm2 = (bm2 as i64 + epsilon) as i64;
+        let epsilon = rng.gen_range(-100, -1);
+        bc2 -= epsilon;
+        bm2 += epsilon;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -288,13 +288,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000) as i64;
+        let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000) as i64;
+        let bm = rng.gen_range(100, 1000);
         let mut bm2 = bm.clone();
-        let epsilon = rng.gen_range(1, 100) as i64;
-        bc2 = (bc2 as i64 - epsilon) as i64;
-        bm2 = (bm2 as i64 + epsilon) as i64;
+        let epsilon = rng.gen_range(1, 100);
+        bc2 -= epsilon;
+        bm2 += epsilon;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -329,13 +329,13 @@ mod tests {
         let pkc = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let wpkprime = Fr::rand(rng);
-        let bc = rng.gen_range(100, 1000) as i64;
+        let bc = rng.gen_range(100, 1000);
         let mut bc2 = bc.clone();
-        let bm = rng.gen_range(100, 1000) as i64;
+        let bm = rng.gen_range(100, 1000);
         let mut bm2 = bm.clone();
-        let epsilon = rng.gen_range(1, 100) as i64;
-        bc2 = (bc2 as i64 - epsilon) as i64;
-        bm2 = (bm2 as i64 + epsilon) as i64;
+        let epsilon = rng.gen_range(1, 100);
+        bc2 -= epsilon;
+        bm2 += epsilon;
         let r = Fr::rand(rng);
         let rprime = Fr::rand(rng);
 
@@ -370,8 +370,8 @@ mod tests {
         let wpk = Fr::rand(rng);
         let t = Fr::rand(rng);
 
-        let bc = rng.gen_range(100, 1000) as i64;
-        let bm = rng.gen_range(100, 1000) as i64;
+        let bc = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000);
         let wallet = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
 
         let secParams = NIZKSecretParams::<Bls12>::setup(rng, 4);
@@ -390,9 +390,9 @@ mod tests {
         let wpk = Fr::rand(rng);
         let t = Fr::rand(rng);
 
-        let bc = rng.gen_range(100, 1000) as i64;
-        let bc2 = rng.gen_range(100, 1000) as i64;
-        let bm = rng.gen_range(100, 1000) as i64;
+        let bc = rng.gen_range(100, 1000);
+        let bc2 = rng.gen_range(100, 1000);
+        let bm = rng.gen_range(100, 1000);
         let wallet1 = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
         let wallet2 = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc2, bm: bm, close: None };
 

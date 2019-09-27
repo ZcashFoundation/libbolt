@@ -234,7 +234,7 @@ impl<E: Engine> ParamsUL<E> {
     }
 
     pub fn prove_ul_commitment<R: Rng>(&self, rng: &mut R, x: i64, k: usize, sOptional: Option<Vec<E::Fr>>, mOptional: Option<E::Fr>) -> ProofULState<E> {
-        if x > self.u.pow(self.l as u32) - 1 || x < 0 {
+        if x > ((self.u as i128).pow(self.l as u32) - 1) as i64 || x < 0 {
             panic!("x is not within the range.");
         }
         let decx = decompose(x, self.u, self.l);
