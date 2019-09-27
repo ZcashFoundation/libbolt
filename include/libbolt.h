@@ -18,17 +18,17 @@ extern "C" {
 // channel init
 char* ffishim_bidirectional_channel_setup(const char *channel_name, unsigned int third_party_support);
 char* ffishim_bidirectional_init_merchant(const char *ser_channel_state, const char *name_ptr);
-char* ffishim_bidirectional_init_customer(const char *ser_channel_token, int balance_customer,  int balance_merchant, const char *name_ptr);
+char* ffishim_bidirectional_init_customer(const char *ser_channel_token, long long int balance_customer,  long long int balance_merchant, const char *name_ptr);
 
 // channel establish protocol routines
 char* ffishim_bidirectional_establish_customer_generate_proof(const char *ser_channel_token, const char *ser_customer_wallet);
-char* ffishim_bidirectional_establish_merchant_issue_close_token(const char *ser_channel_state, const char *ser_com, const char *ser_com_proof, const char *ser_pk_c, int init_cust_bal, int init_merch_bal, const char *ser_merch_state);
+char* ffishim_bidirectional_establish_merchant_issue_close_token(const char *ser_channel_state, const char *ser_com, const char *ser_com_proof, const char *ser_pk_c, long long int init_cust_bal, long long int init_merch_bal, const char *ser_merch_state);
 char* ffishim_bidirectional_establish_merchant_issue_pay_token(const char *ser_channel_state, const char *ser_com, const char *ser_merch_state);
 char* ffishim_bidirectional_verify_close_token(const char *ser_channel_state, const char *ser_customer_wallet, const char *ser_close_token);
 char* ffishim_bidirectional_establish_customer_final(const char *ser_channel_state, const char *ser_customer_wallet, const char *ser_pay_token);
 
 // channel pay protocol routines
-char* ffishim_bidirectional_pay_generate_payment_proof(const char *ser_channel_state, const char *ser_customer_wallet, int amount);
+char* ffishim_bidirectional_pay_generate_payment_proof(const char *ser_channel_state, const char *ser_customer_wallet, long long int amount);
 char* ffishim_bidirectional_pay_verify_payment_proof(const char *ser_channel_state, const char *ser_pay_proof, const char *ser_merch_state);
 char* ffishim_bidirectional_pay_generate_revoke_token(const char *ser_channel_state, const char *ser_cust_state, const char *ser_new_cust_state, const char *ser_close_token);
 char* ffishim_bidirectional_pay_verify_revoke_token(const char *ser_revoke_token, const char *ser_merch_state);

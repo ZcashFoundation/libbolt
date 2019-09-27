@@ -12,8 +12,8 @@ use std::fmt;
 pub struct Wallet<E: Engine> {
     pub pkc: E::Fr,
     pub wpk: E::Fr,
-    pub bc: i32,
-    pub bm: i32,
+    pub bc: i64,
+    pub bm: i64,
     pub close: Option<E::Fr>,
 }
 
