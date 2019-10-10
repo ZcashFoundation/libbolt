@@ -380,6 +380,10 @@ pub mod bidirectional {
             Ok(n) => n,
             Err(err) => return Err(String::from(err.to_string()))
         };
+
+        update_merchant_state(&mut merch_state.keys, &rt_sender.message.wpk, Some(rt_sender.signature.clone()));
+        update_merchant_state(&mut merch_state.keys, &rt_receiver.message.wpk, Some(rt_receiver.signature.clone()));
+
         Ok(Some((new_pay_token_sender, new_pay_token_receiver)))
     }
 
