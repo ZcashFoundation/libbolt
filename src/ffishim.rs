@@ -328,7 +328,7 @@ pub mod ffishim {
         let close_token_result = bidirectional::verify_multiple_payment_proofs(rng, &channel_state, &sender_payment, &receiver_payment, &mut merch_state);
         let (sender_close_token, receiver_cond_close_token) = handle_errors!(close_token_result).unwrap();
         let ser = ["{\'sender_close_token\':\'", serde_json::to_string(&sender_close_token).unwrap().as_str(),
-            "\'receiver_cond_close_token\':\'", serde_json::to_string(&receiver_cond_close_token).unwrap().as_str(),
+            "\', \'receiver_cond_close_token\':\'", serde_json::to_string(&receiver_cond_close_token).unwrap().as_str(),
             "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
@@ -397,7 +397,7 @@ pub mod ffishim {
         let (sender_pay_token, receiver_pay_token) = handle_errors!(pay_token_result).unwrap();
 
         let ser = ["{\'sender_pay_token\':\'", serde_json::to_string(&sender_pay_token).unwrap().as_str(),
-            "\'receiver_pay_token\':\'", serde_json::to_string(&receiver_pay_token).unwrap().as_str(),
+            "\', \'receiver_pay_token\':\'", serde_json::to_string(&receiver_pay_token).unwrap().as_str(),
             "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
