@@ -35,24 +35,62 @@ type setupResp struct {
 }
 
 type ChannelState struct {
-	R                  int         `json:"R"`
-	TxFee              int64       `json:"tx_fee"`
-	Cp                 interface{} `json:"cp"`
-	Name               string      `json:"name"`
-	PayInit            bool        `json:"pay_init"`
-	ChannelEstablished bool        `json:"channel_established"`
-	ThirdParty         bool        `json:"third_party"`
+	R                  int            `json:"R"`
+	TxFee              int64          `json:"tx_fee"`
+	Cp                 *ChannelParams `json:"cp"`
+	Name               string         `json:"name"`
+	PayInit            bool           `json:"pay_init"`
+	ChannelEstablished bool           `json:"channel_established"`
+	ThirdParty         bool           `json:"third_party"`
+}
+
+type ChannelParams struct {
+	ExtraVerify bool      `json:"extra_verify"`
+	L           int64     `json:"l"`
+	PubParams   PubParams `json:"pub_params"`
+}
+
+type PubParams struct {
+	ComParams ComParams   `json:"comParams"`
+	Mpk       MPK         `json:"mpk"`
+	Pk        PublicKey   `json:"pk"`
+	RpParams  RpPubParams `json:"rpParams"`
+}
+
+type RpPubParams struct {
+	ComParams  ComParams            `json:"csParams"`
+	L          int64                `json:"l"`
+	U          int64                `json:"u"`
+	Mpk        MPK                  `json:"mpk"`
+	Pk         PublicKey            `json:"pk"`
+	Signatures map[string]Signature `json:"signatures"`
 }
 
 type MerchState struct {
-	Id         string      `json:"id"`
-	KeyPair    KeyPair     `json:"keypair"`
-	NizkParams interface{} `json:"nizkParams"`
-	Pk         string      `json:"pk"`
-	Sk         string      `json:"sk"`
-	ComParams  ComParams   `json:"comParams"`
-	Keys       interface{} `json:"keys"`
-	PayTokens  interface{} `json:"pay_tokens"`
+	Id         string                `json:"id"`
+	KeyPair    KeyPair               `json:"keypair"`
+	NizkParams NIZKParams            `json:"nizkParams"`
+	Pk         string                `json:"pk"`
+	Sk         string                `json:"sk"`
+	ComParams  ComParams             `json:"comParams"`
+	Keys       map[string]RevokedKey `json:"keys"`
+	PayTokens  map[string]Signature  `json:"pay_tokens"`
+}
+
+type RevokedKey struct {
+	Wpk         string  `json:"wpk"`
+	RevokeToken *string `json:"revoke_token"`
+}
+
+type NIZKParams struct {
+	PubParams PubParams `json:"pubParams"`
+	KeyPair   KeyPair   `json:"keypair"`
+	RpParams  RpParams  `json:"rpParams"`
+}
+
+type RpParams struct {
+	PubParams RpPubParams `json:"pubParams"`
+	KeyPair   KeyPair     `json:"kp"`
 }
 
 type CustState struct {
@@ -108,10 +146,25 @@ type Payment struct {
 
 type Proof struct {
 	Sig          Signature       `json:"sig"`
-	SigProof     interface{}     `json:"sigProof"`
+	SigProof     SigProof        `json:"sigProof"`
 	ComProof     CommitmentProof `json:"comProof"`
-	RangeProofBC interface{}     `json:"rpBC"`
-	RangeProofBM interface{}     `json:"rpBM"`
+	RangeProofBC RangeProof      `json:"rpBC"`
+	RangeProofBM RangeProof      `json:"rpBM"`
+}
+
+type SigProof struct {
+	Zsig [][]string  `json:"zsig"`
+	Zv   []string    `json:"zv"`
+	A    interface{} `json:"a"`
+}
+
+type RangeProof struct {
+	V         []Signature `json:"V"`
+	D         string      `json:"D"`
+	Com       Commitment  `json:"comm"`
+	SigProofs []SigProof  `json:"sigProofs"`
+	Zr        []string    `json:"zr"`
+	Zs        [][]string  `json:"zs"`
 }
 
 type PublicKey struct {
