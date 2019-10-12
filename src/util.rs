@@ -119,6 +119,15 @@ pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
     return hash_buf;
 }
 
+pub fn hash_slice_to_fr<E: Engine>(input_buf: &Vec<u8>) -> E::Fr {
+    let sha2_digest = sha512::hash(input_buf.as_slice());
+    let mut hash_buf: [u8; 64] = [0; 64];
+    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    let hexresult = fmt_bytes_to_int(hash_buf);
+    let result = E::Fr::from_str(&hexresult);
+    return result.unwrap();
+}
+
 
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -149,10 +158,7 @@ impl RevokedMessage {
         input_buf.extend_from_slice(self.msgtype.as_bytes());
         input_buf.extend_from_slice(&self.wpk.serialize_uncompressed());
 
-        let sha2_digest = sha512::hash(input_buf.as_slice());
-        let mut hash_buf: [u8; 32] = [0; 32];
-        hash_buf.copy_from_slice(&sha2_digest[0..32]);
-        return hash_buf;
+        return hash_to_slice(&input_buf);
     }
 }
 

@@ -15,7 +15,7 @@ use pairing::bls12_381::Bls12;
 use ff::PrimeField;
 use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
 use ped92::{CSParams, Commitment, CSMultiParams, CommitmentProof};
-use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage, hash_to_slice};
+use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage, hash_to_slice, hash_slice_to_fr};
 use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -123,7 +123,7 @@ impl<E: Engine> ChannelToken<E> {
         return !self.pk_c.is_none();
     }
 
-    pub fn compute_id(&self) -> [u8; 32]
+    pub fn compute_channel_id(&self) -> E::Fr
         where <E as pairing::Engine>::G1: serde::Serialize,
               <E as pairing::Engine>::G2: serde::Serialize,
               <E as ff::ScalarEngine>::Fr: serde::Serialize
@@ -144,8 +144,10 @@ impl<E: Engine> ChannelToken<E> {
         input.extend(&ser_mpk);
         input.extend(&ser_comParams);
 
-        return hash_to_slice(&input);
+        return hash_slice_to_fr::<E>(&input);
     }
+
+    // add a method to compute hash on chain: SHA256 + RIPEMD160?
 }
 // add methods to check if channel token is initialized
 // (only if

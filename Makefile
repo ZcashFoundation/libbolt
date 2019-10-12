@@ -3,6 +3,7 @@
 all:
 	export RUSTFLAGS=-Awarnings
 	cargo +nightly build
+	cargo +nightly test
 	cargo +nightly run --example bolt_test
 
 debug:
