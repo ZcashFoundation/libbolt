@@ -10,53 +10,95 @@ import (
 )
 
 type setupResp struct {
-	ChannelState  string `json:"channel_state"`
-	ChannelToken  string `json:"channel_token"`
-	CustState     string `json:"cust_state"`
-	MerchState    string `json:"merch_state"`
-	Com           string `json:"com"`
-	ComProof      string `json:"com_proof"`
-	IsTokenValid  bool   `json:"is_token_valid,string"`
-	IsEstablished bool   `json:"is_established,string"`
-	IsPayValid    bool   `json:"is_pay_valid,string"`
-	Payment       string `json:"payment"`
-	CloseToken    string `json:"close_token"`
-	RevokeToken   string `json:"revoke_token"`
-	PayToken      string `json:"pay_token"`
-	CustClose     string `json:"cust_close"`
-	MerchClose    string `json:"merch_close"`
-	Wpk           string `json:"wpk"`
-	Error         string `json:"error"`
-	Result        string `json:"result"`
+	ChannelState           string `json:"channel_state"`
+	ChannelToken           string `json:"channel_token"`
+	CustState              string `json:"cust_state"`
+	MerchState             string `json:"merch_state"`
+	Com                    string `json:"com"`
+	ComProof               string `json:"com_proof"`
+	IsTokenValid           bool   `json:"is_token_valid,string"`
+	IsEstablished          bool   `json:"is_established,string"`
+	IsPayValid             bool   `json:"is_pay_valid,string"`
+	Payment                string `json:"payment"`
+	CloseToken             string `json:"close_token"`
+	SenderCloseToken       string `json:"sender_close_token"`
+	ReceiverCondCloseToken string `json:"receiver_cond_close_token"`
+	RevokeToken            string `json:"revoke_token"`
+	PayToken               string `json:"pay_token"`
+	SenderPayToken         string `json:"sender_pay_token"`
+	ReceiverPayToken       string `json:"receiver_pay_token"`
+	CustClose              string `json:"cust_close"`
+	MerchClose             string `json:"merch_close"`
+	Wpk                    string `json:"wpk"`
+	Error                  string `json:"error"`
+	Result                 string `json:"result"`
 }
 
 type ChannelState struct {
-	R                  int         `json:"R"`
-	TxFee              int64         `json:"tx_fee"`
-	Cp                 interface{} `json:"cp"`
-	Name               string      `json:"name"`
-	PayInit            bool        `json:"pay_init"`
-	ChannelEstablished bool        `json:"channel_established"`
-	ThirdParty         bool        `json:"third_party"`
+	R                  int            `json:"R"`
+	TxFee              int64          `json:"tx_fee"`
+	Cp                 *ChannelParams `json:"cp"`
+	Name               string         `json:"name"`
+	PayInit            bool           `json:"pay_init"`
+	ChannelEstablished bool           `json:"channel_established"`
+	ThirdParty         bool           `json:"third_party"`
+}
+
+type ChannelParams struct {
+	ExtraVerify bool      `json:"extra_verify"`
+	L           int64     `json:"l"`
+	PubParams   PubParams `json:"pub_params"`
+}
+
+type PubParams struct {
+	ComParams ComParams   `json:"comParams"`
+	Mpk       MPK         `json:"mpk"`
+	Pk        PublicKey   `json:"pk"`
+	RpParams  RpPubParams `json:"rpParams"`
+}
+
+type RpPubParams struct {
+	ComParams  ComParams            `json:"csParams"`
+	L          int64                `json:"l"`
+	U          int64                `json:"u"`
+	Mpk        MPK                  `json:"mpk"`
+	Pk         PublicKey            `json:"pk"`
+	Signatures map[string]Signature `json:"signatures"`
 }
 
 type MerchState struct {
-    Id         string      `json:"id"`
-	KeyPair    KeyPair     `json:"keypair"`
-	NizkParams interface{} `json:"nizkParams"`
-	Pk         string      `json:"pk"`
-	Sk         string      `json:"sk"`
-	ComParams  ComParams   `json:"comParams"`
-	Keys       interface{} `json:"keys"`
-	PayTokens  interface{} `json:"pay_tokens"`
+	Id         string                `json:"id"`
+	KeyPair    KeyPair               `json:"keypair"`
+	NizkParams NIZKParams            `json:"nizkParams"`
+	Pk         string                `json:"pk"`
+	Sk         string                `json:"sk"`
+	ComParams  ComParams             `json:"comParams"`
+	Keys       map[string]RevokedKey `json:"keys"`
+	PayTokens  map[string]Signature  `json:"pay_tokens"`
+}
+
+type RevokedKey struct {
+	Wpk         string  `json:"wpk"`
+	RevokeToken *string `json:"revoke_token"`
+}
+
+type NIZKParams struct {
+	PubParams PubParams `json:"pubParams"`
+	KeyPair   KeyPair   `json:"keypair"`
+	RpParams  RpParams  `json:"rpParams"`
+}
+
+type RpParams struct {
+	PubParams RpPubParams `json:"pubParams"`
+	KeyPair   KeyPair     `json:"kp"`
 }
 
 type CustState struct {
 	Name         string               `json:"name"`
 	PkC          string               `json:"pk_c"`
 	SkC          string               `json:"sk_c"`
-	CustBalance  int64                  `json:"cust_balance"`
-	MerchBalance int64                  `json:"merch_balance"`
+	CustBalance  int64                `json:"cust_balance"`
+	MerchBalance int64                `json:"merch_balance"`
 	Wpk          string               `json:"wpk"`
 	Wsk          string               `json:"wsk"`
 	OldKP        *KP                  `json:"old_kp,omitempty"`
@@ -80,8 +122,8 @@ type Commitment struct {
 type Wallet struct {
 	Pkc   []string `json:"pkc"`
 	Wpk   []string `json:"wpk"`
-	Bc    int64      `json:"bc"`
-	Bm    int64      `json:"bm"`
+	Bc    int64    `json:"bc"`
+	Bm    int64    `json:"bm"`
 	Close []string `json:"close"`
 }
 
@@ -93,6 +135,36 @@ type KeyPair struct {
 type SecretKey struct {
 	X []string   `json:"x"`
 	Y [][]string `json:"y"`
+}
+
+type Payment struct {
+	Proof  Proof      `json:"proof"`
+	Com    Commitment `json:"com"`
+	Wpk    string     `json:"wpk"`
+	Amount int64      `json:"amount"`
+}
+
+type Proof struct {
+	Sig          Signature       `json:"sig"`
+	SigProof     SigProof        `json:"sigProof"`
+	ComProof     CommitmentProof `json:"comProof"`
+	RangeProofBC RangeProof      `json:"rpBC"`
+	RangeProofBM RangeProof      `json:"rpBM"`
+}
+
+type SigProof struct {
+	Zsig [][]string  `json:"zsig"`
+	Zv   []string    `json:"zv"`
+	A    interface{} `json:"a"`
+}
+
+type RangeProof struct {
+	V         []Signature `json:"V"`
+	D         string      `json:"D"`
+	Com       Commitment  `json:"comm"`
+	SigProofs []SigProof  `json:"sigProofs"`
+	Zr        []string    `json:"zr"`
+	Zs        [][]string  `json:"zs"`
 }
 
 type PublicKey struct {
@@ -331,7 +403,7 @@ func BidirectionalEstablishCustomerFinal(channelState ChannelState, custState Cu
 	resp := C.GoString(C.ffishim_bidirectional_establish_customer_final(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serPayToken))))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return false,ChannelState{}, CustState{}, err
+		return false, ChannelState{}, CustState{}, err
 	}
 	err = json.Unmarshal([]byte(r.ChannelState), &channelState)
 	if err != nil {
@@ -341,26 +413,35 @@ func BidirectionalEstablishCustomerFinal(channelState ChannelState, custState Cu
 	return r.IsEstablished, channelState, custState, err
 }
 
-func BidirectionalPayGeneratePaymentProof(channelState ChannelState, custState CustState, amount int) (string, CustState, error) {
+func BidirectionalPayGeneratePaymentProof(channelState ChannelState, custState CustState, amount int) (Payment, CustState, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
-		return "", CustState{}, err
+		return Payment{}, CustState{}, err
 	}
 	serCustState, err := json.Marshal(custState)
 	if err != nil {
-		return "", CustState{}, err
+		return Payment{}, CustState{}, err
 	}
 	resp := C.GoString(C.ffishim_bidirectional_pay_generate_payment_proof(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.longlong(amount)))
 	r, err := processCResponse(resp)
 	if err != nil {
-		return "", CustState{}, err
+		return Payment{}, CustState{}, err
+	}
+	payProof := Payment{}
+	err = json.Unmarshal([]byte(r.Payment), &payProof)
+	if err != nil {
+		return Payment{}, CustState{}, err
 	}
 	err = json.Unmarshal([]byte(r.CustState), &custState)
-	return r.Payment, custState, err
+	return payProof, custState, err
 }
 
-func BidirectionalPayVerifyPaymentProof(channelState ChannelState, serPayProof string, merchState MerchState) (Signature, MerchState, error) {
+func BidirectionalPayVerifyPaymentProof(channelState ChannelState, payProof Payment, merchState MerchState) (Signature, MerchState, error) {
 	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return Signature{}, MerchState{}, err
+	}
+	serPayProof, err := json.Marshal(payProof)
 	if err != nil {
 		return Signature{}, MerchState{}, err
 	}
@@ -368,7 +449,7 @@ func BidirectionalPayVerifyPaymentProof(channelState ChannelState, serPayProof s
 	if err != nil {
 		return Signature{}, MerchState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_proof(C.CString(string(serChannelState)), C.CString(serPayProof), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_proof(C.CString(string(serChannelState)), C.CString(string(serPayProof)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, MerchState{}, err
@@ -380,6 +461,42 @@ func BidirectionalPayVerifyPaymentProof(channelState ChannelState, serPayProof s
 	closeToken := &Signature{}
 	err = json.Unmarshal([]byte(r.CloseToken), closeToken)
 	return *closeToken, merchState, err
+}
+
+func BidirectionalPayVerifyMultiplePaymentProofs(channelState ChannelState, senderPayProof Payment, receiverPayProof Payment, merchState MerchState) (Signature, Signature, MerchState, error) {
+	serChannelState, err := json.Marshal(channelState)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	serSenderPayProof, err := json.Marshal(senderPayProof)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	serReceiverPayProof, err := json.Marshal(receiverPayProof)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_multiple_payment_proofs(C.CString(string(serChannelState)), C.CString(string(serSenderPayProof)), C.CString(string(serReceiverPayProof)), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	senderCloseToken := &Signature{}
+	err = json.Unmarshal([]byte(r.SenderCloseToken), senderCloseToken)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	receiverCondCloseToken := &Signature{}
+	err = json.Unmarshal([]byte(r.ReceiverCondCloseToken), receiverCondCloseToken)
+	return *senderCloseToken, *receiverCondCloseToken, merchState, err
 }
 
 func BidirectionalPayGenerateRevokeToken(channelState ChannelState, custState CustState, newCustState CustState, closeToken Signature) (RevokeToken, CustState, error) {
@@ -434,6 +551,38 @@ func BidirectionalPayVerifyRevokeToken(revokeToken RevokeToken, merchState Merch
 	payToken := &Signature{}
 	err = json.Unmarshal([]byte(r.PayToken), payToken)
 	return *payToken, merchState, err
+}
+
+func BidirectionalPayVerifyMultipleRevokeTokens(senderRevokeToken RevokeToken, receiverRevokeToken RevokeToken, merchState MerchState) (Signature, Signature, MerchState, error) {
+	serMerchState, err := json.Marshal(merchState)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	serSenderRevokeToken, err := json.Marshal(senderRevokeToken)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	serReceiverRevokeToken, err := json.Marshal(receiverRevokeToken)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	resp := C.GoString(C.ffishim_bidirectional_pay_verify_multiple_revoke_tokens(C.CString(string(serSenderRevokeToken)), C.CString(string(serReceiverRevokeToken)), C.CString(string(serMerchState))))
+	r, err := processCResponse(resp)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	err = json.Unmarshal([]byte(r.MerchState), &merchState)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	senderPayToken := &Signature{}
+	err = json.Unmarshal([]byte(r.SenderPayToken), senderPayToken)
+	if err != nil {
+		return Signature{}, Signature{}, MerchState{}, err
+	}
+	receiverPayToken := &Signature{}
+	err = json.Unmarshal([]byte(r.ReceiverPayToken), receiverPayToken)
+	return *senderPayToken, *receiverPayToken, merchState, err
 }
 
 func BidirectionalPayVerifyPaymentToken(channelState ChannelState, custState CustState, payToken Signature) (CustState, bool, error) {

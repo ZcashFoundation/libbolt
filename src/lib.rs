@@ -303,47 +303,32 @@ pub mod bidirectional {
     }
 
     ///
-    /// Verify third party payment proof from two bi-directional channel payments with intermediary
+    /// Verify third party payment proof from two bi-directional channel payments with intermediary (payment amount
     ///
-//    pub fn verify_third_party_payment(pp: &PublicParams, fee: i64, proof1: &BalanceProof, proof2: &BalanceProof) -> bool {
-//        if proof1.third_party && proof2.third_party {
-//            let vcom1 = &proof1.proof_vcom.as_ref().unwrap();
-//            let vcom2 = &proof2.proof_vcom.as_ref().unwrap();
-//            let rproof1 = &proof1.proof_vrange.as_ref().unwrap();
-//            let rproof2 = &proof2.proof_vrange.as_ref().unwrap();
-//            let pc_gens1 = PedersenGens::default();
-//            let pc_gens2 = PedersenGens::default();
-//            let mut transcript1 = Transcript::new(b"Range Proof for Balance Increment");
-//            let range_proof1_valid = rproof1.range_proof.0.verify_single(&pp.bp_gens, &pc_gens1,
-//                                                                  &mut transcript1,
-//                                                                  &rproof1.range_proof.1,
-//                                                                  pp.range_proof_bits).is_ok();
-//
-//            let mut transcript2 = Transcript::new(b"Range Proof for Balance Increment");
-//            let range_proof2_valid = rproof2.range_proof.0.verify_single(&pp.bp_gens, &pc_gens2,
-//                                                                 &mut transcript2,
-//                                                                 &rproof2.range_proof.1,
-//                                                                 pp.range_proof_bits).is_ok();
-//
-//            let len = vcom1.pub_bases.len();
-//            assert!(len >= 2 && vcom1.pub_bases.len() == vcom2.pub_bases.len());
-//
-//            // g^(e1 + -e2 + fee) * h^(r1 + r2) ==> should be equal to g^(fee) * h^(r1 + r2)
-//            // lets add commitments for vcom1 and vcom2 to check
-//            let added_commits = vcom1.C + vcom2.C;
-//            let tx_fee = vcom1.pub_bases[1] * -convert_int_to_fr(fee);
-//            // compute h^r1 + r2
-//            let h_r1_r2 = (vcom1.pub_bases[0] * proof1.vcom.unwrap().r) +
-//                (vcom2.pub_bases[0] * proof2.vcom.unwrap().r) + tx_fee;
-//
-//            let is_pay_plus_fee = added_commits == h_r1_r2;
-//            return clproto::bs_verify_nizk_proof(&vcom1) &&
-//                clproto::bs_verify_nizk_proof(&vcom2) &&
-//                range_proof1_valid && range_proof2_valid &&
-//                is_pay_plus_fee;
-//        }
-//        panic!("verify_third_party_payment - third-party payment not enabled for both proofs");
-//    }
+    pub fn verify_multiple_payment_proofs<R: Rng, E: Engine>(csprng: &mut R,
+                                                             channel_state: &ChannelState<E>,
+                                                             sender_payment: &Payment<E>,
+                                                             receiver_payment: &Payment<E>,
+                                                             merch_state: &mut MerchantState<E>)
+                                                             -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
+        let tx_fee = channel_state.get_channel_fee();
+        let amount = sender_payment.amount + receiver_payment.amount;
+        if amount != 0 { // we want to check this relation in ZK without knowing the amount
+            return Err(String::from("payments do not offset"));
+        }
+
+        let new_close_token = merch_state.verify_payment(csprng, &channel_state,
+                                                         &sender_payment.proof, &sender_payment.com, &sender_payment.wpk, sender_payment.amount + tx_fee).unwrap();
+
+        let cond_close_token = merch_state.verify_payment(csprng, &channel_state,
+                                                          &receiver_payment.proof, &receiver_payment.com, &receiver_payment.wpk, receiver_payment.amount + tx_fee).unwrap();
+
+        // store the wpk since it has been revealed
+        update_merchant_state(&mut merch_state.keys, &sender_payment.wpk, None);
+        update_merchant_state(&mut merch_state.keys, &receiver_payment.wpk, None);
+
+        return Ok(Some((new_close_token, cond_close_token)));
+    }
 
 
     ///
@@ -364,8 +349,8 @@ pub mod bidirectional {
     }
 
     ///
-    /// verify_revoke_token (phase 2) - takes as input revoke message and signature,
-    /// merchant state, from the customer. If the revocation token is valid,
+    /// verify_revoke_token (phase 2) - takes as input revoke message and signature
+    /// from the customer and the merchant state. If the revocation token is valid,
     /// generate a new signature for the new wallet (from the PoK of committed values in new wallet).
     ///
     pub fn verify_revoke_token<E: Engine>(rt: &RevokeToken, merch_state: &mut MerchantState<E>) -> BoltResult<cl::Signature<E>> {
@@ -376,6 +361,30 @@ pub mod bidirectional {
         };
         update_merchant_state(&mut merch_state.keys, &rt.message.wpk, Some(rt.signature.clone()));
         Ok(Some(new_pay_token))
+    }
+
+    ///
+    /// verify_multiple_revoke_tokens (phase 2) - takes as input revoke messages and signatures
+    /// from the sender and receiver and the merchant state of the intermediary.
+    /// If the revocation tokens are valid, generate new signatures for the new wallets of both
+    /// sender and receiver (from the PoK of committed values in new wallet).
+    ///
+    pub fn verify_multiple_revoke_tokens<E: Engine>(rt_sender: &RevokeToken, rt_receiver: &RevokeToken, merch_state: &mut MerchantState<E>) -> BoltResult<(cl::Signature<E>, cl::Signature<E>)> {
+        let pay_token_sender_result = merch_state.verify_revoke_token(&rt_sender.signature, &rt_sender.message, &rt_sender.message.wpk);
+        let pay_token_receiver_result = merch_state.verify_revoke_token(&rt_receiver.signature, &rt_receiver.message, &rt_receiver.message.wpk);
+        let new_pay_token_sender = match pay_token_sender_result {
+            Ok(n) => n,
+            Err(err) => return Err(String::from(err.to_string()))
+        };
+        let new_pay_token_receiver = match pay_token_receiver_result {
+            Ok(n) => n,
+            Err(err) => return Err(String::from(err.to_string()))
+        };
+
+        update_merchant_state(&mut merch_state.keys, &rt_sender.message.wpk, Some(rt_sender.signature.clone()));
+        update_merchant_state(&mut merch_state.keys, &rt_receiver.message.wpk, Some(rt_receiver.signature.clone()));
+
+        Ok(Some((new_pay_token_sender, new_pay_token_receiver)))
     }
 
     ///// end of pay protocol
@@ -563,7 +572,7 @@ mod tests {
         //let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
         let pk_c = cust_state.get_public_key();
         let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_c,
-                                                                                            cust_balance, merch_balance, &merch_state);
+                                                                         cust_balance, merch_balance, &merch_state);
         let close_token = match option {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Failed - bidirectional::establish_merchant_issue_close_token(): {}", e)
@@ -817,99 +826,67 @@ mod tests {
     }
 
 
-//    fn execute_third_party_pay_protocol_helper(pp: &bidirectional::PublicParams,
-//                                   channel1: &mut bidirectional::ChannelState, channel2: &mut bidirectional::ChannelState,
-//                                   merch_keys: &cl::KeyPairD, merch1_data: &mut bidirectional::InitMerchantData,
-//                                   merch2_data: &mut bidirectional::InitMerchantData,
-//                                   cust1_keys: &cl::KeyPairD, cust1_data: &mut bidirectional::InitCustomerData,
-//                                   cust2_keys: &cl::KeyPairD, cust2_data: &mut bidirectional::InitCustomerData,
-//                                   payment_increment: i64) {
-//        // let's test the pay protocol
-//        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust1_data.channel_token, &merch_keys.pk, &mut cust1_data.csk);
-//        bidirectional::pay_by_customer_phase1_precompute(&pp, &cust2_data.channel_token, &merch_keys.pk, &mut cust2_data.csk);
-//
-//        println!("Channel 1 fee: {}", channel1.get_channel_fee());
-//        let (t_c1, new_wallet1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &channel1,
-//                                                                            &cust1_data.channel_token, // channel token
-//                                                                            &merch_keys.pk, // merchant pub key
-//                                                                            &cust1_data.csk, // wallet
-//                                                                            payment_increment); // balance increment
-//        println!("Channel 2 fee: {}", channel2.get_channel_fee());
-//        let (t_c2, new_wallet2, pay_proof2) = bidirectional::pay_by_customer_phase1(&pp, &channel2,
-//                                                                    &cust2_data.channel_token, // channel token
-//                                                                    &merch_keys.pk, // merchant pub key
-//                                                                    &cust2_data.csk, // wallet
-//                                                                    -payment_increment); // balance decrement
-//
-//        // validate pay_proof1 and pay_proof2 (and the channel state for the fee paying channel, if fee > 0)
-//        let tx_fee = channel1.get_channel_fee() + channel2.get_channel_fee();
-//        assert!(bidirectional::verify_third_party_payment(&pp, tx_fee, &pay_proof1.bal_proof, &pay_proof2.bal_proof));
-//
-//        // get the refund token (rt_w)
-//        let rt_w1 = bidirectional::pay_by_merchant_phase1(&pp, channel1, &pay_proof1, &merch1_data);
-//
-//        // get the refund token (rt_w)
-//        let rt_w2 = bidirectional::pay_by_merchant_phase1(&pp, channel2, &pay_proof2, &merch2_data);
-//
-//        // get the revocation token (rv_w) on the old public key (wpk)
-//        let rv_w1 = bidirectional::pay_by_customer_phase2(&pp, &cust1_data.csk, &new_wallet1, &merch_keys.pk, &rt_w1);
-//
-//        // get the revocation token (rv_w) on the old public key (wpk)
-//        let rv_w2 = bidirectional::pay_by_customer_phase2(&pp, &cust2_data.csk, &new_wallet2, &merch_keys.pk, &rt_w2);
-//
-//        // get the new wallet sig (new_wallet_sig) on the new wallet
-//        let new_wallet_sig1 = bidirectional::pay_by_merchant_phase2(&pp, channel1, &pay_proof1, merch1_data, &rv_w1);
-//
-//        // get the new wallet sig (new_wallet_sig) on the new wallet
-//        let new_wallet_sig2 = bidirectional::pay_by_merchant_phase2(&pp, channel2, &pay_proof2, merch2_data, &rv_w2);
-//
-//        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust1_data, t_c1, new_wallet1, rt_w1, new_wallet_sig1));
-//
-//        assert!(bidirectional::pay_by_customer_final(&pp, &merch_keys.pk, cust2_data, t_c2, new_wallet2, rt_w2, new_wallet_sig2));
-//    }
-//
-//    #[test]
-//    #[ignore]
-//    fn third_party_payment_basics_work() {
-//        let pp = bidirectional::setup(true);
-//
-//        // third party -- so indicate so in the channel state
-//        let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A <-> I"), true);
-//        let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B <-> I"), true);
-//
-//        let fee = 2;
-//        channel_a.set_channel_fee(fee);
-//
-//        let total_payment = 20;
-//        let b0_alice = 30;
-//        let b0_bob = 30;
-//        let b0_merchant_a = 40;
-//        let b0_merchant_b = 40;
-//
-//        let (merch_keys, mut merch_data_a, alice_keys, mut alice_data) = setup_new_channel_helper(&pp, &mut channel_a, b0_alice, b0_merchant_a);
-//
-//        let (mut merch_data_b, bob_keys, mut bob_data) =
-//            setup_new_channel_existing_merchant_helper(&pp, &mut channel_b, b0_bob, b0_merchant_b, &merch_keys);
-//
-//        // run establish protocol for alice and merchant channel
-//        execute_establish_protocol_helper(&pp, &mut channel_a, &merch_keys, &mut merch_data_a, &alice_keys, &mut alice_data);
-//
-//        // run establish protocol for bob and merchant channel
-//        execute_establish_protocol_helper(&pp, &mut channel_b, &merch_keys, &mut merch_data_b, &bob_keys, &mut bob_data);
-//
-//        assert!(channel_a.channel_established);
-//        assert!(channel_b.channel_established);
-//
-//        // alice can pay bob through the merchant
-//        execute_third_party_pay_protocol_helper(&pp, &mut channel_a, &mut channel_b,
-//                                                &merch_keys, &mut merch_data_a, &mut merch_data_b,
-//                                                &alice_keys, &mut alice_data, &bob_keys, &mut bob_data, total_payment);
-//
-//        println!("Customer alice balance: {}", alice_data.csk.balance);
-//        println!("Merchant channel balance with alice: {}", merch_data_a.csk.balance);
-//        println!("Customer bob balance: {}", bob_data.csk.balance);
-//        println!("Merchant channel balance with bob: {}", merch_data_b.csk.balance);
-//    }
+    #[test]
+    fn intermediary_payment_basics_works() {
+        println!("Intermediary test...");
+        let mut rng = &mut rand::thread_rng();
+
+        let b0_alice = rng.gen_range(100, 1000);
+        let b0_bob = rng.gen_range(100, 1000);
+        let b0_merch_a = rng.gen_range(100, 1000);
+        let b0_merch_b = rng.gen_range(100, 1000);
+        let tx_fee = rng.gen_range(1, 5);
+        let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("New Channel State"), true);
+        channel_state.set_channel_fee(tx_fee);
+
+        let merch_name = "Hub";
+        // each party executes the init algorithm on the agreed initial challenge balance
+        // in order to derive the channel tokens
+        // initialize on the merchant side with balance: b0_merch
+        let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, merch_name);
+
+        // initialize on the customer side with balance: b0_cust
+        let mut alice_cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_alice, b0_merch_a, "Alice");
+
+        let mut bob_cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_bob, b0_merch_b, "Bob");
+
+        // run establish protocol for customer and merchant channel
+        //let mut channel_state_alice = channel_state.clone();
+        //let mut channel_state_bob = channel_state.clone();
+
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_alice, b0_merch_a, &mut merch_state, &mut alice_cust_state);
+        execute_establish_protocol_helper(&mut channel_state, &mut channel_token, b0_bob, b0_merch_b, &mut merch_state, &mut bob_cust_state);
+
+        assert!(channel_state.channel_established);
+        //assert!(channel_state_bob.channel_established);
+
+        // run pay protocol - flow for third-party
+
+        let amount = rng.gen_range(5, 100);
+        let (sender_payment, new_alice_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &alice_cust_state, amount);
+
+        let (receiver_payment, new_bob_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &bob_cust_state, -amount);
+
+        // TODO: figure out how to attach conditions on payment recipients close token that they must (1) produce revocation token for sender's old wallet and (2) must have channel open
+
+        // intermediary executes the following on the two payment proofs
+        let close_token_result = bidirectional::verify_multiple_payment_proofs(rng, &channel_state, &sender_payment, &receiver_payment, &mut merch_state);
+        let (alice_close_token, bob_cond_close_token) = handle_bolt_result!(close_token_result).unwrap();
+
+        // both alice and bob generate a revoke token
+        let revoke_token_alice = bidirectional::generate_revoke_token(&channel_state, &mut alice_cust_state, new_alice_cust_state, &alice_close_token);
+        let revoke_token_bob = bidirectional::generate_revoke_token(&channel_state, &mut bob_cust_state, new_bob_cust_state, &bob_cond_close_token);
+
+        // send both revoke tokens to intermediary and get pay-tokens in response
+        let new_pay_token_result: BoltResult<(cl::Signature<Bls12>,cl::Signature<Bls12>)> = bidirectional::verify_multiple_revoke_tokens(&revoke_token_alice, &revoke_token_bob, &mut merch_state);
+        let (new_pay_token_alice, new_pay_token_bob) = handle_bolt_result!(new_pay_token_result).unwrap();
+
+        // verify the pay tokens and update internal state
+        assert!(alice_cust_state.verify_pay_token(&channel_state, &new_pay_token_alice));
+        assert!(bob_cust_state.verify_pay_token(&channel_state, &new_pay_token_bob));
+
+        println!("Successful payment with intermediary!");
+    }
 
     #[test]
     fn serialization_tests() {

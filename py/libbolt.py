@@ -49,11 +49,17 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_pay_verify_payment_proof.argtypes = (c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_pay_verify_payment_proof.restype = c_void_p
 
+		self.lib.ffishim_bidirectional_pay_verify_multiple_payment_proofs.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_pay_verify_multiple_payment_proofs.restype = c_void_p
+
 		self.lib.ffishim_bidirectional_pay_generate_revoke_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_pay_generate_revoke_token.restype = c_void_p
 
 		self.lib.ffishim_bidirectional_pay_verify_revoke_token.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_pay_verify_revoke_token.restype = c_void_p
+
+		self.lib.ffishim_bidirectional_pay_verify_multiple_revoke_tokens.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bidirectional_pay_verify_multiple_revoke_tokens.restype = c_void_p
 
 		self.lib.ffishim_bidirectional_pay_verify_payment_token.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_pay_verify_payment_token.restype = c_void_p
@@ -136,6 +142,12 @@ class Libbolt(object):
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('close_token'), output_dictionary.get('merch_state'))
 
+	# verify multiple payment proof
+	def bidirectional_pay_verify_multiple_payment_proofs(self, channel_state, sender_pay_proof, receiver_pay_proof, merch_state):
+		output_string = self.lib.ffishim_bidirectional_pay_verify_multiple_payment_proofs(channel_state.encode(), sender_pay_proof.encode(), receiver_pay_proof.encode(), merch_state.encode())
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (output_dictionary.get('sender_close_token'), output_dictionary.get('receiver_cond_close_token'), output_dictionary.get('merch_state'))
+
 	# generate revoke token
 	def bidirectional_pay_generate_revoke_token(self, channel_state, cust_state, new_cust_state, close_token):
 		output_string = self.lib.ffishim_bidirectional_pay_generate_revoke_token(channel_state.encode(), cust_state.encode(),
@@ -148,6 +160,12 @@ class Libbolt(object):
 		output_string = self.lib.ffishim_bidirectional_pay_verify_revoke_token(revoke_token.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('pay_token'), output_dictionary.get('merch_state'))
+
+	# verify multiple revoke tokens
+	def bidirectional_pay_verify_multiple_revoke_tokens(self, sender_revoke_token, receiver_revoke_token, merch_state):
+		output_string = self.lib.ffishim_bidirectional_pay_verify_multiple_revoke_tokens(sender_revoke_token.encode(), receiver_revoke_token.encode(), merch_state.encode())
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return (output_dictionary.get('sender_pay_token'), output_dictionary.get('receiver_pay_token'), output_dictionary.get('merch_state'))
 
 	# verify payment token
 	def bidirectional_pay_verify_payment_token(self, channel_state, cust_state, pay_token):

@@ -4,7 +4,7 @@ pub mod ffishim {
 
     use bidirectional;
     use ff::Rand;
-    use pairing::bls12_381::{Bls12};
+    use pairing::bls12_381::Bls12;
 
     use serde::Deserialize;
 
@@ -56,8 +56,8 @@ pub mod ffishim {
 //    }
 
     fn deserialize_result_object<'a, T>(serialized: *mut c_char) -> ResultSerdeType<T>
-    where
-        T: Deserialize<'a>,
+        where
+            T: Deserialize<'a>,
     {
         let bytes = unsafe { CStr::from_ptr(serialized).to_bytes() };
         let string: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
@@ -66,8 +66,8 @@ pub mod ffishim {
 
     #[no_mangle]
     pub extern fn ffishim_free_string(pointer: *mut c_char) {
-        unsafe{
-            if pointer.is_null() { return }
+        unsafe {
+            if pointer.is_null() { return; }
             CString::from_raw(pointer)
         };
     }
@@ -81,7 +81,6 @@ pub mod ffishim {
         let ser = ["{\'result\':\'", serde_json::to_string(&res).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
-
     }
 
     #[no_mangle]
@@ -108,31 +107,31 @@ pub mod ffishim {
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
 
-	    let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
-	    let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+        let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
+        let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         let (channel_token, merch_state, channel_state) = bidirectional::init_merchant(rng, &mut channel_state, name);
 
-        let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str() ,"\'}"].concat();
+        let ser = ["{\'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
 
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_init_customer(ser_channel_token: *mut c_char, balance_customer: i64,  balance_merchant: i64, name_ptr: *const c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_init_customer(ser_channel_token: *mut c_char, balance_customer: i64, balance_merchant: i64, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<Bls12>> = deserialize_result_object(ser_channel_token);
         let mut channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the name
-	    let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
-	    let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
+        let bytes = unsafe { CStr::from_ptr(name_ptr).to_bytes() };
+        let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
         // We change the channel state
         let cust_state = bidirectional::init_customer(rng, &mut channel_token, balance_customer, balance_merchant, name);
-        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str() ,"\'}"].concat();
+        let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -142,21 +141,21 @@ pub mod ffishim {
     #[no_mangle] // bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
     pub extern fn ffishim_bidirectional_establish_customer_generate_proof(ser_channel_token: *mut c_char, ser_customer_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
-         // Deserialize the channel token
+        // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<Bls12>> = deserialize_result_object(ser_channel_token);
         let mut channel_token = handle_errors!(channel_token_result);
 
         // Deserialize the cust state
         let cust_state_result: ResultSerdeType<bidirectional::CustomerState<Bls12>> = deserialize_result_object(ser_customer_state);
-        let mut cust_state= handle_errors!(cust_state_result);
+        let mut cust_state = handle_errors!(cust_state_result);
 
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
 
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
-                          "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(),
-                          "\', \'com\':\'", serde_json::to_string(&com).unwrap().as_str(),
-                          "\', \'com_proof\':\'", serde_json::to_string(&com_proof).unwrap().as_str(),
-                          "\'}"].concat();
+            "\', \'channel_token\':\'", serde_json::to_string(&channel_token).unwrap().as_str(),
+            "\', \'com\':\'", serde_json::to_string(&com).unwrap().as_str(),
+            "\', \'com_proof\':\'", serde_json::to_string(&com_proof).unwrap().as_str(),
+            "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -203,7 +202,7 @@ pub mod ffishim {
 
         // Deserialize the commitment
         let com_result: ResultSerdeType<bidirectional::Commitment<Bls12>> = deserialize_result_object(ser_com);
-        let com= handle_errors!(com_result);
+        let com = handle_errors!(com_result);
 
         // Deserialize the merchant state
         let merch_state_result: ResultSerdeType<bidirectional::MerchantState<Bls12>> = deserialize_result_object(ser_merch_state);
@@ -221,7 +220,7 @@ pub mod ffishim {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
-        
+
         // Deserialize the cust state
         let cust_state_result: ResultSerdeType<bidirectional::CustomerState<Bls12>> = deserialize_result_object(ser_customer_state);
         let mut cust_state = handle_errors!(cust_state_result);
@@ -233,8 +232,8 @@ pub mod ffishim {
         let is_close_token_valid = cust_state.verify_close_token(&mut channel_state, &close_token);
 
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
-                          "\', \'is_token_valid\':\'", serde_json::to_string(&is_close_token_valid).unwrap().as_str(),
-                          "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str() ,"\'}"].concat();
+            "\', \'is_token_valid\':\'", serde_json::to_string(&is_close_token_valid).unwrap().as_str(),
+            "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -257,8 +256,8 @@ pub mod ffishim {
         let is_channel_established = bidirectional::establish_customer_final(&mut channel_state, &mut cust_state, &pay_token);
 
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
-                          "\', \'is_established\':\'", serde_json::to_string(&is_channel_established).unwrap().as_str(),
-                          "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str() ,"\'}"].concat();
+            "\', \'is_established\':\'", serde_json::to_string(&is_channel_established).unwrap().as_str(),
+            "\', \'channel_state\':\'", serde_json::to_string(&channel_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -281,7 +280,7 @@ pub mod ffishim {
         let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &cust_state, amount);
         // Serialize the results and return to caller
         let ser = ["{\'payment\':\'", serde_json::to_string(&payment).unwrap().as_str(),
-                          "\', \'cust_state\':\'", serde_json::to_string(&new_cust_state).unwrap().as_str() ,"\'}"].concat();
+            "\', \'cust_state\':\'", serde_json::to_string(&new_cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -303,7 +302,34 @@ pub mod ffishim {
 
         let close_token = bidirectional::verify_payment_proof(rng, &channel_state, &payment, &mut merch_state);
         let ser = ["{\'close_token\':\'", serde_json::to_string(&close_token).unwrap().as_str(),
-                          "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
+            "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_pay_verify_multiple_payment_proofs(ser_channel_state: *mut c_char, ser_sender_pay_proof: *mut c_char, ser_receiver_pay_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+        let rng = &mut rand::thread_rng();
+        // Deserialize the channel state
+        let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
+        let channel_state = handle_errors!(channel_state_result);
+
+        // Deserialize the payment proofs
+        let sender_payment_result: ResultSerdeType<bidirectional::Payment<Bls12>> = deserialize_result_object(ser_sender_pay_proof);
+        let sender_payment = handle_errors!(sender_payment_result);
+
+        let receiver_payment_result: ResultSerdeType<bidirectional::Payment<Bls12>> = deserialize_result_object(ser_receiver_pay_proof);
+        let receiver_payment = handle_errors!(receiver_payment_result);
+
+        // Deserialize the merch state
+        let merch_state_result: ResultSerdeType<bidirectional::MerchantState<Bls12>> = deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        let close_token_result = bidirectional::verify_multiple_payment_proofs(rng, &channel_state, &sender_payment, &receiver_payment, &mut merch_state);
+        let (sender_close_token, receiver_cond_close_token) = handle_errors!(close_token_result).unwrap();
+        let ser = ["{\'sender_close_token\':\'", serde_json::to_string(&sender_close_token).unwrap().as_str(),
+            "\', \'receiver_cond_close_token\':\'", serde_json::to_string(&receiver_cond_close_token).unwrap().as_str(),
+            "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -328,7 +354,7 @@ pub mod ffishim {
 
         let revoke_token = bidirectional::generate_revoke_token(&channel_state, &mut cust_state, new_cust_state, &close_token);
         let ser = ["{\'revoke_token\':\'", serde_json::to_string(&revoke_token).unwrap().as_str(),
-                          "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str() ,"\'}"].concat();
+            "\', \'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -337,7 +363,7 @@ pub mod ffishim {
     pub extern fn ffishim_bidirectional_pay_verify_revoke_token(ser_revoke_token: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the revoke token
         let revoke_token_result: ResultSerdeType<bidirectional::RevokeToken> = deserialize_result_object(ser_revoke_token);
-        let revoke_token= handle_errors!(revoke_token_result);
+        let revoke_token = handle_errors!(revoke_token_result);
 
         // Deserialize the cust state
         let merch_state_result: ResultSerdeType<bidirectional::MerchantState<Bls12>> = deserialize_result_object(ser_merch_state);
@@ -348,7 +374,31 @@ pub mod ffishim {
         let pay_token = handle_errors!(pay_token_result);
 
         let ser = ["{\'pay_token\':\'", serde_json::to_string(&pay_token.unwrap()).unwrap().as_str(),
-                          "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str() ,"\'}"].concat();
+            "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_pay_verify_multiple_revoke_tokens(ser_sender_revoke_token: *mut c_char, ser_receiver_revoke_token: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+        // Deserialize the revoke tokens
+        let sender_revoke_token_result: ResultSerdeType<bidirectional::RevokeToken> = deserialize_result_object(ser_sender_revoke_token);
+        let sender_revoke_token = handle_errors!(sender_revoke_token_result);
+
+        let receiver_revoke_token_result: ResultSerdeType<bidirectional::RevokeToken> = deserialize_result_object(ser_receiver_revoke_token);
+        let receiver_revoke_token = handle_errors!(receiver_revoke_token_result);
+
+        // Deserialize the cust state
+        let merch_state_result: ResultSerdeType<bidirectional::MerchantState<Bls12>> = deserialize_result_object(ser_merch_state);
+        let mut merch_state = handle_errors!(merch_state_result);
+
+        // send revoke token and get pay-token in response
+        let pay_token_result = bidirectional::verify_multiple_revoke_tokens(&sender_revoke_token, &receiver_revoke_token, &mut merch_state);
+        let (sender_pay_token, receiver_pay_token) = handle_errors!(pay_token_result).unwrap();
+
+        let ser = ["{\'sender_pay_token\':\'", serde_json::to_string(&sender_pay_token).unwrap().as_str(),
+            "\', \'receiver_pay_token\':\'", serde_json::to_string(&receiver_pay_token).unwrap().as_str(),
+            "\', \'merch_state\':\'", serde_json::to_string(&merch_state).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -371,7 +421,7 @@ pub mod ffishim {
         // verify the pay token and update internal state
         let is_pay_valid = cust_state.verify_pay_token(&channel_state, &pay_token);
         let ser = ["{\'cust_state\':\'", serde_json::to_string(&cust_state).unwrap().as_str(),
-                          "\', \'is_pay_valid\':\'", serde_json::to_string(&is_pay_valid).unwrap().as_str(), "\'}"].concat();
+            "\', \'is_pay_valid\':\'", serde_json::to_string(&is_pay_valid).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }
@@ -400,7 +450,7 @@ pub mod ffishim {
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
 
-         // Deserialize the channel token
+        // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<Bls12>> = deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
 
@@ -425,7 +475,7 @@ pub mod ffishim {
         let merch_close: bidirectional::ChannelcloseM = merch_state.sign_revoke_message(address.to_string(), &keys.revoke_token);
 
         let ser = ["{\'wpk\':\'", serde_json::to_string(&keys.wpk).unwrap().as_str(),
-                "\', \'merch_close\':\'", serde_json::to_string(&merch_close).unwrap().as_str(), "\'}"].concat();
+            "\', \'merch_close\':\'", serde_json::to_string(&merch_close).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }

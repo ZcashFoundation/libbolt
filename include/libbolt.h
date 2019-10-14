@@ -30,8 +30,10 @@ char* ffishim_bidirectional_establish_customer_final(const char *ser_channel_sta
 // channel pay protocol routines
 char* ffishim_bidirectional_pay_generate_payment_proof(const char *ser_channel_state, const char *ser_customer_wallet, long long int amount);
 char* ffishim_bidirectional_pay_verify_payment_proof(const char *ser_channel_state, const char *ser_pay_proof, const char *ser_merch_state);
+char* ffishim_bidirectional_pay_verify_multiple_payment_proofs(const char *ser_channel_state, const char *ser_sender_pay_proof, const char *ser_receiver_pay_proof, const char *ser_merch_state);
 char* ffishim_bidirectional_pay_generate_revoke_token(const char *ser_channel_state, const char *ser_cust_state, const char *ser_new_cust_state, const char *ser_close_token);
 char* ffishim_bidirectional_pay_verify_revoke_token(const char *ser_revoke_token, const char *ser_merch_state);
+char* ffishim_bidirectional_pay_verify_multiple_revoke_tokens(const char *ser_sender_revoke_token, const char *ser_receiver_revoke_token, const char *ser_merch_state);
 char* ffishim_bidirectional_pay_verify_payment_token(const char *ser_channel_state, const char *ser_cust_state, const char *ser_pay_token);
 
 // closing routines for both sides
