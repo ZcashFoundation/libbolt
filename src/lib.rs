@@ -24,7 +24,6 @@ extern crate pairing;
 extern crate rand;
 extern crate rand_core;
 
-extern crate bincode;
 extern crate secp256k1;
 extern crate time;
 extern crate sha2;
@@ -49,8 +48,6 @@ pub mod ffishim;
 
 use std::fmt;
 use std::str;
-use bincode::SizeLimit::Infinite;
-use bincode::rustc_serialize::{encode, decode};
 use std::collections::HashMap;
 use ff::{Rand, Field};
 
@@ -188,7 +185,11 @@ pub mod bidirectional {
     /// and wallet commitment.
     ///
     pub fn init_customer<'a, R: Rng, E: Engine>(csprng: &mut R, channel_token: &mut ChannelToken<E>,
-                                                b0_cust: i64, b0_merch: i64, name: &'a str) -> CustomerState<E> {
+                                                b0_cust: i64, b0_merch: i64, name: &'a str) -> CustomerState<E>
+        where <E as pairing::Engine>::G1: serde::Serialize,
+              <E as pairing::Engine>::G2: serde::Serialize,
+              <E as ff::ScalarEngine>::Fr: serde::Serialize
+    {
         assert!(b0_cust >= 0);
         assert!(b0_merch >= 0);
 
@@ -213,10 +214,10 @@ pub mod bidirectional {
     ///
     pub fn establish_merchant_issue_close_token<R: Rng, E: Engine>(csprng: &mut R, channel_state: &ChannelState<E>,
                                                                    com: &Commitment<E>, com_proof: &CommitmentProof<E>,
-                                                                   pkc: &E::Fr, init_cust_balance: i64, init_merch_balance: i64,
+                                                                   channel_id: &E::Fr, init_cust_balance: i64, init_merch_balance: i64,
                                                                    merch_state: &MerchantState<E>) -> BoltResult<cl::Signature<E>> {
         // verifies proof of committed values and derives blind signature on the committed values to the customer's initial wallet
-        match merch_state.verify_proof(csprng, channel_state, com, com_proof, pkc, init_cust_balance, init_merch_balance) {
+        match merch_state.verify_proof(csprng, channel_state, com, com_proof, channel_id, init_cust_balance, init_merch_balance) {
             Ok(n) => Ok(Some(n.0)), // just close token
             Err(err) => Err(String::from(err.to_string()))
         }
@@ -473,7 +474,7 @@ pub mod bidirectional {
         let chan_token_pk_c = util::hash_pubkey_to_fr::<E>(&pk_c);
         let chan_token_wpk = util::hash_pubkey_to_fr::<E>(&wpk);
 
-        let pkc_thesame = (close_msg.pkc == chan_token_pk_c);
+        let pkc_thesame = (close_msg.channelId == chan_token_pk_c);
         // (2) check that wpk matches what's in the close msg
         let wpk_thesame = (close_msg.wpk == chan_token_wpk);
         return pkc_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
@@ -562,8 +563,7 @@ mod tests {
 
         // obtain close token for closing out channel
         //let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
-        let pk_c = cust_state.get_public_key();
-        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_c,
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &cust_state.get_wallet().channelId,
                                                                          cust_balance, merch_balance, &merch_state);
         let close_token = match option {
             Ok(n) => n.unwrap(),
@@ -623,8 +623,7 @@ mod tests {
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
 
         // obtain close token for closing out channel
-        let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
-        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_h,
+        let option = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &cust_state.get_wallet().channelId,
                                                                          b0_customer, b0_merchant, &merch_state);
         let close_token = match option {
             Ok(n) => n.unwrap(),
