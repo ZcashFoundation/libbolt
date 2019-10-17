@@ -226,9 +226,9 @@ type CustClose struct {
 }
 
 type ZkChannelParams struct {
-	ChannelToken    ChannelToken	`json:"chantoken"`
 	Commitment      Commitment	`json:"commitment"`
 	CommitmentProof CommitmentProof	`json:"commproof"`
+	CustPkC         string		`json:"custstatepkc"`
 }
 
 func BidirectionalChannelSetup(name string, channelSupport bool) (ChannelState, error) {
