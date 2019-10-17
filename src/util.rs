@@ -1,5 +1,4 @@
 use super::*;
-//use sodiumoxide::crypto::hash::sha512;
 use pairing::Engine;
 use ff::{PrimeField};
 use rand::Rng;
