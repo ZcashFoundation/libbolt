@@ -160,14 +160,7 @@ To close a channel, the customer must execute the `bidirectional::customer_refun
 If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `bidirectional::merchant_retute()` routine as follows:
 
 	let merch_close = bidirectional::merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
-
-	
-To resolve a dispute between a customer and a merchant, the following routine is executed by the network:
-	
-	let (new_b0_cust, new_b0_merch) = bidirectional::resolve(...);
 	                                                         
-`new_b0_cust` and `new_b0_merch` represent the new balances for the customer and merchant (respectively).
-
 ## Third-party Payments
 
 The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With BOLT, the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users. 
@@ -188,7 +181,7 @@ The channel establishment still works as described before and the pay protocol i
 	
 	let payment_amount = 20;
 	// get payment proof on first channel with party A and H
-	let (sender_payment, new_cust_stateA) = bidirectional::generate_payment_proof(rng, &channel_state, // channel state
+	let (sender_payment, new_cust_stateA) = bidirectional::generate_payment_proof(rng, &channel_state,
                                                                         &cust_stateA,
 	                                                                    payment_amount); // bal inc
 	// get payment proof on second channel with party B and H
@@ -202,6 +195,8 @@ The channel establishment still works as described before and the pay protocol i
                                                                            &sender_payment, 
                                                                            &receiver_payment, 
                                                                            &mut merch_state);
+                                                                           
+    // alice gets a close token and bob gets a conditional token which requires alice's revoke token to be valid                                                                           
     let (alice_close_token, bob_cond_close_token) = handle_bolt_result!(close_token_result).unwrap();
 	
     // both alice and bob generate a revoke token
