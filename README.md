@@ -15,8 +15,10 @@ Active development of libbolt is ongoing at [Bolt Labs, Inc](https://github.com/
 # Dependencies
 
 * secp256k1
-* sodiumoxide
+* ff
 * pairing
+* serde
+* sha2
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 

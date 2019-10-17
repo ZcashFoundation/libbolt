@@ -225,6 +225,12 @@ type CustClose struct {
 	Signature Signature `json:"signature"`
 }
 
+type ZkChannelParams struct {
+	ChannelToken    ChannelToken	`json:"chantoken"`
+	Commitment      Commitment	`json:"commitment"`
+	CommitmentProof CommitmentProof	`json:"commproof"`
+}
+
 func BidirectionalChannelSetup(name string, channelSupport bool) (ChannelState, error) {
 	resp := C.GoString(C.ffishim_bidirectional_channel_setup(C.CString(name), C.uint(btoi(channelSupport))))
 	r, err := processCResponse(resp)
