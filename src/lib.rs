@@ -25,7 +25,7 @@ extern crate rand;
 extern crate rand_core;
 
 extern crate bincode;
-extern crate sodiumoxide;
+//extern crate sodiumoxide;
 extern crate secp256k1;
 extern crate time;
 extern crate sha2;
@@ -39,7 +39,7 @@ extern crate libc;
 extern crate rand_xorshift;
 extern crate core;
 
-pub mod sym;
+//pub mod sym;
 pub mod cl;
 pub mod ccs08;
 pub mod ped92;
@@ -53,9 +53,9 @@ use std::fmt;
 use std::str;
 use bincode::SizeLimit::Infinite;
 use bincode::rustc_serialize::{encode, decode};
-use sodiumoxide::randombytes;
-use sodiumoxide::crypto::hash::sha512;
-use sha2::Sha512;
+//use sodiumoxide::randombytes;
+//use sodiumoxide::crypto::hash::sha512;
+//use sha2::Sha512;
 use std::collections::HashMap;
 use ff::{Rand, Field};
 
@@ -116,14 +116,14 @@ pub mod bidirectional {
     use util;
     use wallet;
     use pairing::Engine;
-    use sodiumoxide;
+    //use sodiumoxide;
     use cl;
     // for blind signature
     use secp256k1;
     // for on-chain keys
     use HashMap;
-    use sodiumoxide::crypto::hash::sha512;
-    use sha2::Sha512;
+    //use sodiumoxide::crypto::hash::sha512;
+    //use sha2::Sha512;
 
     use serde::{Serialize, Deserialize};
     use util::{RevokedMessage, hash_to_slice};
@@ -173,7 +173,7 @@ pub mod bidirectional {
     }
 
     pub fn init() {
-        sodiumoxide::init();
+        //sodiumoxide::init();
     }
 
     ///

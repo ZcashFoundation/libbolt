@@ -15,7 +15,7 @@ use pairing::bls12_381::Bls12;
 use ff::PrimeField;
 use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
 use ped92::{CSParams, Commitment, CSMultiParams, CommitmentProof};
-use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage, hash_to_slice, hash_slice_to_fr};
+use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage, hash_to_slice};
 use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -144,7 +144,7 @@ impl<E: Engine> ChannelToken<E> {
         input.extend(&ser_mpk);
         input.extend(&ser_comParams);
 
-        return hash_slice_to_fr::<E>(&input);
+        return hash_to_fr::<E>(input);
     }
 
     // add a method to compute hash on chain: SHA256 + RIPEMD160?
@@ -166,10 +166,6 @@ impl<E: Engine> ChannelState<E> {
             channel_established: false,
             third_party: third_party_support,
         }
-    }
-
-    pub fn init() {
-        sodiumoxide::init();
     }
 
     ///

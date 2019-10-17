@@ -1,9 +1,10 @@
 use super::*;
-use sodiumoxide::crypto::hash::sha512;
+//use sodiumoxide::crypto::hash::sha512;
 use pairing::Engine;
 use ff::{PrimeField};
 use rand::Rng;
 use secp256k1::{Signature, PublicKey};
+use sha2::{Sha512, Sha256, Digest};
 
 pub fn is_vec_fr_equal<E: Engine>(a: &Vec<E::Fr>, b: &Vec<E::Fr>) -> bool {
     (a.len() == b.len()) &&
@@ -57,24 +58,23 @@ pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
     return s;
 }
 
-pub fn hash_to_fr<E: Engine>(byteVec: Vec<u8>) -> E::Fr {
-    let sha2_digest = sha512::hash(byteVec.as_slice());
+pub fn compute_the_hash<E: Engine>(bytes: &Vec<u8>) -> E::Fr {
+    let mut hasher = sha2::Sha512::new();
+    hasher.input(&bytes.as_slice());
+    let sha2_digest = hasher.result();
     let mut hash_buf: [u8; 64] = [0; 64];
     hash_buf.copy_from_slice(&sha2_digest[0..64]);
     let hexresult = fmt_bytes_to_int(hash_buf);
-    let result = E::Fr::from_str(&hexresult);
-    return result.unwrap();
+    return E::Fr::from_str(&hexresult).unwrap();
+}
+
+pub fn hash_to_fr<E: Engine>(byteVec: Vec<u8>) -> E::Fr {
+    return compute_the_hash::<E>(&byteVec);
 }
 
 pub fn hash_pubkey_to_fr<E: Engine>(wpk: &secp256k1::PublicKey) -> E::Fr {
     let x_slice = wpk.serialize_uncompressed();
-    let sha2_digest = sha512::hash(&x_slice);
-
-    let mut hash_buf: [u8; 64] = [0; 64];
-    hash_buf.copy_from_slice(&sha2_digest[0..64]);
-    let hexresult = fmt_bytes_to_int(hash_buf);
-    let result = E::Fr::from_str(&hexresult);
-    return result.unwrap();
+    return compute_the_hash::<E>(&x_slice.to_vec());
 }
 
 pub fn convert_int_to_fr<E: Engine>(value: i64) -> E::Fr {
@@ -86,14 +86,16 @@ pub fn convert_int_to_fr<E: Engine>(value: i64) -> E::Fr {
         let mut res = E::Fr::zero();
         let val = E::Fr::from_str(value2.to_string().as_str()).unwrap();
         res.sub_assign(&val);
-        // TODO: look at how to do negation
         return res;
     }
 }
 
 pub fn compute_pub_key_fingerprint(wpk: &secp256k1::PublicKey) -> String {
     let x_slice = wpk.serialize();
-    let sha2_digest = sha512::hash(&x_slice);
+    let mut hasher = sha2::Sha512::new();
+    hasher.input(&x_slice.to_vec());
+    let sha2_digest = hasher.result();
+    // let sha2_digest = sha512::hash(&x_slice);
     let h = format!("{:x}", HexSlice::new(&sha2_digest[0..16]));
     return h;
 }
@@ -102,33 +104,18 @@ pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::F
     let mut input_buf = Vec::new();
     input_buf.extend_from_slice(prefix.as_bytes());
     input_buf.extend_from_slice(buf);
-
-    let sha2_digest = sha512::hash(&input_buf.as_slice());
-
-    let mut hash_buf: [u8; 64] = [0; 64];
-    hash_buf.copy_from_slice(&sha2_digest[0..64]);
-    let hexresult = fmt_bytes_to_int(hash_buf);
-    let result = E::Fr::from_str(&hexresult);
-    return result.unwrap();
+    return compute_the_hash::<E>(&input_buf);
 }
 
 pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
-    let sha2_digest = sha512::hash(input_buf.as_slice());
+    let mut hasher = sha2::Sha512::new();
+    hasher.input(&input_buf.as_slice());
+    let sha2_digest = hasher.result();
+
     let mut hash_buf: [u8; 32] = [0; 32];
     hash_buf.copy_from_slice(&sha2_digest[0..32]);
     return hash_buf;
 }
-
-pub fn hash_slice_to_fr<E: Engine>(input_buf: &Vec<u8>) -> E::Fr {
-    let sha2_digest = sha512::hash(input_buf.as_slice());
-    let mut hash_buf: [u8; 64] = [0; 64];
-    hash_buf.copy_from_slice(&sha2_digest[0..64]);
-    let hexresult = fmt_bytes_to_int(hash_buf);
-    let result = E::Fr::from_str(&hexresult);
-    return result.unwrap();
-}
-
-
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RevokedMessage {
