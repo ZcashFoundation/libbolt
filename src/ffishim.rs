@@ -3,7 +3,7 @@ pub mod ffishim {
     extern crate libc;
 
     use bidirectional;
-    use ff::Rand;
+    use ff::{Rand, ScalarEngine};
     use pairing::bls12_381::Bls12;
 
     use serde::Deserialize;
@@ -180,13 +180,10 @@ pub mod ffishim {
         let merch_state = handle_errors!(merch_state_result);
 
         // Deserialize the pk_c
-        let bytes = unsafe { CStr::from_ptr(ser_channel_id).to_bytes() };
-        let string: &str = str::from_utf8(bytes).unwrap();
-        let pk_c_result = secp256k1::PublicKey::from_str(string);
-        let pk_c = handle_errors!(pk_c_result);
-        let pk_fr = hash_pubkey_to_fr::<Bls12>(&pk_c);
+        let channel_id_result: ResultSerdeType<<Bls12 as ScalarEngine>::Fr> = deserialize_result_object(ser_channel_id);
+        let channel_id_fr = handle_errors!(channel_id_result);
 
-        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &pk_fr, init_cust_bal, init_merch_bal, &merch_state));
+        let close_token = bolt_try!(bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &channel_id_fr, init_cust_bal, init_merch_bal, &merch_state));
 
         let ser = ["{\'close_token\':\'", serde_json::to_string(&close_token).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();

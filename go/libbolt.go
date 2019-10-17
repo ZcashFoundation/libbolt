@@ -311,7 +311,7 @@ func BidirectionalEstablishCustomerGenerateProof(channelToken ChannelToken, cust
 	return channelToken, custState, com, comProof, err
 }
 
-func BidirectionalEstablishMerchantIssueCloseToken(channelState ChannelState, com Commitment, comProof CommitmentProof, channelId string, initCustBal int, initMerchBal int, merchState MerchState) (Signature, error) {
+func BidirectionalEstablishMerchantIssueCloseToken(channelState ChannelState, com Commitment, comProof CommitmentProof, channelId []string, initCustBal int, initMerchBal int, merchState MerchState) (Signature, error) {
 	serChannelState, err := json.Marshal(channelState)
 	if err != nil {
 		return Signature{}, err
@@ -328,7 +328,11 @@ func BidirectionalEstablishMerchantIssueCloseToken(channelState ChannelState, co
 	if err != nil {
 		return Signature{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_close_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serComProof)), C.CString(channelId), C.longlong(initCustBal), C.longlong(initMerchBal), C.CString(string(serMerchState))))
+	serChannelId, err := json.Marshal(channelId)
+	if err != nil {
+		return Signature{}, err
+	}
+	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_close_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serComProof)), C.CString(string(serChannelId)), C.longlong(initCustBal), C.longlong(initMerchBal), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, err

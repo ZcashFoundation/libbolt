@@ -47,7 +47,7 @@ class BoltEstablishTests(unittest.TestCase):
         (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token, self.cust_state)
 
         cust_state_dict = json.loads(cust_state)
-        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["pk_c"], self.b0_cust, self.b0_merch, self.merch_state)
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["wallet"]["channelId"], self.b0_cust, self.b0_merch, self.merch_state)
         self.assertTrue(close_token is not None)
 
         (is_token_valid, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(self.channel_state, cust_state, close_token)
@@ -68,7 +68,7 @@ class BoltEstablishTests(unittest.TestCase):
         (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token_bad, self.cust_state_bad)
 
         cust_state_dict = json.loads(cust_state)
-        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["pk_c"], self.b0_cust, self.b0_merch, self.merch_state)
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["wallet"]["channelId"], self.b0_cust, self.b0_merch, self.merch_state)
         self.assertTrue(close_token is None)
         #print("Establish protocol fail works as expected.")
 
@@ -91,7 +91,7 @@ class BoltEstablishTests(unittest.TestCase):
         (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token, self.cust_state)
 
         cust_state_dict = json.loads(cust_state)
-        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["pk_c"], self.b0_cust, self.b0_merch, self.merch_state)
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["wallet"]["channelId"], self.b0_cust, self.b0_merch, self.merch_state)
         self.assertTrue(close_token is not None)
 
         (is_token_valid, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(self.channel_state, cust_state, close_token)
@@ -125,7 +125,7 @@ class BoltEstablishTests(unittest.TestCase):
         (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token, self.cust_state)
 
         cust_state_dict = json.loads(cust_state)
-        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["pk_c"], self.b0_cust, self.b0_merch, self.merch_state)
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["wallet"]["channelId"], self.b0_cust, self.b0_merch, self.merch_state)
         self.assertTrue(close_token is not None)
 
         malformed_close_token = malformed_token(close_token)
@@ -156,7 +156,7 @@ class BoltPayTests(unittest.TestCase):
         (self.channel_token, self.cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(self.channel_token, self.cust_state)
 
         cust_state_dict = json.loads(self.cust_state)
-        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["pk_c"], self.b0_cust, self.b0_merch, self.merch_state)
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(self.channel_state, com, com_proof, cust_state_dict["wallet"]["channelId"], self.b0_cust, self.b0_merch, self.merch_state)
         self.assertTrue(close_token is not None)
 
         (is_token_valid, self.channel_state, self.cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(self.channel_state, self.cust_state, close_token)
@@ -299,12 +299,12 @@ class BoltMultiChannelTests(unittest.TestCase):
         """
         alice_cust_state_dict = json.loads(self.alice_state)
         self.channel_token_a, self.channel_state_a, alice_cust_state = self._establish_channel(self.channel_token_a, self.channel_state,
-                                                                                               self.alice_state, alice_cust_state_dict["pk_c"],
+                                                                                               self.alice_state, alice_cust_state_dict["wallet"]["channelId"],
                                                                                                self.b0_alice, self.b0_merch)
 
         charlie_cust_state_dict = json.loads(self.charlie_state)
         self.channel_token_c, self.channel_state_c, charlie_cust_state = self._establish_channel(self.channel_token_c, self.channel_state,
-                                                                                                 self.charlie_state, charlie_cust_state_dict["pk_c"],
+                                                                                                 self.charlie_state, charlie_cust_state_dict["wallet"]["channelId"],
                                                                                                  self.b0_charlie, self.b0_merch)
 
         self.channel_state_a, alice_cust_state = self._pay_on_channel(self.channel_state_a, alice_cust_state, 15)

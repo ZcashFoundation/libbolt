@@ -193,7 +193,11 @@ pub mod bidirectional {
     /// and wallet commitment.
     ///
     pub fn init_customer<'a, R: Rng, E: Engine>(csprng: &mut R, channel_token: &mut ChannelToken<E>,
-                                                b0_cust: i64, b0_merch: i64, name: &'a str) -> CustomerState<E> {
+                                                b0_cust: i64, b0_merch: i64, name: &'a str) -> CustomerState<E>
+        where <E as pairing::Engine>::G1: serde::Serialize,
+              <E as pairing::Engine>::G2: serde::Serialize,
+              <E as ff::ScalarEngine>::Fr: serde::Serialize
+    {
         assert!(b0_cust >= 0);
         assert!(b0_merch >= 0);
 

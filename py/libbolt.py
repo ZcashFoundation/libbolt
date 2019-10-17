@@ -107,7 +107,7 @@ class Libbolt(object):
 		return output_dictionary.get('channel_token'), output_dictionary.get('cust_state'), output_dictionary.get('com'), output_dictionary.get('com_proof')
 
 	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, channel_id, init_cust, init_merch, merch_state):
-		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), channel_id.encode(), init_cust, init_merch, merch_state.encode())
+		output_string = self.lib.ffishim_bidirectional_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), json.dumps(channel_id).encode(), init_cust, init_merch, merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('close_token')
 

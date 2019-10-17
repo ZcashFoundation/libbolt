@@ -124,16 +124,14 @@ impl<E: Engine> ChannelToken<E> {
     }
 
     pub fn compute_channel_id(&self) -> E::Fr
-//        where <E as pairing::Engine>::G1: serde::Serialize,
-//              <E as pairing::Engine>::G2: serde::Serialize,
-//              <E as ff::ScalarEngine>::Fr: serde::Serialize
+        where <E as pairing::Engine>::G1: serde::Serialize,
+              <E as pairing::Engine>::G2: serde::Serialize,
+              <E as ff::ScalarEngine>::Fr: serde::Serialize
     {
         if self.pk_c.is_none() {
             panic!("pk_c is not initialized yet");
         }
-        //let input = serde_json::to_vec(&self).unwrap();
-        let mut input = Vec::new();
-        input.extend_from_slice(&self.pk_m.serialize_uncompressed());
+        let input = serde_json::to_vec(&self).unwrap();
 
         return hash_to_fr::<E>(input);
     }
@@ -224,7 +222,11 @@ pub struct CustomerState<E: Engine> {
 }
 
 impl<E: Engine> CustomerState<E> {
-    pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelToken<E>, cust_bal: i64, merch_bal: i64, name: String) -> Self {
+    pub fn new<R: Rng>(csprng: &mut R, channel_token: &mut ChannelToken<E>, cust_bal: i64, merch_bal: i64, name: String) -> Self
+        where <E as pairing::Engine>::G1: serde::Serialize,
+              <E as pairing::Engine>::G2: serde::Serialize,
+              <E as ff::ScalarEngine>::Fr: serde::Serialize
+    {
         let mut kp = secp256k1::Secp256k1::new();
         kp.randomize(csprng);
 
