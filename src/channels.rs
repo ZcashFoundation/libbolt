@@ -124,25 +124,16 @@ impl<E: Engine> ChannelToken<E> {
     }
 
     pub fn compute_channel_id(&self) -> E::Fr
-        where <E as pairing::Engine>::G1: serde::Serialize,
-              <E as pairing::Engine>::G2: serde::Serialize,
-              <E as ff::ScalarEngine>::Fr: serde::Serialize
+//        where <E as pairing::Engine>::G1: serde::Serialize,
+//              <E as pairing::Engine>::G2: serde::Serialize,
+//              <E as ff::ScalarEngine>::Fr: serde::Serialize
     {
-        let mut input = Vec::new();
-
-        if !self.pk_c.is_none() {
-            let ser_pkc = self.pk_c.unwrap().serialize_uncompressed();
-            input.extend_from_slice(&ser_pkc);
+        if self.pk_c.is_none() {
+            panic!("pk_c is not initialized yet");
         }
-        let ser_pk_m = self.pk_m.serialize_uncompressed();
-        let ser_cl_pk_m = serde_json::to_vec(&self.cl_pk_m).unwrap();
-        let ser_mpk = serde_json::to_vec(&self.mpk).unwrap();
-        let ser_comParams = serde_json::to_vec(&self.comParams).unwrap();
-
-        input.extend_from_slice(&ser_pk_m);
-        input.extend(&ser_cl_pk_m);
-        input.extend(&ser_mpk);
-        input.extend(&ser_comParams);
+        //let input = serde_json::to_vec(&self).unwrap();
+        let mut input = Vec::new();
+        input.extend_from_slice(&self.pk_m.serialize_uncompressed());
 
         return hash_to_fr::<E>(input);
     }
@@ -243,16 +234,15 @@ impl<E: Engine> CustomerState<E> {
         let (wsk, wpk) = kp.generate_keypair(csprng);
         // hash the wallet pub key
         let wpk_h = hash_pubkey_to_fr::<E>(&wpk);
-        // hash the channel pub key
-        let pk_h = hash_pubkey_to_fr::<E>(&pk_c);
+        channel_token.set_customer_pk(&pk_c);
+        // compute the channel ID
+        let channelId = channel_token.compute_channel_id();
         // randomness for commitment
         let t = E::Fr::rand(csprng);
         // initialize wallet vector
-        let wallet = Wallet { pkc: pk_h, wpk: wpk_h, bc: cust_bal, bm: merch_bal, close: None };
+        let wallet = Wallet { channelId: channelId, wpk: wpk_h, bc: cust_bal, bm: merch_bal, close: None };
 
         let w_com = channel_token.comParams.commit(&wallet.as_fr_vec(), &t);
-
-        channel_token.set_customer_pk(&pk_c);
 
         assert!(channel_token.is_init());
 
@@ -296,7 +286,7 @@ impl<E: Engine> CustomerState<E> {
 
     // generate nizk proof of knowledge of commitment opening
     pub fn generate_proof<R: Rng>(&self, csprng: &mut R, channel_token: &ChannelToken<E>) -> CommitmentProof<E> {
-        // generate proof and do a partial reveal of pkc and bc/bm (init balances)
+        // generate proof and do a partial reveal of channelId and bc/bm (init balances)
         return CommitmentProof::<E>::new(csprng, &channel_token.comParams, &self.w_com.c, &self.wallet.as_fr_vec(), &self.t, &vec![1, 3, 4]);
     }
 
@@ -369,8 +359,8 @@ impl<E: Engine> CustomerState<E> {
         let new_t = E::Fr::rand(csprng);
 
         let cp = channel.cp.as_ref().unwrap();
-        let old_wallet = Wallet { pkc: self.wallet.pkc.clone(), wpk: self.wallet.wpk.clone(), bc: self.cust_balance, bm: self.merch_balance, close: None };
-        let new_wallet = Wallet { pkc: self.wallet.pkc.clone(), wpk: wpk_h, bc: new_cust_bal, bm: new_merch_bal, close: Some(self.wallet.close.unwrap()) };
+        let old_wallet = Wallet { channelId: self.wallet.channelId.clone(), wpk: self.wallet.wpk.clone(), bc: self.cust_balance, bm: self.merch_balance, close: None };
+        let new_wallet = Wallet { channelId: self.wallet.channelId.clone(), wpk: wpk_h, bc: new_cust_bal, bm: new_merch_bal, close: Some(self.wallet.close.unwrap()) };
         let new_wcom = cp.pub_params.comParams.commit(&new_wallet.as_fr_vec(), &new_t);
 
         // 3 - generate new blinded and randomized pay token
@@ -557,8 +547,8 @@ impl<E: Engine> MerchantState<E> {
         return self.keypair.sign_blind(csprng, &cp.pub_params.mpk, pay_com);
     }
 
-    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, pkc: &E::Fr, cust_balance: i64, merch_balance: i64) -> ResultBoltType<(Signature<E>, Signature<E>)> {
-        let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, &pkc, cust_balance, merch_balance);
+    pub fn verify_proof<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, com: &Commitment<E>, com_proof: &CommitmentProof<E>, channelId: &E::Fr, cust_balance: i64, merch_balance: i64) -> ResultBoltType<(Signature<E>, Signature<E>)> {
+        let is_valid = nizk::verify_opening(&self.comParams, &com.c, &com_proof, &channelId, cust_balance, merch_balance);
         let cp = channel.cp.as_ref().unwrap();
         if is_valid {
             let close_token = self.issue_close_token(csprng, cp, com, true);
@@ -653,8 +643,9 @@ mod tests {
 
         // first return the close token, then wait for escrow-tx confirmation
         // then send the pay-token after confirmation
-        let pk_h = hash_pubkey_to_fr::<Bls12>(&cust_state.pk_c.clone());
-        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof, &pk_h, b0_cust, b0_merch).unwrap();
+        let channelId = channel_token.compute_channel_id();
+        assert_eq!(channelId, cust_state.get_wallet().channelId);
+        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof, &channelId, b0_cust, b0_merch).unwrap();
         // unblind tokens and verify signatures
         assert!(cust_state.verify_close_token(&channel, &close_token));
 
@@ -689,5 +680,24 @@ mod tests {
         assert!(cust_state.verify_pay_token(&channel, &new_pay_token));
 
         //println!("Validated revoke token!");
+    }
+
+    #[test]
+    #[should_panic(expected = "pk_c is not initialized yet")]
+    fn compute_channel_id_panics() {
+        let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
+        let mut rng = &mut rand::thread_rng();
+
+        let b0_cust = 100;
+        let b0_merch = 20;
+        // each party executes the init algorithm on the agreed initial challenge balance
+        // in order to derive the channel tokens
+        // initialize on the merchant side with balance: b0_merch
+        let (mut merch_state, mut channel) = MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
+
+        // initialize the merchant wallet with the balance
+        let mut channel_token = merch_state.init(rng, &mut channel);
+
+        let channelId = channel_token.compute_channel_id();
     }
 }

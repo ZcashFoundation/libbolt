@@ -161,7 +161,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_pk_c: *mut c_char, init_cust_bal: i64, init_merch_bal: i64, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bidirectional_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_channel_id: *mut c_char, init_cust_bal: i64, init_merch_bal: i64, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<Bls12>> = deserialize_result_object(ser_channel_state);
@@ -180,7 +180,7 @@ pub mod ffishim {
         let merch_state = handle_errors!(merch_state_result);
 
         // Deserialize the pk_c
-        let bytes = unsafe { CStr::from_ptr(ser_pk_c).to_bytes() };
+        let bytes = unsafe { CStr::from_ptr(ser_channel_id).to_bytes() };
         let string: &str = str::from_utf8(bytes).unwrap();
         let pk_c_result = secp256k1::PublicKey::from_str(string);
         let pk_c = handle_errors!(pk_c_result);

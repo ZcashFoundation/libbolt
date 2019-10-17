@@ -352,13 +352,13 @@ mod tests {
     #[test]
     fn test_proof_commitment() {
         let rng = &mut rand::thread_rng();
-        let pkc = Fr::rand(rng);
+        let channelId = Fr::rand(rng);
         let wpk = Fr::rand(rng);
         let t = Fr::rand(rng);
 
         let bc = rng.gen_range(100, 1000);
         let bm = rng.gen_range(100, 1000);
-        let wallet = Wallet::<Bls12> { pkc: pkc, wpk: wpk, bc: bc, bm: bm, close: None };
+        let wallet = Wallet::<Bls12> { channelId: channelId, wpk: wpk, bc: bc, bm: bm, close: None };
 
         let comParams = CSMultiParams::setup_gen_params(rng, 4);
         let com = comParams.commit(&wallet.as_fr_vec().clone(), &t);

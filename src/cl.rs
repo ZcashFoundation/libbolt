@@ -13,7 +13,6 @@ use serde::{Serialize, Deserialize};
 use serde::ser::{Serializer, SerializeStruct, SerializeSeq};
 use util;
 use ccs08;
-use bincode::serde::serialize;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PublicParams<E: Engine> {
