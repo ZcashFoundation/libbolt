@@ -175,12 +175,11 @@ The bidirectional payment channels can be used to construct third-party payments
 To enable third-party payment support, initialize each payment channel as follows:
 			
 	// create the channel state for each channel and indicate third-party support 
-	let mut channel_a = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A <-> I"), true);
-	let mut channel_b = bidirectional::ChannelState::<Bls12>::new(String::from("Channel B <-> I"), true);
+	let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Third-party Channels"), true);
 	
 Moreover, the intermediary can set a channel fee as follows:
 	
-	channel_a.set_channel_fee(5);
+	channel_state.set_channel_fee(5);
 
 The channel establishment still works as described before and the pay protocol includes an additional step to verify that the payments on both channels cancel out or include a channel fee (if specified).
 
@@ -188,22 +187,42 @@ The channel establishment still works as described before and the pay protocol i
 	...
 	
 	let payment_amount = 20;
-	// get payment proof on first channel with party A (and I)
-	let (payment_proofA, new_cust_stateA) = bidirectional::generate_payment_proof(rng, &channel_a, // channel state
+	// get payment proof on first channel with party A and H
+	let (sender_payment, new_cust_stateA) = bidirectional::generate_payment_proof(rng, &channel_state, // channel state
                                                                         &cust_stateA,
 	                                                                    payment_amount); // bal inc
-	// get payment proof on second channel with party B (and I)
-	let (payment_proofB, new_cust_stateB) = bidirectional::generate_payment_proof(rng, &channel_b,
+	// get payment proof on second channel with party B and H
+	let (receiver_payment, new_cust_stateB) = bidirectional::generate_payment_proof(rng, &channel_state,
                                                                         &cust_stateB,                                                
                                                                         -payment_amount); // bal dec
-                                                               
-	// verify that the payment proof is valid and cancels out or results in a fee
-	let tx_fee = channel_a.get_channel_fee() + channel_b.get_channel_fee();
-	assert!(bidirectional::verify_third_party_payment(&pp, tx_fee, &payment_proofA, &payment_proofB));
+                                                               	
+    // intermediary executes the following on the two payment proofs
+	// verifies that the payment proof is valid & cancels out and results in hub's fee    
+    let close_token_result = bidirectional::verify_multiple_payment_proofs(rng, &channel_state, 
+                                                                           &sender_payment, 
+                                                                           &receiver_payment, 
+                                                                           &mut merch_state);
+    let (alice_close_token, bob_cond_close_token) = handle_bolt_result!(close_token_result).unwrap();
 	
+    // both alice and bob generate a revoke token
+    let revoke_token_alice = bidirectional::generate_revoke_token(&channel_state, 
+                                                                  &mut cust_stateA, 
+                                                                  new_cust_stateA, 
+                                                                  &alice_close_token);
+    let revoke_token_bob = bidirectional::generate_revoke_token(&channel_state,
+                                                                  &mut cust_stateB, 
+                                                                  new_cust_stateB, 
+                                                                  &bob_cond_close_token);
+	
+    // send both revoke tokens to intermediary and receive pay-tokens (one for sender and another for receiver)
+    let new_pay_tokens: BoltResult<(cl::Signature<Bls12>,cl::Signature<Bls12>)> = \
+                        bidirectional::verify_multiple_revoke_tokens(&revoke_token_sender, 
+                                                                     &revoke_token_receiver, 
+                                                                     &mut merch_state);
+                                                                     	
 	...
 
-See the `third_party_payment_basics_work()` unit test in `src/lib.rs` for more details.
+See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more details.
 
 # Documentation (TODO)
 
