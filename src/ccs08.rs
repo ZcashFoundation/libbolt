@@ -163,14 +163,6 @@ impl<E: Engine> SecretParamsUL<E> {
         r1 && r2
     }
 
-    fn compute_challenge(&self, proof: &ProofUL<E>) -> E::Fr {
-        let mut a = Vec::<E::Fqk>::with_capacity(self.pubParams.l as usize);
-        for sigProof in proof.sigProofs.clone() {
-            a.push(sigProof.a);
-        }
-        hash::<E>(a, vec!(proof.D.clone()))
-    }
-
     fn verify_part2(&self, proof: &ProofUL<E>, challenge: E::Fr) -> bool {
         let mut r2 = true;
         for i in 0..self.pubParams.l as usize {
@@ -363,8 +355,8 @@ impl<E: Engine> RPSecretParams<E> {
         let logb = (b as f32).log2();
         let loglogb = logb.log2();
         if loglogb > 0.0 {
-            let mut u = (logb / loglogb) as i64;
-            u = 57; //TODO: optimize u?
+//            let mut u = (logb / loglogb) as i64;
+            let u = 57; //TODO: optimize u?
             let l = (b as f64).log(u as f64).ceil() as i64;
 
             let secParamsOut = SecretParamsUL::<E>::setup_ul(rng, u, l, csParams.clone());
@@ -504,7 +496,7 @@ mod tests {
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
         let proof = secParams.pubParams.prove_ul(rng, 10, fr, C, 1, vec!{});
-        let ch = secParams.compute_challenge(&proof);
+        let ch = compute_challenge(secParams.pubParams.clone(), &proof);
         assert_eq!(secParams.verify_part1(&proof, ch, 1), true);
     }
 
@@ -517,7 +509,7 @@ mod tests {
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
         let proof = secParams.pubParams.prove_ul(rng, 10, fr, C, 1, vec!{});
-        let ch = secParams.compute_challenge(&proof);
+        let ch = compute_challenge(secParams.pubParams.clone(), &proof);
         assert_eq!(secParams.verify_part2(&proof, ch), true);
     }
 
@@ -530,7 +522,7 @@ mod tests {
         let modx = Fr::from_str(&(10.to_string())).unwrap();
         let C = csParams.commit(&vec!(modx), &fr.clone());
         let proof = secParams.pubParams.prove_ul(rng, 10, fr, C, 1, vec!{});
-        let ch = secParams.compute_challenge(&proof);
+        let ch = compute_challenge(secParams.pubParams.clone(), &proof);
         assert_eq!(secParams.verify_ul(&proof, ch, 1), true);
     }
 
@@ -545,7 +537,7 @@ mod tests {
         let fr2 = Fr::rand(rng);
         let C = csParams.commit(&vec!(fr1, modx, fr2), &fr.clone());
         let proof = secParams.pubParams.prove_ul(rng, 10, fr, C, 2, vec!{fr1, fr2});
-        let ch = secParams.compute_challenge(&proof);
+        let ch = compute_challenge(secParams.pubParams.clone(), &proof);
         assert_eq!(secParams.verify_ul(&proof, ch, 2), true);
     }
 
@@ -711,5 +703,13 @@ mod tests {
         assert_ne!(hash::<Bls12>(a2.clone(), vec!(D.clone())), hash::<Bls12>(a.clone(), vec!(D.clone())));
         assert_ne!(hash::<Bls12>(a.clone(), vec!(D2.clone())), hash::<Bls12>(a.clone(), vec!(D.clone())));
         assert_ne!(hash::<Bls12>(a2.clone(), vec!(D2.clone())), hash::<Bls12>(a.clone(), vec!(D.clone())))
+    }
+
+    fn compute_challenge<E: Engine>(pubParams: ParamsUL<E>, proof: &ProofUL<E>) -> E::Fr {
+        let mut a = Vec::<E::Fqk>::with_capacity(pubParams.l as usize);
+        for sigProof in proof.sigProofs.clone() {
+            a.push(sigProof.a);
+        }
+        hash::<E>(a, vec!(proof.D.clone()))
     }
 }

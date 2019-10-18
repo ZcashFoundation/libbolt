@@ -10,17 +10,13 @@ extern crate pairing;
 extern crate rand;
 
 use super::*;
-use pairing::{Engine, CurveProjective};
-use pairing::bls12_381::Bls12;
-use ff::PrimeField;
-use cl::{BlindKeyPair, KeyPair, Signature, PublicParams, setup};
-use ped92::{CSParams, Commitment, CSMultiParams, CommitmentProof};
-use util::{hash_pubkey_to_fr, convert_int_to_fr, hash_to_fr, RevokedMessage, hash_to_slice};
+use pairing::Engine;
+use cl::{BlindKeyPair, Signature};
+use ped92::{Commitment, CSMultiParams, CommitmentProof};
+use util::{hash_pubkey_to_fr, hash_to_fr, RevokedMessage, hash_to_slice};
 use rand::Rng;
 use std::collections::HashMap;
-use std::fmt::Display;
 use serde::{Serialize, Deserialize};
-use std::ptr::hash;
 use nizk::{NIZKPublicParams, NIZKSecretParams, NIZKProof};
 use wallet::Wallet;
 use std::error::Error;
@@ -160,14 +156,14 @@ impl<E: Engine> ChannelState<E> {
     ///
     /// keygen - takes as input public parameters and generates a digital signature keypair
     ///
-    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, id: String) -> cl::BlindKeyPair<E> {
+    pub fn keygen<R: Rng>(&mut self, csprng: &mut R, _id: String) -> cl::BlindKeyPair<E> {
         let cp = self.cp.as_ref();
         let keypair = BlindKeyPair::<E>::generate(csprng, &cp.unwrap().pub_params.mpk, cp.unwrap().l);
         // print the keypair as well
         return keypair;
     }
 
-    pub fn load_params(&mut self, cp: &ChannelParams<E>) {
+    pub fn load_params(&mut self, _cp: &ChannelParams<E>) {
         // load external params
     }
 
@@ -432,8 +428,7 @@ impl<E: Engine> CustomerState<E> {
 
 impl<E: Engine> fmt::Display for CustomerState<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut content = String::new();
-        content = format!("id = {}\n", &self.name);
+        let mut content = format!("id = {}\n", &self.name);
         content = format!("{}pk = {}\n", content, &self.pk_c);
         content = format!("{}sk = {}\n", content, &self.sk_c);
         content = format!("{}cust-bal = {}\n", content, &self.cust_balance);
@@ -513,7 +508,7 @@ impl<E: Engine> MerchantState<E> {
         }, ch)
     }
 
-    pub fn init<R: Rng>(&mut self, csprng: &mut R, channel: &mut ChannelState<E>) -> ChannelToken<E> {
+    pub fn init(&mut self, channel: &mut ChannelState<E>) -> ChannelToken<E> {
         let cp = channel.cp.as_ref().unwrap(); // if not set, then panic!
         let mpk = cp.pub_params.mpk.clone();
         let cl_pk = self.keypair.get_public_key(&mpk);
@@ -615,16 +610,12 @@ impl<E: Engine> MerchantState<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use ff::Rand;
     use pairing::bls12_381::Bls12;
-    use rand::SeedableRng;
-    use rand_xorshift::XorShiftRng;
 
     #[test]
     fn channel_util_works() {
         let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
         let b0_cust = 100;
         let b0_merch = 20;
@@ -634,7 +625,7 @@ mod tests {
         let (mut merch_state, mut channel) = MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
-        let mut channel_token = merch_state.init(rng, &mut channel);
+        let mut channel_token = merch_state.init(&mut channel);
 
         // retrieve commitment setup params (using merchant long lived pk params)
         // initialize on the customer side with balance: b0_cust
@@ -688,18 +679,14 @@ mod tests {
     #[should_panic(expected = "pk_c is not initialized yet")]
     fn compute_channel_id_panics() {
         let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
-        let b0_cust = 100;
-        let b0_merch = 20;
-        // each party executes the init algorithm on the agreed initial challenge balance
-        // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
         let (mut merch_state, mut channel) = MerchantState::<Bls12>::new(rng, &mut channel, String::from("Merchant B"));
 
         // initialize the merchant wallet with the balance
-        let mut channel_token = merch_state.init(rng, &mut channel);
+        let channel_token = merch_state.init(&mut channel);
 
-        let channelId = channel_token.compute_channel_id();
+        let _channelId = channel_token.compute_channel_id();
     }
 }

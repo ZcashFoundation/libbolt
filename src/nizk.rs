@@ -3,14 +3,13 @@ extern crate rand;
 
 use super::*;
 use rand::Rng;
-use cl::{Signature, PublicParams, setup, BlindKeyPair, SignatureProof, PublicKey, BlindPublicKey};
+use cl::{Signature, PublicParams, setup, BlindKeyPair, SignatureProof, BlindPublicKey};
 use ped92::{Commitment, CSMultiParams, CommitmentProof};
 use pairing::{Engine, CurveProjective};
 use wallet::Wallet;
 use ccs08::{SecretParamsUL, ParamsUL, ProofUL};
 use serde::{Serialize, Deserialize};
 use util;
-use std::borrow::BorrowMut;
 
 /// NIZKProof is the object that represents the NIZK Proof of Knowledge during the payment and closing protocol
 #[derive(Clone, Serialize, Deserialize)]
@@ -219,7 +218,6 @@ mod tests {
     use super::*;
     use pairing::bls12_381::{Bls12, Fr};
     use util::convert_int_to_fr;
-    use rand::thread_rng;
     use ff::PrimeField;
 
     #[test]

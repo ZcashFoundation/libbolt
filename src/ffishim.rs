@@ -3,7 +3,7 @@ pub mod ffishim {
     extern crate libc;
 
     use bidirectional;
-    use ff::{Rand, ScalarEngine};
+    use ff::ScalarEngine;
     use pairing::bls12_381::Bls12;
 
     use serde::Deserialize;
@@ -11,9 +11,7 @@ pub mod ffishim {
     use libc::c_char;
     use std::ffi::{CStr, CString};
     use std::str;
-    use channels::{ChannelcloseM, ResultBoltType, BoltError};
-    use util::hash_pubkey_to_fr;
-    use std::str::FromStr;
+//    use channels::{ChannelcloseM, ResultBoltType, BoltError};
 
     fn error_message(s: String) -> *mut c_char {
         let ser = ["{\'error\':\'", &s, "\'}"].concat();
@@ -273,7 +271,6 @@ pub mod ffishim {
         let cust_state = handle_errors!(cust_state_result);
 
         // Generate the payment proof
-        println!("{}", amount);
         let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &cust_state, amount);
         // Serialize the results and return to caller
         let ser = ["{\'payment\':\'", serde_json::to_string(&payment).unwrap().as_str(),

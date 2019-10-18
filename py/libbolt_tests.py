@@ -321,7 +321,77 @@ class BoltMultiChannelTests(unittest.TestCase):
 
 
 class BoltIntermediaryTests(unittest.TestCase):
-    pass
+    def setUp(self):
+        """
+        Setup init alice/bob/intermediary state and establish phase of Bolt protocol
+        :return:
+        """
+        self.bolt = libbolt.Libbolt('target/{}/{}bolt.{}'.format(libbolt.mode, libbolt.prefix, libbolt.ext))
+        self.channel_state = self.bolt.channel_setup("Test Channel")
+        self.b0_alice = self.b0_bob = 100
+        self.b0_intermediary = 100
+        (self.channel_token, self.merch_state, self.channel_state) = self.bolt.bidirectional_init_merchant(self.channel_state, "Hub")
+
+        (self.channel_token_a, self.alice_state) = self.bolt.bidirectional_init_customer(self.channel_token, self.b0_alice, self.b0_intermediary, "Alice")
+
+        (self.channel_token_c, self.bob_state) = self.bolt.bidirectional_init_customer(self.channel_token, self.b0_bob, self.b0_intermediary, "Bob")
+
+
+    def _establish_channel(self, channel_token, channel_state, cust_state, pkc, b0_cust, b0_merch):
+        (channel_token, cust_state, com, com_proof) = self.bolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)
+
+        close_token = self.bolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, pkc, b0_cust, b0_merch, self.merch_state)
+        self.assertTrue(close_token is not None)
+
+        (is_token_valid, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_verify_close_token(channel_state, cust_state, close_token)
+        self.assertTrue(is_token_valid)
+
+        pay_token = self.bolt.bidirectional_establish_merchant_issue_pay_token(channel_state, com, self.merch_state)
+        self.assertTrue(pay_token is not None)
+
+        (is_channel_established, channel_state, cust_state) = self.bolt.bidirectional_establish_customer_final(channel_state, cust_state, pay_token)
+        self.assertTrue(is_channel_established)
+
+        return channel_token, channel_state, cust_state
+
+
+    def test_payment_with_intermediary_works(self):
+        """Making a payment using an intermediary works
+        """
+        alice_cust_state_dict = json.loads(self.alice_state)
+        self.channel_token_a, self.channel_state_a, alice_cust_state = self._establish_channel(self.channel_token_a, self.channel_state,
+                                                                                               self.alice_state, alice_cust_state_dict["wallet"]["channelId"],
+                                                                                               self.b0_alice, self.b0_intermediary)
+
+        bob_cust_state_dict = json.loads(self.bob_state)
+        self.channel_token_b, self.channel_state_c, bob_cust_state = self._establish_channel(self.channel_token_c, self.channel_state,
+                                                                                                 self.bob_state, bob_cust_state_dict["wallet"]["channelId"],
+                                                                                                 self.b0_bob, self.b0_intermediary)
+
+        #A prepares payment A -> I
+        (payment_proof_a, new_alice_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, alice_cust_state, 10)
+        #B prepares payment I -> B
+        (payment_proof_b, new_bob_cust_state) = self.bolt.bidirectional_pay_generate_payment_proof(self.channel_state, bob_cust_state, -10)
+        #I verifies payment proofs
+        (new_close_token_a, cond_close_token_b, self.merch_state) = self.bolt.bidirectional_pay_verify_multiple_payment_proofs(self.channel_state, payment_proof_a, payment_proof_b, self.merch_state)
+        #A generates revoke token
+        (revoke_token_a, alice_cust_state) = self.bolt.bidirectional_pay_generate_revoke_token(self.channel_state, alice_cust_state, new_alice_cust_state, new_close_token_a)
+        #B generates revoke token
+        (revoke_token_b, bob_cust_state) = self.bolt.bidirectional_pay_generate_revoke_token(self.channel_state, bob_cust_state, new_bob_cust_state, cond_close_token_b)
+        #I verifies both revoke tokens
+        (pay_token_a, pay_token_b, self.merch_state) = self.bolt.bidirectional_pay_verify_multiple_revoke_tokens(revoke_token_a, revoke_token_b, self.merch_state)
+        #A verifies payment token
+        (alice_cust_state, is_pay_valid_a) = self.bolt.bidirectional_pay_verify_payment_token(self.channel_state, alice_cust_state, pay_token_a)
+        self.assertTrue(is_pay_valid_a)
+        #B verifies payment token
+        (bob_cust_state, is_pay_valid_b) = self.bolt.bidirectional_pay_verify_payment_token(self.channel_state, bob_cust_state, pay_token_b)
+        self.assertTrue(is_pay_valid_b)
+
+        alice_bal = json.loads(alice_cust_state)["cust_balance"]
+        bob_bal = json.loads(bob_cust_state)["cust_balance"]
+        self.assertTrue(alice_bal == 90)
+        self.assertTrue(bob_bal == 110)
+
 
 if __name__ == '__main__':
     unittest.main()

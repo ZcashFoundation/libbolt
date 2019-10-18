@@ -1,9 +1,7 @@
 use super::*;
 use pairing::Engine;
 use ff::{PrimeField};
-use rand::Rng;
-use secp256k1::{Signature, PublicKey};
-use sha2::{Sha512, Sha256, Digest};
+use sha2::Digest;
 
 pub fn is_vec_fr_equal<E: Engine>(a: &Vec<E::Fr>, b: &Vec<E::Fr>) -> bool {
     (a.len() == b.len()) &&
@@ -152,9 +150,8 @@ impl RevokedMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pairing::bls12_381::{Bls12, G2, Fr};
+    use pairing::bls12_381::{Bls12, G2};
     use pairing::CurveProjective;
-    use ff::Field;
 
     #[test]
     fn hash_g2_to_fr_works() {
