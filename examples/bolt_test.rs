@@ -10,7 +10,6 @@ use bolt::bidirectional;
 use std::time::Instant;
 use pairing::bls12_381::{Bls12};
 use bolt::handle_bolt_result;
-use bolt::util::hash_pubkey_to_fr;
 
 macro_rules! measure_one_arg {
     ($x: expr) => {
@@ -35,21 +34,21 @@ macro_rules! measure_two_arg {
 }
 
 
-macro_rules! measure_ret_mut {
-    ($x: expr) => {
-        {
-            let s = Instant::now();
-            let mut handle = $x;
-            let e = s.elapsed();
-            (handle, s.as_millis())
-        };
-    }
-}
+//macro_rules! measure_ret_mut {
+//    ($x: expr) => {
+//        {
+//            let s = Instant::now();
+//            let mut handle = $x;
+//            let e = s.elapsed();
+//            (handle, s.as_millis())
+//        };
+//    }
+//}
 
 fn main() {
     println!("******************************************");
     let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
-    let mut rng = &mut rand::thread_rng();
+    let rng = &mut rand::thread_rng();
 
     let b0_customer = 150;
     let b0_merchant = 10;

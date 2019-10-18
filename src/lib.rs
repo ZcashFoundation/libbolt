@@ -34,7 +34,6 @@ extern crate serde_with;
 extern crate libc;
 
 #[cfg(test)]
-extern crate rand_xorshift;
 extern crate core;
 
 pub mod cl;
@@ -52,7 +51,6 @@ use std::collections::HashMap;
 use ff::{Rand, Field};
 
 use serde::{Serialize, Deserialize};
-use serde::de::{Deserializer, Unexpected, Error};
 
 ////////////////////////////////// Utilities //////////////////////////////////
 
@@ -174,7 +172,7 @@ pub mod bidirectional {
         let merch_name = String::from(name);
         let (mut merch_state, mut channel_state) = MerchantState::<E>::new(csprng, channel_state, merch_name);
         // initialize the merchant state
-        let channel_token = merch_state.init(csprng, &mut channel_state);
+        let channel_token = merch_state.init(&mut channel_state);
 
         return (channel_token, merch_state, channel_state.clone());
     }
@@ -523,16 +521,13 @@ mod benches {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ff::Rand;
     use pairing::bls12_381::Bls12;
     use rand::Rng;
-    use channels::ChannelState;
-    use util::hash_pubkey_to_fr;
 
     fn setup_new_channel_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
                                 init_cust_bal: i64, init_merch_bal: i64)
                                 -> (bidirectional::ChannelToken<Bls12>, bidirectional::MerchantState<Bls12>, bidirectional::CustomerState<Bls12>, bidirectional::ChannelState<Bls12>) {
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
         let merch_name = "Bob";
         let cust_name = "Alice";
 
@@ -542,7 +537,7 @@ mod tests {
         // each party executes the init algorithm on the agreed initial challenge balance
         // in order to derive the channel tokens
         // initialize on the merchant side with balance: b0_merch
-        let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, channel_state, merch_name);
+        let (mut channel_token, merch_state, channel_state) = bidirectional::init_merchant(rng, channel_state, merch_name);
 
         // initialize on the customer side with balance: b0_cust
         let cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_cust, b0_merch, cust_name);
@@ -556,7 +551,7 @@ mod tests {
                                          merch_balance: i64,
                                          merch_state: &mut bidirectional::MerchantState<Bls12>,
                                          cust_state: &mut bidirectional::CustomerState<Bls12>) {
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
         // lets establish the channel
         let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, channel_token, cust_state);
@@ -582,11 +577,10 @@ mod tests {
     }
 
     fn execute_payment_protocol_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
-                                       channel_token: &mut bidirectional::ChannelToken<Bls12>,
                                        merch_state: &mut bidirectional::MerchantState<Bls12>,
                                        cust_state: &mut bidirectional::CustomerState<Bls12>,
                                        payment_increment: i64) {
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
         let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, channel_state, &cust_state, payment_increment);
 
@@ -606,12 +600,10 @@ mod tests {
     fn bidirectional_payment_basics_work() {
         // just bidirectional case (w/o third party)
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
-        let total_owed = 40;
         let b0_customer = 90;
         let b0_merchant = 20;
-        let payment_increment = 20;
 
         let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Merchant Bob");
 
@@ -669,7 +661,6 @@ mod tests {
         let payment_increment = 20;
 
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
-        let mut rng = &mut rand::thread_rng();
 
         // set fee for channel
         let fee = 5;
@@ -685,8 +676,8 @@ mod tests {
         {
             // make multiple payments in a loop
             let num_payments = total_owed / payment_increment;
-            for i in 0..num_payments {
-                execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, payment_increment);
+            for _i in 0..num_payments {
+                execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, payment_increment);
             }
 
             {
@@ -713,7 +704,6 @@ mod tests {
         let payment_increment = -20;
 
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
-        let mut rng = &mut rand::thread_rng();
 
         let (mut channel_token, mut merch_state, mut cust_state, mut channel_state) = setup_new_channel_helper(&mut channel_state, b0_customer, b0_merchant);
 
@@ -722,7 +712,7 @@ mod tests {
         assert!(channel_state.channel_established);
 
         {
-            execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, payment_increment);
+            execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, payment_increment);
 
             {
                 // scope localizes the immutable borrow here (for debug purposes only)
@@ -735,7 +725,7 @@ mod tests {
 
     #[test]
     fn bidirectional_merchant_close_detects_double_spends() {
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
         let b0_customer = rng.gen_range(100, 1000);
         let b0_merchant = 10;
@@ -751,17 +741,17 @@ mod tests {
         assert!(channel_state.channel_established);
 
         // let's make a few payments then exit channel (will post an old channel state
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
 
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
 
         // let's close then move state forward
         let old_cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
 
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
 
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
-        let cur_cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
+        let _cur_cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
 
         let merch_close_result = bidirectional::merchant_close(&channel_state,
                                                                &channel_token,
@@ -780,7 +770,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn bidirectional_merchant_close_works() {
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
         let b0_customer = rng.gen_range(100, 1000);
         let b0_merchant = 10;
@@ -796,13 +786,13 @@ mod tests {
         assert!(channel_state.channel_established);
 
         // let's make a few payments then exit channel (will post an old channel state
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
 
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
 
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
 
-        execute_payment_protocol_helper(&mut channel_state, &mut channel_token, &mut merch_state, &mut cust_state, pay_increment);
+        execute_payment_protocol_helper(&mut channel_state, &mut merch_state, &mut cust_state, pay_increment);
 
         let cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
 
@@ -810,7 +800,7 @@ mod tests {
                                                                &channel_token,
                                                                &cust_close_msg,
                                                                &merch_state);
-        let merch_close_msg = match merch_close_result {
+        let _merch_close_msg = match merch_close_result {
             Ok(n) => n.unwrap(),
             Err(err) => panic!("Merchant close msg: {}", err)
         };
@@ -820,7 +810,7 @@ mod tests {
     #[test]
     fn intermediary_payment_basics_works() {
         println!("Intermediary test...");
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
         let b0_alice = rng.gen_range(100, 1000);
         let b0_bob = rng.gen_range(100, 1000);
@@ -882,31 +872,31 @@ mod tests {
     #[test]
     fn serialization_tests() {
         let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
-        let mut rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
 
         let serialized = serde_json::to_string(&channel_state).unwrap();
         println!("new channel state len: {}", &serialized.len());
 
-        let chan_state: bidirectional::ChannelState<Bls12> = serde_json::from_str(&serialized).unwrap();
+        let _chan_state: bidirectional::ChannelState<Bls12> = serde_json::from_str(&serialized).unwrap();
 
-        let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Merchant A");
+        let (mut channel_token, _merch_state, _channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Merchant A");
 
         let b0_cust = 100;
         let b0_merch = 10;
         let cust_state = bidirectional::init_customer(rng, &mut channel_token, b0_cust, b0_merch, "Customer A");
 
-        let serlalized_ct = serde_json::to_string(&channel_token).unwrap();
+        let serialized_ct = serde_json::to_string(&channel_token).unwrap();
 
-        println!("serialized ct: {:?}", &serlalized_ct);
+        println!("serialized ct: {:?}", &serialized_ct);
 
-        let des_ct: bidirectional::ChannelToken<Bls12> = serde_json::from_str(&serlalized_ct).unwrap();
+        let _des_ct: bidirectional::ChannelToken<Bls12> = serde_json::from_str(&serialized_ct).unwrap();
 
         //println!("des_ct: {}", &des_ct);
 
-        let serlalized_cw = serde_json::to_string(&cust_state).unwrap();
+        let serialized_cw = serde_json::to_string(&cust_state).unwrap();
 
-        println!("serialized cw: {:?}", &serlalized_cw);
+        println!("serialized cw: {:?}", &serialized_cw);
 
-        let des_cw: bidirectional::CustomerState<Bls12> = serde_json::from_str(&serlalized_cw).unwrap();
+        let _des_cw: bidirectional::CustomerState<Bls12> = serde_json::from_str(&serialized_cw).unwrap();
     }
 }

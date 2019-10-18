@@ -46,5 +46,14 @@ gotests:
 	cargo +nightly build --release
 	go test go/libbolt.go go/libbolt_test.go
 
+alltests:
+	cargo +nightly clean
+	cargo +nightly update
+	cargo +nightly build --release
+	cargo +nightly test --release #-- --nocapture
+	python py/libbolt.py
+	python py/libbolt_tests.py
+	go test go/libbolt.go go/libbolt_test.go
+
 clean:
 	cargo +nightly clean

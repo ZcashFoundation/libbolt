@@ -6,7 +6,6 @@ use std::fmt;
 use util::is_vec_g1_equal;
 use serde::{Serialize, Deserialize};
 use util;
-use std::borrow::BorrowMut;
 
 #[derive(Clone)]
 pub struct CSParams<E: Engine> {
@@ -346,7 +345,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&csp).unwrap();
 
-        let csp_des: CSMultiParams<Bls12> = serde_json::from_str(&serialized).unwrap();
+        let _csp_des: CSMultiParams<Bls12> = serde_json::from_str(&serialized).unwrap();
     }
 
     #[test]

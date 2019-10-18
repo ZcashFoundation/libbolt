@@ -5,14 +5,11 @@ extern crate rand;
 
 use super::*;
 use pairing::{CurveProjective, Engine};
-use ff::{PrimeField, ScalarEngine};
+use ff::PrimeField;
 use rand::Rng;
 use ped92::{Commitment, CSMultiParams};
-use std::fmt::LowerHex;
 use serde::{Serialize, Deserialize};
-use serde::ser::{Serializer, SerializeStruct, SerializeSeq};
 use util;
-use ccs08;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PublicParams<E: Engine> {
@@ -291,9 +288,8 @@ impl<E: Engine> BlindPublicKey<E> {
         let l = self.Y2.len();
         //println!("verify - m.len = {}, l = {}", message.len(), l);
         assert!(message.len() <= l + 1);
-        let mut last_elem = l;
 
-        last_elem = match l == message.len() {
+        let last_elem = match l == message.len() {
             true => message.len() - 1,
             false => l
         };
@@ -531,10 +527,7 @@ mod tests {
     use super::*;
 
     use ff::Rand;
-    use pairing::bls12_381::{Bls12, Fr, G1, G2};
-    use rand::SeedableRng;
-    use rand_xorshift::XorShiftRng;
-    use ped92::CSMultiParams;
+    use pairing::bls12_381::{Bls12, Fr};
 
     #[test]
     fn sign_and_verify() {
@@ -552,7 +545,7 @@ mod tests {
         let mut message1: Vec<Fr> = Vec::new();
         let mut message2: Vec<Fr> = Vec::new();
 
-        for i in 0..l {
+        for _i in 0..l {
             message1.push(Fr::rand(&mut rng));
             message2.push(Fr::rand(&mut rng));
         }
@@ -576,7 +569,7 @@ mod tests {
         let mut message1: Vec<Fr> = Vec::new();
         let mut message2: Vec<Fr> = Vec::new();
 
-        for i in 0..l {
+        for _i in 0..l {
             message1.push(Fr::rand(&mut rng));
             message2.push(Fr::rand(&mut rng));
         }
@@ -610,7 +603,7 @@ mod tests {
 
         let mut message1: Vec<Fr> = Vec::new();
 
-        for i in 0..l {
+        for _i in 0..l {
             message1.push(Fr::rand(&mut rng));
         }
 
@@ -632,12 +625,10 @@ mod tests {
         let mpk = setup(&mut rng);
         let keypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
 
-        let public_key = keypair.get_public_key(&mpk);
-
         let mut message1: Vec<Fr> = Vec::new();
         let mut message2: Vec<Fr> = Vec::new();
 
-        for i in 0..l {
+        for _i in 0..l {
             message1.push(Fr::rand(&mut rng));
             message2.push(Fr::rand(&mut rng));
         }
@@ -667,11 +658,9 @@ mod tests {
         let mpk = setup(&mut rng);
         let keypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
 
-        let public_key = keypair.get_public_key(&mpk);
-
         let mut message1: Vec<Fr> = Vec::new();
 
-        for i in 0..l {
+        for _i in 0..l {
             message1.push(Fr::rand(&mut rng));
         }
 
@@ -695,7 +684,7 @@ mod tests {
         let serialized = serde_json::to_vec(&mpk).unwrap();
         //println!("serialized = {:?}", serialized.len());
 
-        let mpk_des: PublicParams<Bls12> = serde_json::from_slice(&serialized).unwrap();
+        let _mpk_des: PublicParams<Bls12> = serde_json::from_slice(&serialized).unwrap();
         //println!("{}", mpk_des);
 
         //println!("SK => {}", &keypair.secret);
@@ -710,7 +699,7 @@ mod tests {
         let pk_serialized = serde_json::to_vec(&keypair.public).unwrap();
         //println!("pk_serialized = {:?}", pk_serialized.len());
 
-        let pk_des: PublicKey<Bls12> = serde_json::from_slice(&pk_serialized).unwrap();
+        let _pk_des: PublicKey<Bls12> = serde_json::from_slice(&pk_serialized).unwrap();
         //assert_eq!(pk_des, keypair.public);
 
         //println!("{}", &blindkeypair.public);
