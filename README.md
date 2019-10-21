@@ -15,11 +15,10 @@ Active development of libbolt is ongoing at [Bolt Labs, Inc](https://github.com/
 # Dependencies
 
 * secp256k1
-* sodiumoxide
-* bn
-* curve25519_dalek
-* merlin
-* bulletproofs
+* ff
+* pairing
+* serde
+* sha2
 
 Note that the above rust dependencies will be compiled and installed as a result of running the `make` command.
 
@@ -59,7 +58,7 @@ To use the libbolt library, add the `libbolt` crate to your dependency file in `
 
 ```toml
 [dependencies]
-bolt = "0.2.0"
+bolt = "0.3.0"
 ```
 
 Then add an extern declaration at the root of your crate as follows:
@@ -69,68 +68,10 @@ extern crate bolt;
 
 # API
 
-The libbolt library provides APIs for three types of payment channels:
+The libbolt library provides APIs for two types of payment channels:
 
-* unidirectional payment channels (*work in progress*)
 * bidirectional payment channels
 * third-party payments
-
-## Unidirectional Payment Channels
-
-A unidirectional payment channel enables payments from a customer to a merchant and only supports transfer of fixed-sized values in one direction.
-
-### Channel Setup and Key Generation
-
-The first part of setting up unidirectional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
-	
-	use bolt::unidirectional;
-	
-	// setup unidirectional scheme params
-	let pp = unidirectional::setup(true);
-	
-	// generate the initial channel state
-	let mut channel = unidirectional::ChannelState::new(String::from("My New Channel A -> B"));
-
-To generate keys for both parties, call the `unidirectional::keygen()` routine with the public parameters as input.
-	
-	// merchant generates a long-lived key pair
-	let m_keypair = unidirectional::keygen(&pp);
-	
-	// customer generates an ephemeral keypair for use on a single channel
-	let c_keypair = unidirectional::keygen(&pp);
-
-### Initialization
-
-To initialize the channel for both parties, do the following:
-	
-	let b0_merch = 50;
-	let b0_cust = 50;
-	// initialize on the merchant side with balance, b0_merch
-	let mut m_data = unidirectional::init_merchant(&pp, b0_merch, &m_keypair));
-		
-	 // generate the public params for the commitment scheme
-	let cm_csp = unidirectional::generate_commit_setup(&pp, &m_keypair.pk);
-	    
-	// initialize on the customer side with balance, b0_cust    
-	let mut c_data = unidirectional::init_customer(&pp, // public params
-	                                              &channel, // channel state
-	                                              b0_cust, // init customer balance
-	                                              b0_merch, // init merchant balance
-	                                              &cm_csp, // commitment pub params
-	                                              &c_keypair)); // customer keypair
-
-
-### Establish Protocol
-
-**TODO**
-
-### Pay protocol
-
-**TODO**
-
-### Channel Closure Algorithms		
-
-**TODO**
 
 ## Bidirectional Payment Channels
 
@@ -138,125 +79,102 @@ A bidirectional payment channel enables two parties to exchange arbitrary positi
 
 ### Channel Setup and Key Generation
 
-The first part of setting up bi-directional payment channels involve generating initial setup parameters, channel state and key generation for both parties.
+The first part of setting up bi-directional payment channels involve generating initial setup parameters using curve BLS12-381 with channel state.
 	
 	use bolt::bidirectional;
-	
-	// setup bidirectional scheme params
-	let pp = bidirectional::setup(true);
-	
+		
 	// generate the initial channel state 
 	// second argument represents third-party mode
-	let mut channel = bidirectional::ChannelState::new(String::from("My New Channel A <-> B"), false);
-
-To generate keys for both parties, call the `bidirectional::keygen()` routine with the public parameters as input.
-	
-	// merchant generates a long-lived key pair
-	let m_keypair = bidirectional::keygen(&pp);
-	
-	// customer generates an ephemeral keypair for use on a single channel
-	let c_keypair = bidirectional::keygen(&pp);
+    let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+    let mut rng = &mut rand::thread_rng();
+    
+    // generate fresh public parameters
+    channel_state.setup(&mut rng); 
 
 ### Initialization
 
-To initialize the channel for both parties, do the following:
+To initialize state/keys for both parties, call the ``bidirectional::init_merchant()`` and ``bidirectional::init_customer()``:
 	
 	let b0_merch = 10;
 	let b0_cust = 100;
-	// initialize on the merchant side with balance, b0_merch
-	let mut m_data = bidirectional::init_merchant(&pp, b0_merch, &m_keypair));
-		
-	 // generate the public params for the commitment scheme
-	let cm_csp = bidirectional::generate_commit_setup(&pp, &m_keypair.pk);
-	    
-	// initialize on the customer side with balance, b0_cust    
-	let mut c_data = bidirectional::init_customer(&pp, // public params
-	                                              &channel, // channel state
+
+	// initialize the merchant state and initialize with balance
+    let (mut channel_token, mut merch_state, mut channel_state) = bidirectional::init_merchant(rng, &mut channel_state, "Bob");
+				    
+    // generate the customer state using the channel token from the merchant
+	let mut cust_state = bidirectional::init_customer(rng, // rng
+	                                              &mut channel_token, // channel token
 	                                              b0_cust, // init customer balance
 	                                              b0_merch, // init merchant balance
-	                                              &cm_csp, // commitment pub params
-	                                              &c_keypair)); // customer keypair
+	                                              "Alice")); // channel name/purpose
 
 
 ### Establish Protocol
 
 When opening a payment channel, execute the establishment protocol API to escrow funds privately as follows:
 
-	// entering the establish protocol for the channel
-	let proof1 = bidirectional::establish_customer_phase1(&pp, &c_data, &m_data.bases);
-	
-	// obtain the wallet signature from the merchant
-	let w_sig = bidirectional::establish_merchant_phase2(&pp, &mut channel, &m_data, &proof1));
-	
-	// complete channel establishment");
-	assert!(bidirectional::establish_customer_final(&pp, &m_keypair.pk, &mut c_data.csk, w_sig));
-		
+    // establish the channel by generating initial state commitment proof
+    let (com, com_proof) = bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
+    
+    // obtain close token for closing out channel
+    let close_token = bidirectional::establish_merchant_issue_close_token(rng, &channel_state, &com, &com_proof, &merch_state);
+    
+    // customer verifies that close-token
+    assert!(cust_state.verify_close_token(&channel_state, &close_token));
+    
+    // form funding tx and wait for network confirmation
+    
+    // obtain payment token after confirming funding tx
+    let pay_token = bidirectional::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);
+        
+    // customer 
+    assert!(bidirectional::establish_final(&mut channel_state, &mut cust_state, &pay_token));   
+    		
 	// confirm that the channel state is now established
-	assert!(channel.channel_established);
+	assert!(channel_state.channel_established);
 	
 ### Pay protocol		
 
 To spend on the channel, execute the pay protocol API (can be executed as many times as necessary):
-		
-	// precomputation phase that customer does offline prior to a spend
-	bidirectional::pay_by_customer_phase1_precompute(&pp, &c_data.channel_token, &m_keypair.pk, &mut c_data.csk);
-		
-	// generate new channel token, new wallet and payment proof
-	// send the payment proof to the merchant
-	let (t_c, new_w, pay_proof) = bidirectional::pay_by_customer_phase1(&pp, &channel, 
-	                                                                    &c_data.channel_token, // channel token
-	                                                                    &m_keypair.pk, // merchant verification key
-	                                                                    &c_data.csk, // current wallet
-	                                                                    5); // balance increment
-		                                    
-	// get the refund token (rt_w) from the merchant
-	let rt_w = bidirectional::pay_by_merchant_phase1(&pp, &mut channel, &pay_proof, &m_data));
-	
-	// generate the revocation token (rv_w) on the old public key (wpk)
-	let rv_w = bidirectional::pay_by_customer_phase2(&pp, &c_data.csk, &new_w, &m_keypair.pk, &rt_w));
-	
-	// get the signature on the new wallet from merchant
-	let new_w_sig = bidirectional::pay_by_merchant_phase2(&pp, &mut channel, &pay_proof, &mut m_data, &rv_w));
-		
-	// complete the final step of pay protocol - verify merchant signature on wallet 
-	assert!(bidirectional::pay_by_customer_final(&pp, &m_keypair.pk, &mut c_data, t_c, new_w, new_w_sig));
+
+	// phase 1 - payment proof and new cust state
+    let (payment, new_cust_state) = bidirectional::generate_payment_proof(rng, &channel_state, &cust_state, 10);
+
+	// phase 1 - merchant verifies the payment proof and returns a close-token   
+    let new_close_token = bidirectional::verify_payment_proof(rng, &channel_state, &payment, &mut merch_state);
+ 
+    // phase 2 - verify the close-token, update cust state and generate a revoke token for previous cust state state
+    let revoke_token = bidirectional::generate_revoke_token(&channel_state, &mut cust_state, new_cust_state, &new_close_token);
+    
+    // phase 2 - merchant verifies the revoke token and sends back the pay-token in response
+    let new_pay_token = bidirectional::verify_revoke_token(&revoke_token, &mut merch_state);
+    
+    // final - customer verifies the pay token and updates internal state
+    assert!(cust_state.verify_pay_token(&channel_state, &new_pay_token));
+
 
 ### Channel Closure Algorithms
 
 To close a channel, the customer must execute the `bidirectional::customer_refund()` routine as follows:
 
-	let cust_wallet = &c_data.csk;
-	let rc_c = bidirectional::customer_refund(&pp, &channel, &m_keypair.pk, &cust_wallet);
+	let cust_close_msg = bidirectional::customer_close(&channel_state, &cust_state);
 	
-The merchant can dispute a customer's claim by executing the `bidirectional::merchant_retute()` routine as follows:
+If the customer broadcasts an outdated version of his state, then the merchant can dispute this claim by executing the `bidirectional::merchant_retute()` routine as follows:
 
-	let channel_token = &c_data.channel_token;
-	let rc_m = bidirectional::merchant_refute(&pp, &mut channel, &channel_token, &m_data, &rc_c, &rv_w.signature);
-
-	
-To resolve a dispute between a customer and a merchant, the following routine is executed by the network:
-	
-	let (new_b0_cust, new_b0_merch) = bidirectional::resolve(&pp, &c_data, &m_data,
-	                                                         Some(rc_c), Some(rc_m), Some(rt_w));
+	let merch_close = bidirectional::merchant_close(&channel_state, &channel_token, &cust_close_msg, &merch_state);
 	                                                         
-`new_b0_cust` and `new_b0_merch` represent the new balances for the customer and merchant (respectively).
-
 ## Third-party Payments
 
 The bidirectional payment channels can be used to construct third-party payments in which a party **A** pays a second party **B** through an untrusted intermediary (**I**) to which both **A** and **B** have already established a channel. With BOLT, the intermediary learns nothing about the payment from **A** to **B** and cannot link transactions to individual users. 
 
 To enable third-party payment support, initialize each payment channel as follows:
-		
-		
-	let pp = bidirectional::setup(true);
-	
+			
 	// create the channel state for each channel and indicate third-party support 
-	let mut channel_a = bidirectional::ChannelState::new(String::from("Channel A <-> I"), true);
-	let mut channel_b = bidirectional::ChannelState::new(String::from("Channel B <-> I"), true);
+	let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Third-party Channels"), true);
 	
 Moreover, the intermediary can set a channel fee as follows:
 	
-	channel_a.set_channel_fee(5);
+	channel_state.set_channel_fee(5);
 
 The channel establishment still works as described before and the pay protocol includes an additional step to verify that the payments on both channels cancel out or include a channel fee (if specified).
 
@@ -264,28 +182,46 @@ The channel establishment still works as described before and the pay protocol i
 	...
 	
 	let payment_amount = 20;
-	// get payment proof on first channel with party A (and I)
-	let (t_c1, new_w1, pay_proof1) = bidirectional::pay_by_customer_phase1(&pp, &channel_a,
-	                                                                    &c1_data.channel_token, // channel token
-	                                                                    &merch_keys.pk, // merchant pub key
-	                                                                    &c1_data.csk, // wallet
+	// get payment proof on first channel with party A and H
+	let (sender_payment, new_cust_stateA) = bidirectional::generate_payment_proof(rng, &channel_state,
+                                                                        &cust_stateA,
 	                                                                    payment_amount); // bal inc
-	// get payment proof on second channel with party B (and I)
-	let (t_c2, new_w2, pay_proof2) = bidirectional::pay_by_customer_phase1(&pp, &channel2,
-                                                                           &c2_data.channel_token, // channel token
-	                                                                       &m_keys.pk, // merchant pub key
-	                                                                       &c2_data.csk, // wallet
-                                                                          -payment_amount); // bal dec
-                                                               
-	// verify that the payment proof is valid and cancels out or results in a fee
-	let tx_fee = channel_a.get_channel_fee() + channel_b.get_channel_fee();
-	assert!(bidirectional::verify_third_party_payment(&pp, tx_fee, &pay_proof1.bal_proof, &pay_proof2.bal_proof));
+	// get payment proof on second channel with party B and H
+	let (receiver_payment, new_cust_stateB) = bidirectional::generate_payment_proof(rng, &channel_state,
+                                                                        &cust_stateB,                                                
+                                                                        -payment_amount); // bal dec
+                                                               	
+    // intermediary executes the following on the two payment proofs
+	// verifies that the payment proof is valid & cancels out and results in hub's fee    
+    let close_token_result = bidirectional::verify_multiple_payment_proofs(rng, &channel_state, 
+                                                                           &sender_payment, 
+                                                                           &receiver_payment, 
+                                                                           &mut merch_state);
+                                                                           
+    // alice gets a close token and bob gets a conditional token which requires alice's revoke token to be valid                                                                           
+    let (alice_close_token, bob_cond_close_token) = handle_bolt_result!(close_token_result).unwrap();
 	
+    // both alice and bob generate a revoke token
+    let revoke_token_alice = bidirectional::generate_revoke_token(&channel_state, 
+                                                                  &mut cust_stateA, 
+                                                                  new_cust_stateA, 
+                                                                  &alice_close_token);
+    let revoke_token_bob = bidirectional::generate_revoke_token(&channel_state,
+                                                                  &mut cust_stateB, 
+                                                                  new_cust_stateB, 
+                                                                  &bob_cond_close_token);
+	
+    // send both revoke tokens to intermediary and receive pay-tokens (one for sender and another for receiver)
+    let new_pay_tokens: BoltResult<(cl::Signature<Bls12>,cl::Signature<Bls12>)> = \
+                        bidirectional::verify_multiple_revoke_tokens(&revoke_token_sender, 
+                                                                     &revoke_token_receiver, 
+                                                                     &mut merch_state);
+                                                                     	
 	...
 
-See the `third_party_payment_basics_work()` unit test in `src/lib.rs` for more details.
+See the `intermediary_payment_basics_works()` unit test in `src/lib.rs` for more details.
 
-# Documentation
+# Documentation (TODO)
 
 Build the api documentation by simply running `make doc`. Documentation will be generated in your local `target/doc` directory.
 
@@ -301,11 +237,7 @@ To contribute code improvements, please checkout the repository, make your chang
 
 Here are some TODOs (not in any particular order):
 
-* Serialization support for libbolt structures such as `CustomerWallet`, `PaymentProof`, and so on.
-* Support for other curves (e.g., pairing library from Zcash)
-* Finish unidirectional channel construction
-* Fix warnings
-* Add more unit tests for other dispute resolution scenarios and pay protocol (to ensure appopriate aborts), third-party test cases, etc.
+* Add more unit tests for other dispute resolution scenarios and third-party test cases
 	
 # License
 

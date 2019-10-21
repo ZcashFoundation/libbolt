@@ -1,0 +1,28 @@
+#include <iostream>
+
+using namespace std;
+
+#include "libbolt.h"
+//#include "ChannelToken.h"
+//#include "PublicKey.h"
+//#include "PublicParams.h"
+//#include "Wallet.h"
+//#include "ChannelClosure.h"
+
+int main()
+{
+    // Test independent verification of customer close message
+    string channel_token = "{\"pk_c\":\"0264eb63272c8d85710cbe6ef8229a658e3760ee7cebcc9e3edcfc61b35152a91b\",\"pk_m\":\"034c5b6bd4484d0d0bf326603a1a233e4355bc387e86e9a79e30c46af8a5fe63d3\",\"cl_pk_m\":{\"X\":\"99534f1842c1cbfe3deaea17706118d1174bddd93608aa9b0272daff8b437f4b3a8f494459225eef60fd876603f1ce4f15d4e0b9fb03c5a2794c811e9292891af50ad5376a2957597e5fba62dbd128b75537e2758012d2e30bebb7932bb840ed\",\"Y\":[\"b799fc236c3da7a853399574c88843778abb741909f86c292a3219370ac38f75a23a91e614e78cf1897917504baf937d046b1cd8b1174ef6af5679a88e39629c13d1d43b4ae4e3873939922b4eefd5615724840b68cc5a105c8dec95630036f6\",\"939d1534dfc80141cc0a899d3de005959042f468935964d3e9e32ffa39ca748d73a031d8bf341786bbf09935f600f2550c5824b8be916e1f932e5c5c91170c75b2428a0beec60f3ba2662a3af3c5f802d0bc2c70de7835453d176efcbf37945d\",\"a3de219da28620ed395390e548dad8fb77018c1980f6f27da01e108ab4c733dfc762a1a3eea13be8cdaa0dea3bb97a800fb93c302d5399df71795f1576537e480ce4e426c56a3005e0f941acef33ce55307f9845b5b38a7b609fb1693abd5c00\",\"95b13dd750dd0607a8ba57bfef66061fe3f36e1d44a6dc139981f3d1254b65ea13281bcb927d36ed131b21b2b0a57db90ea2c1bf0e3bd9bc91ae37b207964371f86d1be1f673ae4025e297f52ee050921ce9e84745bcdc90e6964e960e321502\",\"acf4148503d43a671f138866c3dfd0b1f3cdcbb72792c81a17cc1dc7c45f83d6ba0c6e48d0e7fcdcfd19ab580269189d1718fca84a504cdc8dc82ed050771fd241cb0760224fa32d32caf6dff099bb0401e1ba116c6345844c9daa379d65a212\"]},\"mpk\":{\"g1\":\"b63bbc7ec491fa7554b5e869a54348932e2f1a33c5609f38fa1a1a02673838aeb6e64ac9d9a9780918369fc261aac15a\",\"g2\":\"85b95bf5e2334ee60138a9cccf3a81ea9e9c6ea50363e5b4c177618f23a479b2f16508e5af724e86faeb14799c2c6d6416ef8bb1b543851ceeaa011ce4a428b393649d1233cdbdcc7396726bdb75164c9569c967ef1240ea0336168a5b45e543\"},\"comParams\":{\"pub_bases\":[\"b63bbc7ec491fa7554b5e869a54348932e2f1a33c5609f38fa1a1a02673838aeb6e64ac9d9a9780918369fc261aac15a\",\"8fedaf4d995cd200ec0a95169b1e62076d9a313e1e3112cc1638f8e73c8033132f3f26c3e456b643de1ac9d771dddb98\",\"91d41ebf58fea106c4fc8a1143592c6b3d9079b65973653bf583197bc3b0ae4819d95d77b854896c7f06cbb7596a901d\",\"8b9d2c8ab1e7e8dc14cb45c455d2a11fbc3567f85142aa060065b3b7f903cd35e9eb40715308fec4d03d6e7082f2192b\",\"82463691a20acdf8d04ab402f084357b2f76b91fb72b4084d458e945ab33047f1800193f1f332c4e99ccd6a78ab15cdb\",\"85c709721b23511f80f116ed2aa382b6605ba088485922fef22cb1ddf8461e0fdc46abc8ab850c073a22c3d51418560c\"]}}";
+    string wpk =  "\"02db85f7008f01a1984594d853baebca47b32d41814c0cb2312667d64556b497d3\"";
+    string cust_close = "{\"pkc\": [\"bbe4ec11548e83e7bd99aef03fae8deb0f31febcef4bd9e742dc24f50477f656\"], \"wpk\": [\"492cc33fae8d985ad8bc8c37d01f8b5a357a601cf141d9cc2aff15e359d5c0ae\"], \"bc\": 85, \"bm\": 25, \"close\": [\"bcd99a3e99e42360850e3e5eab0e5c8261fa14d6a47a20376be126a2f3ac5c0d\"]}";
+    string close_token = "{\"h\": \"b328d8e57391ed3b2a6844dbb51b21e3b59ae3a7b4c8960bb1c09800fd2a32c1fd7ae9e51a2f438ad0eed1614c2e303f\", \"H\": \"b31a760561e83fe3735f9af8c063e7501052df58dd17a469ee1be486c45f904cedf6b0f49be3f54499283f4dae2ee41a\"}";
+
+    int rc0 = wtp_verify_cust_close_message(channel_token.c_str(), wpk.c_str(), cust_close.c_str(), close_token.c_str());
+
+    cout << "wpk => " << wpk << endl;
+    cout << "cust close token => " << close_token << endl;
+    cout << "Valid WTP cust close message: " << (rc0 ? "true" : "false") << endl;
+
+    //int rc1 = wtp_verify_merch_close_message();
+    return 0;
+}
