@@ -237,7 +237,6 @@ To contribute code improvements, please checkout the repository, make your chang
 
 Here are some TODOs (not in any particular order):
 
-* Fix warnings
 * Add more unit tests for other dispute resolution scenarios and third-party test cases
 	
 # License
