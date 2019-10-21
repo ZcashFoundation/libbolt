@@ -10,7 +10,7 @@ The libbolt library is a proof of concept implementation that relies on experime
 
 # NOTE
 
-Active development of libbolt is ongoing at [Bolt Labs, Inc](https://github.com/boltlabs-inc/libbolt) to instantiate on a cryptocurrency. We will submit pull requests periodically when new features are complete.
+Active development of libbolt is ongoing at [Bolt Labs, Inc](https://github.com/boltlabs-inc/libbolt) to instantiate on a cryptocurrency. Will submit pull requests periodically to this repo when new features are complete.
 
 # Dependencies
 
