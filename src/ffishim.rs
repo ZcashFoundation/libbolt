@@ -136,7 +136,7 @@ pub mod ffishim {
 
     // ESTABLISH
 
-    #[no_mangle] // bidirectional::establish_customer_generate_proof(rng, &mut channel_token, &mut cust_state);
+    #[no_mangle]
     pub extern fn ffishim_bidirectional_establish_customer_generate_proof(ser_channel_token: *mut c_char, ser_customer_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel token
@@ -154,6 +154,18 @@ pub mod ffishim {
             "\', \'com\':\'", serde_json::to_string(&com).unwrap().as_str(),
             "\', \'com_proof\':\'", serde_json::to_string(&com_proof).unwrap().as_str(),
             "\'}"].concat();
+        let cser = CString::new(ser).unwrap();
+        cser.into_raw()
+    }
+
+    #[no_mangle]
+    pub extern fn ffishim_bidirectional_generate_channel_id(ser_channel_token: *mut c_char) -> *mut c_char {
+        // Deserialize the channel token
+        let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<Bls12>> = deserialize_result_object(ser_channel_token);
+        let channel_token = handle_errors!(channel_token_result);
+
+        let id = channel_token.compute_channel_id();
+        let ser = ["{\'channel_id\':\'", serde_json::to_string(&id).unwrap().as_str(), "\'}"].concat();
         let cser = CString::new(ser).unwrap();
         cser.into_raw()
     }

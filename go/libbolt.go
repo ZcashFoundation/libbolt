@@ -7,6 +7,7 @@ import "C"
 import (
 	"encoding/json"
 	"strings"
+	"fmt"
 )
 
 type setupResp struct {
@@ -316,6 +317,24 @@ func BidirectionalEstablishCustomerGenerateProof(channelToken ChannelToken, cust
 	err = json.Unmarshal([]byte(r.ComProof), &comProof)
 	return channelToken, custState, com, comProof, err
 }
+
+
+
+func BidirectionalGenerateChannelID(channelToken ChannelToken) (error) {
+	serChannelToken, err := json.Marshal(channelToken)
+	if err != nil {
+            return err
+        }
+	resp := C.GoString(C.ffishim_bidirectional_generate_channel_id(C.CString(string(serChannelToken))))
+	r, err := processCResponse(resp)
+	if err != nil {
+	    return err
+	}
+	fmt.Println("channel id: ", r)
+	return err
+}
+
+
 
 func BidirectionalEstablishMerchantIssueCloseToken(channelState ChannelState, com Commitment, comProof CommitmentProof, channelId []string, initCustBal int, initMerchBal int, merchState MerchState) (Signature, error) {
 	serChannelState, err := json.Marshal(channelState)

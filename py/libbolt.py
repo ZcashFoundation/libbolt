@@ -29,6 +29,9 @@ class Libbolt(object):
 		self.lib.ffishim_bidirectional_establish_customer_generate_proof.argtypes = (c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_establish_customer_generate_proof.restype = c_void_p
 
+		self.lib.ffishim_bidirectional_generate_channel_id.argtypes = (c_void_p, )
+		self.lib.ffishim_bidirectional_generate_channel_id.restype = c_void_p
+
 		self.lib.ffishim_bidirectional_establish_merchant_issue_close_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
 		self.lib.ffishim_bidirectional_establish_merchant_issue_close_token.restype = c_void_p
 
@@ -100,6 +103,11 @@ class Libbolt(object):
 		return (output_dictionary.get('channel_token'), output_dictionary.get('cust_state'))
 
 	# ESTABLISH PROTOCOL
+
+	def bidirectional_generate_channel_id(self, channel_token):
+		output_string = self.lib.ffishim_bidirectional_generate_channel_id(channel_token.encode())
+		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
+		return output_dictionary.get('channel_id')
 
 	def bidirectional_establish_customer_generate_proof(self, channel_token, cust_state):
 		output_string = self.lib.ffishim_bidirectional_establish_customer_generate_proof(channel_token.encode(), cust_state.encode())
@@ -259,6 +267,10 @@ def run_unit_test():
 	print("com: ", com)
 
 	cust_state_dict = json.loads(cust_state)
+	channel_id = libbolt.bidirectional_generate_channel_id(channel_token)
+	print("channel ID: ", channel_id)
+	#print("wallet chan ID: ", cust_state_dict["wallet"]["channelId"])
+
 	close_token = libbolt.bidirectional_establish_merchant_issue_close_token(channel_state, com, com_proof, cust_state_dict["wallet"]["channelId"], b0_cust, b0_merch, merch_state)
 	print("close token: ", close_token)
 

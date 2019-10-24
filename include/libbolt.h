@@ -22,6 +22,7 @@ char* ffishim_bidirectional_init_customer(const char *ser_channel_token, long lo
 
 // channel establish protocol routines
 char* ffishim_bidirectional_establish_customer_generate_proof(const char *ser_channel_token, const char *ser_customer_wallet);
+char* ffishim_bidirectional_generate_channel_id(const char *ser_channel_token);
 char* ffishim_bidirectional_establish_merchant_issue_close_token(const char *ser_channel_state, const char *ser_com, const char *ser_com_proof, const char *ser_pk_c, long long int init_cust_bal, long long int init_merch_bal, const char *ser_merch_state);
 char* ffishim_bidirectional_establish_merchant_issue_pay_token(const char *ser_channel_state, const char *ser_com, const char *ser_merch_state);
 char* ffishim_bidirectional_verify_close_token(const char *ser_channel_state, const char *ser_customer_wallet, const char *ser_close_token);
