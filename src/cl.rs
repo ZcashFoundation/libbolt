@@ -1,8 +1,5 @@
 // cl.rs
 // CL Sigs - Pointcheval Sanders ('06)
-extern crate pairing;
-extern crate rand;
-
 use super::*;
 use pairing::{CurveProjective, Engine};
 use ff::PrimeField;

@@ -1,6 +1,3 @@
-extern crate pairing;
-extern crate rand;
-
 use super::*;
 use rand::Rng;
 use cl::{Signature, PublicParams, setup, BlindKeyPair, SignatureProof, BlindPublicKey};

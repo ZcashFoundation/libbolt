@@ -4,11 +4,9 @@ Efficient Protocols for Set Membership and Range Proofs
 Jan Camenisch, Rafik Chaabouni, and abhi shelat
 Asiacrypt 2008
 */
-extern crate pairing;
-extern crate rand;
 
-use rand::Rng;
 use super::*;
+use rand::Rng;
 use cl::{Signature, PublicParams, setup, BlindKeyPair, ProofState, SignatureProof, BlindPublicKey};
 use ped92::{Commitment, CSMultiParams};
 use pairing::{Engine, CurveProjective};

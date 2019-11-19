@@ -1,14 +1,3 @@
-/*
- * Implement for Bolt protocols:
- * - initializing channel state and generating cust/merch wallets
- * - establish protocol
- * - pay protocol
- * - channel close algorithms (WIP)
- */
-
-extern crate pairing;
-extern crate rand;
-
 use super::*;
 use pairing::Engine;
 use cl::{BlindKeyPair, Signature};
@@ -134,8 +123,6 @@ impl<E: Engine> ChannelToken<E> {
 
     // add a method to compute hash on chain: SHA256 + RIPEMD160?
 }
-// add methods to check if channel token is initialized
-// (only if
 
 ///
 /// Channel state for generating/loading channel parameters and generating keypairs

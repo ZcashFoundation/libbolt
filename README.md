@@ -40,9 +40,7 @@ We will switch to the stable release channel once libbolt (and dependencies) are
 
 # Build & Install
 
-Please ensure you have installed the libsodium library for your platform. See install instructions [here](https://download.libsodium.org/doc/installation/index.html).
-
-To build the library and execute basic examples, run `make` 
+To build the library in debug, execute tests and basic examples, run `make` 
 
 # Tests
 

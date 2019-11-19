@@ -12,8 +12,8 @@ license = "MIT License"
 [dependencies]
 rand = "0.6"
 rand_core = "0.4.0"
-ff = { git = "https://github.com/boltlabs-inc/ff", branch = "master" }
-pairing = { git = "https://github.com/boltlabs-inc/pairing", branch = "master", features = ["serde"] }
+ff_bl = { git = "https://github.com/boltlabs-inc/ff", branch = "master" }
+pairing_bl = { git = "https://github.com/boltlabs-inc/pairing", branch = "master", features = ["serde"] }
 libc = "*"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

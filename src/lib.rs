@@ -19,8 +19,8 @@
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-extern crate ff;
-extern crate pairing;
+extern crate ff_bl as ff;
+extern crate pairing_bl as pairing;
 extern crate rand;
 extern crate rand_core;
 
@@ -157,10 +157,6 @@ pub mod bidirectional {
     pub struct RevokeToken {
         message: util::RevokedMessage,
         pub signature: secp256k1::Signature,
-    }
-
-    pub fn init() {
-        //sodiumoxide::init();
     }
 
     ///

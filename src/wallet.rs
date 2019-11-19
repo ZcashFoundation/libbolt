@@ -1,5 +1,3 @@
-extern crate pairing;
-
 use super::*;
 use pairing::Engine;
 use ff::PrimeField;
