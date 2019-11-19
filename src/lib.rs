@@ -13,7 +13,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_results)]
 #![allow(missing_docs)]
-#![feature(exclusive_range_pattern)]
 
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
 #[cfg(all(test, feature = "unstable"))]
