@@ -8,7 +8,7 @@ extern crate secp256k1;
 
 use bolt::bidirectional;
 use std::time::Instant;
-use pairing::bls12_381::{Bls12};
+use pairing::bls12_381::Bls12;
 use bolt::handle_bolt_result;
 
 macro_rules! measure_one_arg {

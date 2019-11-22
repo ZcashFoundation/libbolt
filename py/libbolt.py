@@ -263,6 +263,7 @@ def run_unit_test():
 	print("cust_state: ", len(cust_state))
 
 	(channel_token, cust_state, com, com_proof) = libbolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)
+	print("channel token len: => ", len(channel_token))
 	print("channel token: => ", channel_token)
 	print("com: ", com)
 
