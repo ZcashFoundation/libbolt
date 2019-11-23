@@ -233,7 +233,7 @@ type ZkChannelParams struct {
 }
 
 func BidirectionalChannelSetup(name string, channelSupport bool) (ChannelState, error) {
-	resp := C.GoString(C.ffishim_bidirectional_channel_setup(C.CString(name), C.uint(btoi(channelSupport))))
+	resp := C.GoString(C.ffishim_bls12_channel_setup(C.CString(name), C.uint(btoi(channelSupport))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelState{}, err
@@ -248,7 +248,7 @@ func BidirectionalInitMerchant(channelState ChannelState, nameMerchant string) (
 	if err != nil {
 		return ChannelToken{}, MerchState{}, ChannelState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_init_merchant(C.CString(string(serChannelState)), C.CString(nameMerchant)))
+	resp := C.GoString(C.ffishim_bls12_init_merchant(C.CString(string(serChannelState)), C.CString(nameMerchant)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, MerchState{}, ChannelState{}, err
@@ -272,7 +272,7 @@ func BidirectionalInitCustomer(channelToken ChannelToken, balanceCustomer int, b
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_init_customer(C.CString(string(serChannelToken)), C.longlong(balanceCustomer), C.longlong(balanceMerchant), C.CString(nameCustomer)))
+	resp := C.GoString(C.ffishim_bls12_init_customer(C.CString(string(serChannelToken)), C.longlong(balanceCustomer), C.longlong(balanceMerchant), C.CString(nameCustomer)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, err
@@ -295,7 +295,7 @@ func BidirectionalEstablishCustomerGenerateProof(channelToken ChannelToken, cust
 	if err != nil {
 		return ChannelToken{}, CustState{}, Commitment{}, CommitmentProof{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_establish_customer_generate_proof(C.CString(string(serChannelToken)), C.CString(string(serCustState))))
+	resp := C.GoString(C.ffishim_bls12_establish_customer_generate_proof(C.CString(string(serChannelToken)), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return ChannelToken{}, CustState{}, Commitment{}, CommitmentProof{}, err
@@ -325,7 +325,7 @@ func BidirectionalGenerateChannelID(channelToken ChannelToken) (error) {
 	if err != nil {
             return err
         }
-	resp := C.GoString(C.ffishim_bidirectional_generate_channel_id(C.CString(string(serChannelToken))))
+	resp := C.GoString(C.ffishim_bls12_generate_channel_id(C.CString(string(serChannelToken))))
 	r, err := processCResponse(resp)
 	if err != nil {
 	    return err
@@ -357,7 +357,7 @@ func BidirectionalEstablishMerchantIssueCloseToken(channelState ChannelState, co
 	if err != nil {
 		return Signature{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_close_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serComProof)), C.CString(string(serChannelId)), C.longlong(initCustBal), C.longlong(initMerchBal), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bls12_establish_merchant_issue_close_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serComProof)), C.CString(string(serChannelId)), C.longlong(initCustBal), C.longlong(initMerchBal), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, err
@@ -380,7 +380,7 @@ func BidirectionalEstablishMerchantIssuePayToken(channelState ChannelState, com 
 	if err != nil {
 		return Signature{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_establish_merchant_issue_pay_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bls12_establish_merchant_issue_pay_token(C.CString(string(serChannelState)), C.CString(string(serCom)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, err
@@ -403,7 +403,7 @@ func BidirectionalVerifyCloseToken(channelState ChannelState, custState CustStat
 	if err != nil {
 		return false, ChannelState{}, CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_verify_close_token(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serCloseToken))))
+	resp := C.GoString(C.ffishim_bls12_verify_close_token(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serCloseToken))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, ChannelState{}, CustState{}, err
@@ -429,7 +429,7 @@ func BidirectionalEstablishCustomerFinal(channelState ChannelState, custState Cu
 	if err != nil {
 		return false, ChannelState{}, CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_establish_customer_final(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serPayToken))))
+	resp := C.GoString(C.ffishim_bls12_establish_customer_final(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serPayToken))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return false, ChannelState{}, CustState{}, err
@@ -451,7 +451,7 @@ func BidirectionalPayGeneratePaymentProof(channelState ChannelState, custState C
 	if err != nil {
 		return Payment{}, CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_generate_payment_proof(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.longlong(amount)))
+	resp := C.GoString(C.ffishim_bls12_pay_generate_payment_proof(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.longlong(amount)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Payment{}, CustState{}, err
@@ -478,7 +478,7 @@ func BidirectionalPayVerifyPaymentProof(channelState ChannelState, payProof Paym
 	if err != nil {
 		return Signature{}, MerchState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_proof(C.CString(string(serChannelState)), C.CString(string(serPayProof)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bls12_pay_verify_payment_proof(C.CString(string(serChannelState)), C.CString(string(serPayProof)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, MerchState{}, err
@@ -509,7 +509,7 @@ func BidirectionalPayVerifyMultiplePaymentProofs(channelState ChannelState, send
 	if err != nil {
 		return Signature{}, Signature{}, MerchState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_multiple_payment_proofs(C.CString(string(serChannelState)), C.CString(string(serSenderPayProof)), C.CString(string(serReceiverPayProof)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bls12_pay_verify_multiple_payment_proofs(C.CString(string(serChannelState)), C.CString(string(serSenderPayProof)), C.CString(string(serReceiverPayProof)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, Signature{}, MerchState{}, err
@@ -545,7 +545,7 @@ func BidirectionalPayGenerateRevokeToken(channelState ChannelState, custState Cu
 	if err != nil {
 		return RevokeToken{}, CustState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_generate_revoke_token(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serNewCustState)), C.CString(string(serCloseToken))))
+	resp := C.GoString(C.ffishim_bls12_pay_generate_revoke_token(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serNewCustState)), C.CString(string(serCloseToken))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return RevokeToken{}, CustState{}, err
@@ -568,7 +568,7 @@ func BidirectionalPayVerifyRevokeToken(revokeToken RevokeToken, merchState Merch
 	if err != nil {
 		return Signature{}, MerchState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_revoke_token(C.CString(string(serRevokeToken)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bls12_pay_verify_revoke_token(C.CString(string(serRevokeToken)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, MerchState{}, err
@@ -595,7 +595,7 @@ func BidirectionalPayVerifyMultipleRevokeTokens(senderRevokeToken RevokeToken, r
 	if err != nil {
 		return Signature{}, Signature{}, MerchState{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_multiple_revoke_tokens(C.CString(string(serSenderRevokeToken)), C.CString(string(serReceiverRevokeToken)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bls12_pay_verify_multiple_revoke_tokens(C.CString(string(serSenderRevokeToken)), C.CString(string(serReceiverRevokeToken)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return Signature{}, Signature{}, MerchState{}, err
@@ -627,7 +627,7 @@ func BidirectionalPayVerifyPaymentToken(channelState ChannelState, custState Cus
 	if err != nil {
 		return CustState{}, false, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_pay_verify_payment_token(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serPayToken))))
+	resp := C.GoString(C.ffishim_bls12_pay_verify_payment_token(C.CString(string(serChannelState)), C.CString(string(serCustState)), C.CString(string(serPayToken))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return CustState{}, false, err
@@ -645,7 +645,7 @@ func BidirectionalCustomerClose(channelState ChannelState, custState CustState) 
 	if err != nil {
 		return CustClose{}, err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_customer_close(C.CString(string(serChannelState)), C.CString(string(serCustState))))
+	resp := C.GoString(C.ffishim_bls12_customer_close(C.CString(string(serChannelState)), C.CString(string(serCustState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return CustClose{}, err
@@ -672,7 +672,7 @@ func BidirectionalMerchantClose(channelState ChannelState, channelToken ChannelT
 	if err != nil {
 		return "", "", "", err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_merchant_close(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(serAddress), C.CString(string(serCustClose)), C.CString(string(serMerchState))))
+	resp := C.GoString(C.ffishim_bls12_merchant_close(C.CString(string(serChannelState)), C.CString(string(serChannelToken)), C.CString(serAddress), C.CString(string(serCustClose)), C.CString(string(serMerchState))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", "", "", err
@@ -685,7 +685,7 @@ func BidirectionalWtpVerifyCustCloseMessage(channelToken ChannelToken, serWpk st
 	if err != nil {
 		return "", err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_cust_close_message(C.CString(string(serChannelToken)), C.CString(serWpk), C.CString(serCloseMsg), C.CString(string(serCloseToken))))
+	resp := C.GoString(C.ffishim_bls12_wtp_verify_cust_close_message(C.CString(string(serChannelToken)), C.CString(serWpk), C.CString(serCloseMsg), C.CString(string(serCloseToken))))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err
@@ -698,7 +698,7 @@ func BidirectionalWtpVerifyMerchCloseMessage(channelToken ChannelToken, serWpk s
 	if err != nil {
 		return "", err
 	}
-	resp := C.GoString(C.ffishim_bidirectional_wtp_verify_merch_close_message(C.CString(string(serChannelToken)), C.CString(serWpk), C.CString(serMerchClose)))
+	resp := C.GoString(C.ffishim_bls12_wtp_verify_merch_close_message(C.CString(string(serChannelToken)), C.CString(serWpk), C.CString(serMerchClose)))
 	r, err := processCResponse(resp)
 	if err != nil {
 		return "", err

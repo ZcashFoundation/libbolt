@@ -76,7 +76,7 @@ fn main() {
 
     assert!(cust_state.verify_close_token(&channel_state, &close_token));
 
-    // wait for funding tx to be confirmed, etc 
+    // wait for funding tx to be confirmed, etc
 
     // obtain payment token for pay protocol
     let pay_token = bidirectional::establish_merchant_issue_pay_token(rng, &channel_state, &com, &merch_state);

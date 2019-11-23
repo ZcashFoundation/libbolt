@@ -15,123 +15,123 @@ class Libbolt(object):
 		self.load_library_params()
 
 	def load_library_params(self):
-		self.lib.ffishim_bls12_channel_setup.argtypes = (c_void_p, c_uint8)
-		self.lib.ffishim_bls12_channel_setup.restype = c_void_p
+		self.lib.ffishim_bn256_channel_setup.argtypes = (c_void_p, c_uint8)
+		self.lib.ffishim_bn256_channel_setup.restype = c_void_p
 
 		# ESTABLISH PROTOCOL
 
-		self.lib.ffishim_bls12_init_merchant.argtypes = (c_void_p, c_void_p)
-		self.lib.ffishim_bls12_init_merchant.restype = c_void_p
+		self.lib.ffishim_bn256_init_merchant.argtypes = (c_void_p, c_void_p)
+		self.lib.ffishim_bn256_init_merchant.restype = c_void_p
 
-		self.lib.ffishim_bls12_init_customer.argtypes = (c_void_p, ctypes.c_int32, ctypes.c_int32, c_void_p)
-		self.lib.ffishim_bls12_init_customer.restype = c_void_p
+		self.lib.ffishim_bn256_init_customer.argtypes = (c_void_p, ctypes.c_int32, ctypes.c_int32, c_void_p)
+		self.lib.ffishim_bn256_init_customer.restype = c_void_p
 
-		self.lib.ffishim_bls12_establish_customer_generate_proof.argtypes = (c_void_p, c_void_p)
-		self.lib.ffishim_bls12_establish_customer_generate_proof.restype = c_void_p
+		self.lib.ffishim_bn256_establish_customer_generate_proof.argtypes = (c_void_p, c_void_p)
+		self.lib.ffishim_bn256_establish_customer_generate_proof.restype = c_void_p
 
-		self.lib.ffishim_bls12_generate_channel_id.argtypes = (c_void_p, )
-		self.lib.ffishim_bls12_generate_channel_id.restype = c_void_p
+		self.lib.ffishim_bn256_generate_channel_id.argtypes = (c_void_p, )
+		self.lib.ffishim_bn256_generate_channel_id.restype = c_void_p
 
-		self.lib.ffishim_bls12_establish_merchant_issue_close_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_establish_merchant_issue_close_token.restype = c_void_p
+		self.lib.ffishim_bn256_establish_merchant_issue_close_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_establish_merchant_issue_close_token.restype = c_void_p
 
-		self.lib.ffishim_bls12_establish_merchant_issue_pay_token.argtypes = (c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_establish_merchant_issue_pay_token.restype = c_void_p
+		self.lib.ffishim_bn256_establish_merchant_issue_pay_token.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_establish_merchant_issue_pay_token.restype = c_void_p
 
-		self.lib.ffishim_bls12_verify_close_token.argtypes = (c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_verify_close_token.restype = c_void_p
+		self.lib.ffishim_bn256_verify_close_token.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_verify_close_token.restype = c_void_p
 
-		self.lib.ffishim_bls12_establish_customer_final.argtypes = (c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_establish_customer_final.restype = c_void_p
+		self.lib.ffishim_bn256_establish_customer_final.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_establish_customer_final.restype = c_void_p
 
 		# PAY PROTOCOL
 
-		self.lib.ffishim_bls12_pay_generate_payment_proof.argtypes = (c_void_p, c_void_p, ctypes.c_int32)
-		self.lib.ffishim_bls12_pay_generate_payment_proof.restype = c_void_p
+		self.lib.ffishim_bn256_pay_generate_payment_proof.argtypes = (c_void_p, c_void_p, ctypes.c_int32)
+		self.lib.ffishim_bn256_pay_generate_payment_proof.restype = c_void_p
 
-		self.lib.ffishim_bls12_pay_verify_payment_proof.argtypes = (c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_pay_verify_payment_proof.restype = c_void_p
+		self.lib.ffishim_bn256_pay_verify_payment_proof.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_pay_verify_payment_proof.restype = c_void_p
 
-		self.lib.ffishim_bls12_pay_verify_multiple_payment_proofs.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_pay_verify_multiple_payment_proofs.restype = c_void_p
+		self.lib.ffishim_bn256_pay_verify_multiple_payment_proofs.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_pay_verify_multiple_payment_proofs.restype = c_void_p
 
-		self.lib.ffishim_bls12_pay_generate_revoke_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_pay_generate_revoke_token.restype = c_void_p
+		self.lib.ffishim_bn256_pay_generate_revoke_token.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_pay_generate_revoke_token.restype = c_void_p
 
-		self.lib.ffishim_bls12_pay_verify_revoke_token.argtypes = (c_void_p, c_void_p)
-		self.lib.ffishim_bls12_pay_verify_revoke_token.restype = c_void_p
+		self.lib.ffishim_bn256_pay_verify_revoke_token.argtypes = (c_void_p, c_void_p)
+		self.lib.ffishim_bn256_pay_verify_revoke_token.restype = c_void_p
 
-		self.lib.ffishim_bls12_pay_verify_multiple_revoke_tokens.argtypes = (c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_pay_verify_multiple_revoke_tokens.restype = c_void_p
+		self.lib.ffishim_bn256_pay_verify_multiple_revoke_tokens.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_pay_verify_multiple_revoke_tokens.restype = c_void_p
 
-		self.lib.ffishim_bls12_pay_verify_payment_token.argtypes = (c_void_p, c_void_p)
-		self.lib.ffishim_bls12_pay_verify_payment_token.restype = c_void_p
+		self.lib.ffishim_bn256_pay_verify_payment_token.argtypes = (c_void_p, c_void_p)
+		self.lib.ffishim_bn256_pay_verify_payment_token.restype = c_void_p
 
 		# CLOSE
 
-		self.lib.ffishim_bls12_customer_close.argtypes = (c_void_p, c_void_p)
-		self.lib.ffishim_bls12_customer_close.restype = c_void_p
+		self.lib.ffishim_bn256_customer_close.argtypes = (c_void_p, c_void_p)
+		self.lib.ffishim_bn256_customer_close.restype = c_void_p
 
-		self.lib.ffishim_bls12_merchant_close.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_merchant_close.restype = c_void_p
+		self.lib.ffishim_bn256_merchant_close.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_merchant_close.restype = c_void_p
 
 		# ON-CHAIN BOLT LOGIC / WTPs
 
-		self.lib.ffishim_bls12_wtp_verify_cust_close_message.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_wtp_verify_cust_close_message.restype = c_void_p
+		self.lib.ffishim_bn256_wtp_verify_cust_close_message.argtypes = (c_void_p, c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_wtp_verify_cust_close_message.restype = c_void_p
 
-		self.lib.ffishim_bls12_wtp_verify_merch_close_message.argtypes = (c_void_p, c_void_p, c_void_p)
-		self.lib.ffishim_bls12_wtp_verify_merch_close_message.restype = c_void_p
+		self.lib.ffishim_bn256_wtp_verify_merch_close_message.argtypes = (c_void_p, c_void_p, c_void_p)
+		self.lib.ffishim_bn256_wtp_verify_merch_close_message.restype = c_void_p
 
 		self.lib.ffishim_free_string.argtypes = (c_void_p, )
 
 	def channel_setup(self, name, third_party_support=0):
-		output_string = self.lib.ffishim_bls12_channel_setup(name.encode(), third_party_support)
+		output_string = self.lib.ffishim_bn256_channel_setup(name.encode(), third_party_support)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('channel_state')
 
 	# INIT PROTOCOL
 
 	def bidirectional_init_merchant(self, channel_state, name):
-		output_string = self.lib.ffishim_bls12_init_merchant(channel_state.encode(), name.encode())
+		output_string = self.lib.ffishim_bn256_init_merchant(channel_state.encode(), name.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('channel_token'), output_dictionary.get('merch_state'), output_dictionary.get('channel_state')
 
 	def bidirectional_init_customer(self, channel_token, b0_cust, b0_merch, name):
-		output_string = self.lib.ffishim_bls12_init_customer(channel_token.encode(), b0_cust, b0_merch, name.encode())
+		output_string = self.lib.ffishim_bn256_init_customer(channel_token.encode(), b0_cust, b0_merch, name.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('channel_token'), output_dictionary.get('cust_state'))
 
 	# ESTABLISH PROTOCOL
 
 	def bidirectional_generate_channel_id(self, channel_token):
-		output_string = self.lib.ffishim_bls12_generate_channel_id(channel_token.encode())
+		output_string = self.lib.ffishim_bn256_generate_channel_id(channel_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('channel_id')
 
 	def bidirectional_establish_customer_generate_proof(self, channel_token, cust_state):
-		output_string = self.lib.ffishim_bls12_establish_customer_generate_proof(channel_token.encode(), cust_state.encode())
+		output_string = self.lib.ffishim_bn256_establish_customer_generate_proof(channel_token.encode(), cust_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('channel_token'), output_dictionary.get('cust_state'), output_dictionary.get('com'), output_dictionary.get('com_proof')
 
 	def bidirectional_establish_merchant_issue_close_token(self, channel_state, com, com_proof, channel_id, init_cust, init_merch, merch_state):
-		output_string = self.lib.ffishim_bls12_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), json.dumps(channel_id).encode(), init_cust, init_merch, merch_state.encode())
+		output_string = self.lib.ffishim_bn256_establish_merchant_issue_close_token(channel_state.encode(), com.encode(), com_proof.encode(), json.dumps(channel_id).encode(), init_cust, init_merch, merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('close_token')
 
 	def bidirectional_establish_merchant_issue_pay_token(self, channel_state, com, merch_state):
-		output_string = self.lib.ffishim_bls12_establish_merchant_issue_pay_token(channel_state.encode(), com.encode(), merch_state.encode())
+		output_string = self.lib.ffishim_bn256_establish_merchant_issue_pay_token(channel_state.encode(), com.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('pay_token')
 
 	def bidirectional_establish_customer_verify_close_token(self, channel_state, cust_state, close_token):
-		output_string = self.lib.ffishim_bls12_verify_close_token(channel_state.encode(), cust_state.encode(), close_token.encode())
+		output_string = self.lib.ffishim_bn256_verify_close_token(channel_state.encode(), cust_state.encode(), close_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		is_token_valid = self._convert_boolean(output_dictionary.get('is_token_valid'))
 		return is_token_valid, output_dictionary.get('channel_state'), output_dictionary.get('cust_state')
 
 	def bidirectional_establish_customer_final(self, channel_state, cust_state, pay_token):
-		output_string = self.lib.ffishim_bls12_establish_customer_final(channel_state.encode(), cust_state.encode(), pay_token.encode())
+		output_string = self.lib.ffishim_bn256_establish_customer_final(channel_state.encode(), cust_state.encode(), pay_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		is_established = self._convert_boolean(output_dictionary.get('is_established'))
 		return is_established, output_dictionary.get('channel_state'), output_dictionary.get('cust_state')
@@ -140,44 +140,44 @@ class Libbolt(object):
 
 	# generate payment proof and new cust state
 	def bidirectional_pay_generate_payment_proof(self, channel_state, cust_state, amount):
-		output_string = self.lib.ffishim_bls12_pay_generate_payment_proof(channel_state.encode(), cust_state.encode(), amount)
+		output_string = self.lib.ffishim_bn256_pay_generate_payment_proof(channel_state.encode(), cust_state.encode(), amount)
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('payment'), output_dictionary.get('cust_state')
 
 	# verify payment proof
 	def bidirectional_pay_verify_payment_proof(self, channel_state, pay_proof, merch_state):
-		output_string = self.lib.ffishim_bls12_pay_verify_payment_proof(channel_state.encode(), pay_proof.encode(), merch_state.encode())
+		output_string = self.lib.ffishim_bn256_pay_verify_payment_proof(channel_state.encode(), pay_proof.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('close_token'), output_dictionary.get('merch_state'))
 
 	# verify multiple payment proof
 	def bidirectional_pay_verify_multiple_payment_proofs(self, channel_state, sender_pay_proof, receiver_pay_proof, merch_state):
-		output_string = self.lib.ffishim_bls12_pay_verify_multiple_payment_proofs(channel_state.encode(), sender_pay_proof.encode(), receiver_pay_proof.encode(), merch_state.encode())
+		output_string = self.lib.ffishim_bn256_pay_verify_multiple_payment_proofs(channel_state.encode(), sender_pay_proof.encode(), receiver_pay_proof.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('sender_close_token'), output_dictionary.get('receiver_cond_close_token'), output_dictionary.get('merch_state'))
 
 	# generate revoke token
 	def bidirectional_pay_generate_revoke_token(self, channel_state, cust_state, new_cust_state, close_token):
-		output_string = self.lib.ffishim_bls12_pay_generate_revoke_token(channel_state.encode(), cust_state.encode(),
+		output_string = self.lib.ffishim_bn256_pay_generate_revoke_token(channel_state.encode(), cust_state.encode(),
 																				 new_cust_state.encode(), close_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('revoke_token'), output_dictionary.get('cust_state')
 
 	# verify revoke token
 	def bidirectional_pay_verify_revoke_token(self, revoke_token, merch_state):
-		output_string = self.lib.ffishim_bls12_pay_verify_revoke_token(revoke_token.encode(), merch_state.encode())
+		output_string = self.lib.ffishim_bn256_pay_verify_revoke_token(revoke_token.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('pay_token'), output_dictionary.get('merch_state'))
 
 	# verify multiple revoke tokens
 	def bidirectional_pay_verify_multiple_revoke_tokens(self, sender_revoke_token, receiver_revoke_token, merch_state):
-		output_string = self.lib.ffishim_bls12_pay_verify_multiple_revoke_tokens(sender_revoke_token.encode(), receiver_revoke_token.encode(), merch_state.encode())
+		output_string = self.lib.ffishim_bn256_pay_verify_multiple_revoke_tokens(sender_revoke_token.encode(), receiver_revoke_token.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('sender_pay_token'), output_dictionary.get('receiver_pay_token'), output_dictionary.get('merch_state'))
 
 	# verify payment token
 	def bidirectional_pay_verify_payment_token(self, channel_state, cust_state, pay_token):
-		output_string = self.lib.ffishim_bls12_pay_verify_payment_token(channel_state.encode(), cust_state.encode(), pay_token.encode())
+		output_string = self.lib.ffishim_bn256_pay_verify_payment_token(channel_state.encode(), cust_state.encode(), pay_token.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		is_pay_valid = self._convert_boolean(output_dictionary.get('is_pay_valid'))
 		return (output_dictionary.get('cust_state'), is_pay_valid)
@@ -185,12 +185,12 @@ class Libbolt(object):
 	# CLOSE
 
 	def bidirectional_customer_close(self, channel_state, cust_state):
-		output_string = self.lib.ffishim_bls12_customer_close(channel_state.encode(), cust_state.encode())
+		output_string = self.lib.ffishim_bn256_customer_close(channel_state.encode(), cust_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return output_dictionary.get('cust_close')
 
 	def bidirectional_merchant_close(self, channel_state, channel_token, address, cust_close, merch_state):
-		output_string = self.lib.ffishim_bls12_merchant_close(channel_state.encode(), channel_token.encode(),
+		output_string = self.lib.ffishim_bn256_merchant_close(channel_state.encode(), channel_token.encode(),
 																	  address.encode(), cust_close.encode(), merch_state.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
 		return (output_dictionary.get('wpk'), output_dictionary.get('merch_close'), output_dictionary.get('error'))
@@ -206,7 +206,7 @@ class Libbolt(object):
 		return json.dumps(cust_close_dict.get("signature"))
 
 	def wtp_verify_cust_close_message(self, channel_token, wpk, cust_close_wallet, close_token):
-		output_string = self.lib.ffishim_bls12_wtp_verify_cust_close_message(channel_token.encode(),
+		output_string = self.lib.ffishim_bn256_wtp_verify_cust_close_message(channel_token.encode(),
 																				 wpk.encode(),
 																				 cust_close_wallet.encode(),
 																				 close_token.encode())
@@ -214,7 +214,7 @@ class Libbolt(object):
 		return output_dictionary.get('result')
 
 	def wtp_verify_merch_close_message(self, channel_token, wpk, merch_close):
-		output_string = self.lib.ffishim_bls12_wtp_verify_merch_close_message(channel_token.encode(),
+		output_string = self.lib.ffishim_bn256_wtp_verify_merch_close_message(channel_token.encode(),
 																					  wpk.encode(),
 																					  merch_close.encode())
 		output_dictionary = ast.literal_eval(ctypes.cast(output_string, ctypes.c_char_p).value.decode('utf-8'))
