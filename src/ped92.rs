@@ -1,5 +1,5 @@
 // ped92.rs
-use rand::Rng;
+use rand::{Rng, AsByteSliceMut};
 use pairing::{Engine, CurveProjective};
 use ff::{Rand, Field, PrimeField};
 use std::fmt;
@@ -37,6 +37,24 @@ pub struct CSMultiParams<E: Engine> {
 impl<E: Engine> PartialEq for CSMultiParams<E> {
     fn eq(&self, other: &CSMultiParams<E>) -> bool {
         is_vec_g1_equal::<E>(&self.pub_bases, &other.pub_bases)
+    }
+}
+
+impl<E: Engine> CSMultiParams<E> {
+    pub fn from_slice<'de>(ser_gs: &'de [u8], g_len: usize, num_elems: usize) -> Self
+        where <E as pairing::Engine>::G1: serde::Deserialize<'de>
+    {
+        let mut pub_bases: Vec<E::G1> = Vec::new();
+        let mut start_pos = 0;
+        let mut end_pos = g_len;
+        for _ in 0 .. num_elems {
+            let g: E::G1 = serde_json::from_slice(&ser_gs[start_pos .. end_pos]).unwrap();
+            start_pos = end_pos;
+            end_pos += g_len;
+            pub_bases.push(g);
+        }
+
+        return CSMultiParams { pub_bases};
     }
 }
 
@@ -369,5 +387,39 @@ mod tests {
         assert_eq!(proof.verify_proof(&comParams, &com.c, &challenge, None), true);
     }
 
-    // add tests for extend/remove commits dynamically
+    #[test]
+    fn test_cs_multiparam_serialization() {
+
+        let mut vec: Vec<u8> = Vec::new();
+        let bin_g1= vec![132, 83, 99, 124, 75, 72, 15, 109, 12, 94, 84, 103, 1, 58, 160, 232, 190, 23, 119, 195, 112, 161, 152, 141, 178, 29, 141, 61, 227, 246, 215, 157, 140, 190, 100, 18, 248, 141, 57, 222, 12, 209, 191, 158, 143, 155, 87, 255];
+        let bin_g2 = vec![140, 16, 244, 244, 135, 28, 18, 94, 46, 64, 233, 195, 218, 147, 238, 170, 46, 164, 50, 92, 234, 117, 61, 158, 64, 226, 153, 38, 127, 168, 49, 125, 177, 183, 74, 164, 138, 128, 168, 84, 137, 67, 21, 179, 124, 88, 194, 239];
+        let bin_g3 = vec![147, 174, 242, 238, 231, 127, 9, 120, 16, 9, 191, 238, 60, 57, 106, 34, 198, 62, 28, 183, 77, 170, 27, 116, 36, 75, 242, 26, 242, 23, 213, 31, 186, 21, 141, 219, 59, 104, 247, 118, 56, 95, 183, 124, 103, 83, 93, 154];
+
+        let ser_g1 = util::encode_as_hexstring(&bin_g1);
+        let ser_g2 = util::encode_as_hexstring(&bin_g2);
+        let ser_g3 = util::encode_as_hexstring(&bin_g3);
+
+        let str_g1 = ser_g1.as_bytes();
+        let str_g2 = ser_g2.as_bytes();
+        let str_g3 = ser_g3.as_bytes();
+
+        vec.extend(str_g1);
+        vec.extend(str_g2);
+        vec.extend(str_g3);
+
+        let rec_csparams = CSMultiParams::<Bls12>::from_slice(&vec.as_slice(), str_g1.len(), 3);
+        println!("CS params: {:?}", rec_csparams.pub_bases);
+
+        let ser_cs = serde_json::to_string(&rec_csparams).unwrap();
+
+        println!("Serialized: {:}", ser_cs);
+        let rec_g1_str = serde_json::to_string(&rec_csparams.pub_bases[0]).unwrap();
+        assert_eq!(rec_g1_str, "\"8453637c4b480f6d0c5e5467013aa0e8be1777c370a1988db21d8d3de3f6d79d8cbe6412f88d39de0cd1bf9e8f9b57ff\"");
+
+        let rec_g2_str = serde_json::to_string(&rec_csparams.pub_bases[1]).unwrap();
+        assert_eq!(rec_g2_str, "\"8c10f4f4871c125e2e40e9c3da93eeaa2ea4325cea753d9e40e299267fa8317db1b74aa48a80a854894315b37c58c2ef\"");
+
+        let rec_g3_str = serde_json::to_string(&rec_csparams.pub_bases[2]).unwrap();
+        assert_eq!(rec_g3_str, "\"93aef2eee77f09781009bfee3c396a22c63e1cb74daa1b74244bf21af217d51fba158ddb3b68f776385fb77c67535d9a\"");
+    }
 }

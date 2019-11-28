@@ -22,7 +22,7 @@ bench:
 
 test:
 	# runs the unit test suite
-	cargo +nightly test --release #-- --nocapture
+	cargo +nightly test --release -- --nocapture
 
 update:
 	cargo +nightly update

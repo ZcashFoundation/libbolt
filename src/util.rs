@@ -24,6 +24,12 @@ pub fn is_vec_g2_equal<E: Engine>(a: &Vec<E::G2>, b: &Vec<E::G2>) -> bool {
          .all(|(a, b)| a == b)
 }
 
+pub fn encode_as_hexstring(bytes: &Vec<u8>) -> String {
+    let mut ser_hex = hex::encode(bytes);
+    ser_hex.insert(0, '"');
+    ser_hex.push('"');
+    return ser_hex;
+}
 
 pub fn hash_g1_to_fr<E: Engine>(x: &Vec<E::G1>) -> E::Fr {
     let mut x_vec: Vec<u8> = Vec::new();
