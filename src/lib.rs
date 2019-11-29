@@ -524,12 +524,13 @@ pub mod wtp_utils {
         return secp256k1::PublicKey::from_slice(pk_bytes).unwrap();
     }
 
-    pub fn reconstruct_wallet_bls12(channel_token: &ChannelToken<Bls12>, wpk: &secp256k1::PublicKey, cust_bal: u32, merch_bal: u32) -> Wallet<Bls12> {
+    pub fn reconstruct_close_wallet_bls12(channel_token: &ChannelToken<Bls12>, wpk: &secp256k1::PublicKey, cust_bal: u32, merch_bal: u32) -> Wallet<Bls12> {
         let channelId = channel_token.compute_channel_id();
         let wpk_h = util::hash_pubkey_to_fr::<Bls12>(&wpk);
+        let close = util::hash_to_fr::<Bls12>(String::from("close").into_bytes());
 
         return Wallet {
-            channelId, wpk: wpk_h, bc: cust_bal as i64, bm: merch_bal as i64, close: None
+            channelId, wpk: wpk_h, bc: cust_bal as i64, bm: merch_bal as i64, close: Some(close)
         }
     }
 
