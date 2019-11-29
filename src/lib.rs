@@ -514,14 +514,20 @@ pub mod wtp_utils {
     pub use cl::Signature;
     pub use channels::ChannelToken;
     pub use wallet::Wallet;
+    use channels::ChannelcloseM;
 
     const BLS12_381_CHANNEL_TOKEN_LEN: usize = 1074;
     const BLS12_381_G1_LEN: usize = 48;
     const BLS12_381_G2_LEN: usize = 96;
     const SECP256K1_PK_LEN: usize = 33;
+    const ADDRESS_LEN: usize = 32;
 
     pub fn reconstruct_secp_public_key(pk_bytes: &[u8; SECP256K1_PK_LEN]) -> secp256k1::PublicKey {
         return secp256k1::PublicKey::from_slice(pk_bytes).unwrap();
+    }
+
+    pub fn reconstruct_secp_signature(sig_bytes: &[u8]) -> secp256k1::Signature {
+        return secp256k1::Signature::from_der(sig_bytes).unwrap();
     }
 
     pub fn reconstruct_close_wallet_bls12(channel_token: &ChannelToken<Bls12>, wpk: &secp256k1::PublicKey, cust_bal: u32, merch_bal: u32) -> Wallet<Bls12> {
@@ -640,6 +646,16 @@ pub mod wtp_utils {
         // (2) check that wpk matches what's in the close msg
         let wpk_thesame = (close_msg.wpk == chan_token_wpk);
         return cid_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
+    }
+
+    pub fn reconstruct_secp_channel_close_m(address: &[u8; 32], ser_revoke_token: &Vec<u8>, ser_sig: &Vec<u8>) -> ChannelcloseM {
+        let revoke_token = secp256k1::Signature::from_der(&ser_revoke_token.as_slice()).unwrap();
+        let sig = secp256k1::Signature::from_der(&ser_sig.as_slice()).unwrap();
+        ChannelcloseM {
+            address: hex::encode(&address.to_vec()),
+            revoke: Some(revoke_token),
+            signature: sig,
+        }
     }
 }
 
@@ -1086,6 +1102,29 @@ mod tests {
             Ok(n) => n.unwrap(),
             Err(e) => panic!("Error reconstructing compact rep of signature: {}", e)
         };
+    }
 
+    #[test]
+    fn test_reconstruct_secp_sig() {
+        let _ser_sig = "3044022064650285b55624f1f64b2c75e76589fa4b1033dabaa7ff50ff026e1dc038279202204ca696e0a829687c87171e8e5dab17069be248ff2595fd9607f3346dadcb579f";
+        let ser_sig = hex::decode(_ser_sig).unwrap();
+
+        let signature = wtp_utils::reconstruct_secp_signature(ser_sig.as_slice());
+        assert_eq!(format!("{:?}", signature), _ser_sig);
+    }
+
+    #[test]
+    fn test_reconstruct_channel_close_m() {
+        let mut address = [0u8; 32];
+        let address_slice = hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap();
+        address.copy_from_slice(address_slice.as_slice());
+
+        let channelClose = wtp_utils::reconstruct_secp_channel_close_m(&address,
+                                                                       &hex::decode("3044022041932b376fe2c5e9e9ad0a3804e2290c3bc40617ea4f7b913be858dbcc3760b50220429d6eb1aabbd4135db4e0776c0b768af844b0af44f2f8f9da5a65e8541b4e9f").unwrap(),
+                                                                       &hex::decode("3045022100e76653c5f8cb4c2f39efc7c5450d4f68ef3d84d482305534f5dfc310095a3124022003c4651ce1305cffe5e483ab99925cc4c9c5df2b5449bb18a51d52b21d789716").unwrap());
+
+        assert_eq!(channelClose.address, "1111111111111111111111111111111111111111111111111111111111111111");
+        assert_eq!(format!("{:?}", channelClose.revoke.unwrap()), "3044022041932b376fe2c5e9e9ad0a3804e2290c3bc40617ea4f7b913be858dbcc3760b50220429d6eb1aabbd4135db4e0776c0b768af844b0af44f2f8f9da5a65e8541b4e9f");
+        assert_eq!(format!("{:?}", channelClose.signature), "3045022100e76653c5f8cb4c2f39efc7c5450d4f68ef3d84d482305534f5dfc310095a3124022003c4651ce1305cffe5e483ab99925cc4c9c5df2b5449bb18a51d52b21d789716");
     }
 }
