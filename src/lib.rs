@@ -648,7 +648,7 @@ pub mod wtp_utils {
         return cid_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
     }
 
-    pub fn reconstruct_secp_channel_close_m(address: [u8; 32], ser_revoke_token: Vec<u8>, ser_sig: Vec<u8>) -> ChannelcloseM {
+    pub fn reconstruct_secp_channel_close_m(address: &[u8; 32], ser_revoke_token: &Vec<u8>, ser_sig: &Vec<u8>) -> ChannelcloseM {
         let revoke_token = secp256k1::Signature::from_der(&ser_revoke_token.as_slice()).unwrap();
         let sig = secp256k1::Signature::from_der(&ser_sig.as_slice()).unwrap();
         ChannelcloseM {
@@ -1119,9 +1119,9 @@ mod tests {
         let address_slice = hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap();
         address.copy_from_slice(address_slice.as_slice());
 
-        let channelClose = wtp_utils::reconstruct_secp_channel_close_m(address,
-                                                                       hex::decode("3044022041932b376fe2c5e9e9ad0a3804e2290c3bc40617ea4f7b913be858dbcc3760b50220429d6eb1aabbd4135db4e0776c0b768af844b0af44f2f8f9da5a65e8541b4e9f").unwrap(),
-                                                                       hex::decode("3045022100e76653c5f8cb4c2f39efc7c5450d4f68ef3d84d482305534f5dfc310095a3124022003c4651ce1305cffe5e483ab99925cc4c9c5df2b5449bb18a51d52b21d789716").unwrap());
+        let channelClose = wtp_utils::reconstruct_secp_channel_close_m(&address,
+                                                                       &hex::decode("3044022041932b376fe2c5e9e9ad0a3804e2290c3bc40617ea4f7b913be858dbcc3760b50220429d6eb1aabbd4135db4e0776c0b768af844b0af44f2f8f9da5a65e8541b4e9f").unwrap(),
+                                                                       &hex::decode("3045022100e76653c5f8cb4c2f39efc7c5450d4f68ef3d84d482305534f5dfc310095a3124022003c4651ce1305cffe5e483ab99925cc4c9c5df2b5449bb18a51d52b21d789716").unwrap());
 
         assert_eq!(channelClose.address, "1111111111111111111111111111111111111111111111111111111111111111");
         assert_eq!(format!("{:?}", channelClose.revoke.unwrap()), "3044022041932b376fe2c5e9e9ad0a3804e2290c3bc40617ea4f7b913be858dbcc3760b50220429d6eb1aabbd4135db4e0776c0b768af844b0af44f2f8f9da5a65e8541b4e9f");
