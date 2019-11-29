@@ -26,10 +26,11 @@ impl<E: Engine> PublicParams<E> {
         where <E as pairing::Engine>::G1: serde::Deserialize<'de>,
              <E as pairing::Engine>::G2: serde::Deserialize<'de>
     {
+        // TODO: handle malformed input errors
         let g1: E::G1 = serde_json::from_slice(ser_g1).unwrap();
         let g2: E::G2 = serde_json::from_slice(ser_g2).unwrap();
 
-        return PublicParams { g1, g2 };
+        PublicParams { g1, g2 }
     }
 }
 
@@ -99,7 +100,7 @@ impl<E: Engine> PublicKey<E> {
             end_pos += y_len;
             Y.push(y);
         }
-        return PublicKey { X, Y };
+        PublicKey { X, Y }
     }
 }
 
@@ -146,6 +147,19 @@ impl<E: Engine> PartialEq for Signature<E> {
         self.h == other.h && self.H == other.H
     }
 }
+
+impl<E: Engine> Signature<E> {
+    pub fn from_slice<'de>(ser_h: &'de [u8], ser_H: &'de [u8]) -> Self
+        where <E as pairing::Engine>::G1: serde::Deserialize<'de>
+    {
+        // TODO: handle malformed input errors
+        let h: E::G1 = serde_json::from_slice(ser_h).unwrap();
+        let H: E::G1 = serde_json::from_slice(ser_H).unwrap();
+
+        Signature { h, H }
+    }
+}
+
 
 #[derive(Clone)]
 pub struct KeyPair<E: Engine> {

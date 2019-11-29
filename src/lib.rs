@@ -509,8 +509,9 @@ pub mod wtp_utils {
     // Useful routines that simplify the Bolt WTP implementation for Zcash
     use pairing::bls12_381::Bls12;
     use ::{util, BoltResult};
-    use cl::{PublicKey, PublicParams};
+    use cl;
     use ped92::CSMultiParams;
+    pub use cl::Signature;
     pub use channels::ChannelToken;
     pub use wallet::Wallet;
 
@@ -530,6 +531,28 @@ pub mod wtp_utils {
         return Wallet {
             channelId, wpk: wpk_h, bc: cust_bal as i64, bm: merch_bal as i64, close: None
         }
+    }
+
+    pub fn reconstruct_signature_bls12(sig: &Vec<u8>) -> BoltResult<cl::Signature<Bls12>> {
+        if (sig.len() != BLS12_381_G1_LEN * 2) {
+            return Err(String::from("signature has invalid length"));
+        }
+
+        let mut cur_index = 0;
+        let mut end_index = BLS12_381_G1_LEN;
+        let ser_cl_h = sig[cur_index .. end_index].to_vec();
+        let str_cl_h = util::encode_as_hexstring(&ser_cl_h);
+        let h = str_cl_h.as_bytes();
+
+        cur_index = end_index;
+        end_index += BLS12_381_G1_LEN;
+        let ser_cl_H = sig[cur_index .. end_index].to_vec();
+        let str_cl_H = util::encode_as_hexstring(&ser_cl_H);
+        let H = str_cl_H.as_bytes();
+
+        let cl_sig = cl::Signature::<Bls12>::from_slice(&h, &H);
+
+        Ok(Some(cl_sig))
     }
 
     pub fn reconstruct_channel_token_bls12(channel_token: &Vec<u8>) -> BoltResult<ChannelToken<Bls12>>
@@ -565,7 +588,7 @@ pub mod wtp_utils {
             let str_cl_y = ser_cl_y.as_bytes();
             Y.extend(str_cl_y);
         }
-        let cl_pk= PublicKey::<Bls12>::from_slice(&X, &Y.as_slice(), str_cl_x.len(), num_y_elems);
+        let cl_pk= cl::PublicKey::<Bls12>::from_slice(&X, &Y.as_slice(), str_cl_x.len(), num_y_elems);
 
         cur_index = end_index;
         end_index += BLS12_381_G1_LEN;
@@ -580,7 +603,7 @@ pub mod wtp_utils {
         let ser_g1 = ser_mpk_g1.as_bytes();
         let ser_g2 = ser_mpk_g2.as_bytes();
 
-        let mpk = PublicParams::<Bls12>::from_slice(&ser_g1, &ser_g2);
+        let mpk = cl::PublicParams::<Bls12>::from_slice(&ser_g1, &ser_g2);
 
         let mut comparams = Vec::new();
         for _ in 0 .. num_com_params {
@@ -599,6 +622,24 @@ pub mod wtp_utils {
         }))
     }
 
+    ///
+    /// Used in open-channel WTP for validating that a close_token is a valid signature
+    ///
+    pub fn wtp_verify_cust_close_message(channel_token: &ChannelToken<Bls12>, wpk: &secp256k1::PublicKey,
+                                         close_msg: &Wallet<Bls12>, close_token: &cl::Signature<Bls12>) -> bool {
+        // close_msg => <pkc> || <wpk> || <balance-cust> || <balance-merch> || CLOSE
+        // close_token = regular CL signature on close_msg
+        // channel_token => <pk_c, CL_PK_m, pk_m, mpk, comParams>
+
+        // (1) check that channel token and close msg are consistent (e.g., close_msg.channelId == H(channel_token.pk_c) &&
+        let chan_token_cid = channel_token.compute_channel_id(); // util::hash_pubkey_to_fr::<Bls12>(&pk_c);
+        let chan_token_wpk = util::hash_pubkey_to_fr::<Bls12>(&wpk);
+
+        let cid_thesame = (close_msg.channelId == chan_token_cid);
+        // (2) check that wpk matches what's in the close msg
+        let wpk_thesame = (close_msg.wpk == chan_token_wpk);
+        return cid_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
@@ -1032,5 +1073,18 @@ mod tests {
         println!("pkm: {:?}", channel_token.pk_m);
 
         assert_eq!(original_channelId, computed_channelId);
+
+        // reconstruct signature
+        let _ser_signature = "93f26490b4576c38dfb8dceae547f4b49aeb945ecc9cccc528c39068c78177bda68aaf45743f09c48ad99b6007fe415b\
+                              aee9eafd51cfdb0dc567a5d152bc37861727e85088b417cf3ff57c108d0156eee56aff810f1e5f9e76cd6a3590d6db5e";
+        let ser_signature = hex::decode(_ser_signature).unwrap();
+
+        let option_sig = wtp_utils::reconstruct_signature_bls12(&ser_signature);
+
+        let sig = match option_sig {
+            Ok(n) => n.unwrap(),
+            Err(e) => panic!("Error reconstructing compact rep of signature: {}", e)
+        };
+
     }
 }
