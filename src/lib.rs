@@ -648,6 +648,13 @@ pub mod wtp_utils {
         return cid_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
     }
 
+    pub fn wtp_verify_secp_signature(pubkey: &secp256k1::PublicKey, hash: &Vec<u8>, sig: &secp256k1::Signature) -> bool {
+        let secp = secp256k1::Secp256k1::verification_only();
+        let msg = secp256k1::Message::from_slice(hash.as_slice()).unwrap();
+
+        return secp.verify(&msg, &sig, &pubkey).is_ok()
+    }
+
     pub fn reconstruct_secp_channel_close_m(address: &[u8; 32], ser_revoke_token: &Vec<u8>, ser_sig: &Vec<u8>) -> ChannelcloseM {
         let revoke_token = secp256k1::Signature::from_der(&ser_revoke_token.as_slice()).unwrap();
         let sig = secp256k1::Signature::from_der(&ser_sig.as_slice()).unwrap();
