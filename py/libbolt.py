@@ -230,6 +230,27 @@ class Libbolt(object):
 			return False
 		return bool_str
 
+	def get_compact_channel_token(self, channel_token_str):
+		ct = self._interperate_json_string_as_dictionary(channel_token_str)
+
+		s = ct["pk_c"]
+		s += ct["pk_m"]
+		s += ct["cl_pk_m"]["X"]
+		s += "".join(ct["cl_pk_m"]["Y"])
+		s += ct["mpk"]["g1"]
+		s += ct["mpk"]["g2"]
+		s += "".join(ct["comParams"]["pub_bases"])
+		return s
+
+	def get_compact_signing_keys(self, cust_state_str):
+		cust_state_str = cust_state_str.replace("null", "None")
+		cust_state = self._interperate_json_string_as_dictionary(cust_state_str)
+
+		name = cust_state.get("name")
+		(pk, sk) = cust_state.get("pk_c"), cust_state.get("sk_c")
+		return name, pk, sk
+
+
 if platform == 'darwin':
 	prefix = 'lib'
 	ext = 'dylib'
@@ -265,6 +286,11 @@ def run_unit_test():
 	(channel_token, cust_state, com, com_proof) = libbolt.bidirectional_establish_customer_generate_proof(channel_token, cust_state)
 	print("channel token len: => ", len(channel_token))
 	print("channel token: => ", channel_token)
+	#libbolt.get_compact_channel_token(channel_token)
+
+	print("cust state: ", cust_state)
+	#libbolt.get_compact_signing_keys(cust_state)
+
 	print("com: ", com)
 
 	cust_state_dict = json.loads(cust_state)

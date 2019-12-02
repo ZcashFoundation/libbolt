@@ -648,6 +648,19 @@ pub mod wtp_utils {
         return cid_thesame && wpk_thesame && channel_token.cl_pk_m.verify(&channel_token.mpk, &close_msg.as_fr_vec(), &close_token);
     }
 
+    pub fn wtp_generate_secp_signature(seckey: &[u8; 32], msg: &[u8; 32]) -> Vec<u8> {
+        let secp = secp256k1::Secp256k1::signing_only();
+
+        let msg = secp256k1::Message::from_slice(msg).unwrap();
+        let seckey = secp256k1::SecretKey::from_slice(seckey).unwrap();
+        let sig = secp.sign(&msg, &seckey);
+
+        // get serialized signature
+        let ser_sig = sig.serialize_der();
+
+        return ser_sig.to_vec();
+    }
+
     pub fn wtp_verify_secp_signature(pubkey: &secp256k1::PublicKey, hash: &Vec<u8>, sig: &secp256k1::Signature) -> bool {
         let secp = secp256k1::Secp256k1::verification_only();
         let msg = secp256k1::Message::from_slice(hash.as_slice()).unwrap();
