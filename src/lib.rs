@@ -695,6 +695,7 @@ mod tests {
     use super::*;
     use pairing::bls12_381::Bls12;
     use rand::Rng;
+    use sha2::Digest;
 
     fn setup_new_channel_helper(channel_state: &mut bidirectional::ChannelState<Bls12>,
                                 init_cust_bal: i64, init_merch_bal: i64)
@@ -1131,6 +1132,17 @@ mod tests {
 
         let signature = wtp_utils::reconstruct_secp_signature(ser_sig.as_slice());
         assert_eq!(format!("{:?}", signature), _ser_sig);
+
+        let sk = hex::decode("81361b9bc2f67524dcc59b980dc8b06aadb77db54f6968d2af76ecdb612e07e4").unwrap();
+        let msg = "hello world!";
+        let mut sha256 = sha2::Sha256::new();
+        sha256.input(msg);
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&sha256.result());
+
+        let mut seckey = [0u8; 32];
+        seckey.copy_from_slice(sk.as_slice());
+        let sig = wtp_utils::wtp_generate_secp_signature(&seckey, &hash);
     }
 
     #[test]
