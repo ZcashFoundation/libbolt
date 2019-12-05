@@ -1103,7 +1103,7 @@ mod tests {
 
         let channelId = channel_token.compute_channel_id();
 
-        let original_channelId = "[\"7523dfcf61afce756b79e44c09c5537a8384a43e059d72e3539ffcdda9566c3f\"]";
+        let original_channelId = "[\"0744645c9cbbf4e47f456fa05e2c6888a59f688641d25b2607610ce03b4ae20c\"]";
         let computed_channelId = serde_json::to_string(&channelId).unwrap();
 
         println!("channel ID: {}", channelId);
