@@ -1,5 +1,4 @@
 extern crate rand;
-extern crate rand_core;
 extern crate bolt;
 extern crate ff_bl as ff;
 extern crate pairing_bl as pairing;

@@ -210,13 +210,20 @@ impl<E: Engine> CustomerState<E> {
               <E as pairing::Engine>::G2: serde::Serialize,
               <E as ff::ScalarEngine>::Fr: serde::Serialize
     {
-        let mut kp = secp256k1::Secp256k1::new();
-        kp.randomize(csprng);
+        let secp = secp256k1::Secp256k1::new();
 
-        // generate the keypair for the channel
-        let (sk_c, pk_c) = kp.generate_keypair(csprng);
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+
+        // generate the signing keypair for the channel        
+        let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
+        
+        let mut seckey1 = [0u8; 32];
+        csprng.fill_bytes(&mut seckey1);
         // generate the keypair for the initial wallet
-        let (wsk, wpk) = kp.generate_keypair(csprng);
+        let wsk = secp256k1::SecretKey::from_slice(&seckey1).unwrap();
+        let wpk = secp256k1::PublicKey::from_secret_key(&secp, &wsk);
         // hash the wallet pub key
         let wpk_h = hash_pubkey_to_fr::<E>(&wpk);
         channel_token.set_customer_pk(&pk_c);
@@ -333,9 +340,14 @@ impl<E: Engine> CustomerState<E> {
     // for channel pay
     pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i64) -> (NIZKProof<E>, Commitment<E>, secp256k1::PublicKey, CustomerState<E>) {
         // 1 - chooose new wpk/wsk pair
-        let mut kp = secp256k1::Secp256k1::new();
-        kp.randomize(csprng);
-        let (new_wsk, new_wpk) = kp.generate_keypair(csprng);
+        let secp = secp256k1::Secp256k1::new();
+
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+        
+        let new_wsk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let new_wpk = secp256k1::PublicKey::from_secret_key(&secp, &new_wsk);
+        // compute hash of the pubkey
         let wpk_h = hash_pubkey_to_fr::<E>(&new_wpk);
 
         // 2 - form new wallet and commitment
@@ -476,9 +488,14 @@ impl<E: Engine> MerchantState<E> {
     pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelState<E>, id: String) -> (Self, ChannelState<E>) {
         let l = 5;
         // generate keys here
-        let mut tx_kp = secp256k1::Secp256k1::new();
-        tx_kp.randomize(csprng);
-        let (wsk, wpk) = tx_kp.generate_keypair(csprng);
+        let secp = secp256k1::Secp256k1::new();
+        // tx_kp.randomize(csprng);
+        // let (wsk, wpk) = tx_kp.generate_keypair(csprng);
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+        let wsk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let wpk = secp256k1::PublicKey::from_secret_key(&secp, &wsk);
+
         let mut ch = channel.clone();
         let nizkParams = NIZKSecretParams::<E>::setup(csprng, l);
         ch.cp = Some(ChannelParams::<E> { pub_params: nizkParams.pubParams.clone(), l, extra_verify: true });
