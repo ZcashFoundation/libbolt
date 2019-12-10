@@ -4,23 +4,25 @@ all:
 	export RUSTFLAGS=-Awarnings
 	cargo +nightly build
 	cargo +nightly test
-	cargo +nightly run --example bolt_test
+	cargo +nightly run --example bolt_test_bls12
+	cargo +nightly run --example bolt_test_bn256
 
 debug:
 	export RUST_BACKTRACE=1 
 	cargo +nightly build
-	cargo +nightly run --example bolt_test
+	cargo +nightly run --example bolt_test_bls12
 
 release:
 	cargo +nightly build --release
-	cargo +nightly run --release --example bolt_test
+	cargo +nightly run --release --example bolt_test_bls12
+	cargo +nightly run --release --example bolt_test_bn256
 
 bench:
 	cargo +nightly bench
 
 test:
 	# runs the unit test suite
-	cargo +nightly test --release #-- --nocapture
+	cargo +nightly test --release -- --nocapture
 
 update:
 	cargo +nightly update

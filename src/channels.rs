@@ -1,14 +1,3 @@
-/*
- * Implement for Bolt protocols:
- * - initializing channel state and generating cust/merch wallets
- * - establish protocol
- * - pay protocol
- * - channel close algorithms (WIP)
- */
-
-extern crate pairing;
-extern crate rand;
-
 use super::*;
 use pairing::Engine;
 use cl::{BlindKeyPair, Signature};
@@ -134,8 +123,6 @@ impl<E: Engine> ChannelToken<E> {
 
     // add a method to compute hash on chain: SHA256 + RIPEMD160?
 }
-// add methods to check if channel token is initialized
-// (only if
 
 ///
 /// Channel state for generating/loading channel parameters and generating keypairs
@@ -223,13 +210,20 @@ impl<E: Engine> CustomerState<E> {
               <E as pairing::Engine>::G2: serde::Serialize,
               <E as ff::ScalarEngine>::Fr: serde::Serialize
     {
-        let mut kp = secp256k1::Secp256k1::new();
-        kp.randomize(csprng);
+        let secp = secp256k1::Secp256k1::new();
 
-        // generate the keypair for the channel
-        let (sk_c, pk_c) = kp.generate_keypair(csprng);
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+
+        // generate the signing keypair for the channel        
+        let sk_c = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let pk_c = secp256k1::PublicKey::from_secret_key(&secp, &sk_c);
+        
+        let mut seckey1 = [0u8; 32];
+        csprng.fill_bytes(&mut seckey1);
         // generate the keypair for the initial wallet
-        let (wsk, wpk) = kp.generate_keypair(csprng);
+        let wsk = secp256k1::SecretKey::from_slice(&seckey1).unwrap();
+        let wpk = secp256k1::PublicKey::from_secret_key(&secp, &wsk);
         // hash the wallet pub key
         let wpk_h = hash_pubkey_to_fr::<E>(&wpk);
         channel_token.set_customer_pk(&pk_c);
@@ -346,9 +340,14 @@ impl<E: Engine> CustomerState<E> {
     // for channel pay
     pub fn generate_payment<R: Rng>(&self, csprng: &mut R, channel: &ChannelState<E>, amount: i64) -> (NIZKProof<E>, Commitment<E>, secp256k1::PublicKey, CustomerState<E>) {
         // 1 - chooose new wpk/wsk pair
-        let mut kp = secp256k1::Secp256k1::new();
-        kp.randomize(csprng);
-        let (new_wsk, new_wpk) = kp.generate_keypair(csprng);
+        let secp = secp256k1::Secp256k1::new();
+
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+        
+        let new_wsk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let new_wpk = secp256k1::PublicKey::from_secret_key(&secp, &new_wsk);
+        // compute hash of the pubkey
         let wpk_h = hash_pubkey_to_fr::<E>(&new_wpk);
 
         // 2 - form new wallet and commitment
@@ -489,9 +488,14 @@ impl<E: Engine> MerchantState<E> {
     pub fn new<R: Rng>(csprng: &mut R, channel: &mut ChannelState<E>, id: String) -> (Self, ChannelState<E>) {
         let l = 5;
         // generate keys here
-        let mut tx_kp = secp256k1::Secp256k1::new();
-        tx_kp.randomize(csprng);
-        let (wsk, wpk) = tx_kp.generate_keypair(csprng);
+        let secp = secp256k1::Secp256k1::new();
+        // tx_kp.randomize(csprng);
+        // let (wsk, wpk) = tx_kp.generate_keypair(csprng);
+        let mut seckey = [0u8; 32];
+        csprng.fill_bytes(&mut seckey);
+        let wsk = secp256k1::SecretKey::from_slice(&seckey).unwrap();
+        let wpk = secp256k1::PublicKey::from_secret_key(&secp, &wsk);
+
         let mut ch = channel.clone();
         let nizkParams = NIZKSecretParams::<E>::setup(csprng, l);
         ch.cp = Some(ChannelParams::<E> { pub_params: nizkParams.pubParams.clone(), l, extra_verify: true });
@@ -611,9 +615,10 @@ impl<E: Engine> MerchantState<E> {
 mod tests {
     use super::*;
     use pairing::bls12_381::Bls12;
+    use pairing::bn256::Bn256;
 
     #[test]
-    fn channel_util_works() {
+    fn channel_util_works_with_Bls12() {
         let mut channel = ChannelState::<Bls12>::new(String::from("Channel A <-> B"), false);
         let rng = &mut rand::thread_rng();
 
@@ -689,4 +694,66 @@ mod tests {
 
         let _channelId = channel_token.compute_channel_id();
     }
+
+    #[test]
+    fn channel_util_works_with_Bn256() {
+        let mut channel = ChannelState::<Bn256>::new(String::from("Channel A <-> B"), false);
+        let rng = &mut rand::thread_rng();
+
+        let b0_cust = 100;
+        let b0_merch = 20;
+        // each party executes the init algorithm on the agreed initial challenge balance
+        // in order to derive the channel tokens
+        // initialize on the merchant side with balance: b0_merch
+        let (mut merch_state, mut channel) = MerchantState::<Bn256>::new(rng, &mut channel, String::from("Merchant B"));
+
+        // initialize the merchant wallet with the balance
+        let mut channel_token = merch_state.init(&mut channel);
+
+        // retrieve commitment setup params (using merchant long lived pk params)
+        // initialize on the customer side with balance: b0_cust
+        let mut cust_state = CustomerState::<Bn256>::new(rng, &mut channel_token, b0_cust, b0_merch, String::from("Alice"));
+
+        // lets establish the channel
+        let cust_com_proof = cust_state.generate_proof(rng, &mut channel_token);
+
+        // first return the close token, then wait for escrow-tx confirmation
+        // then send the pay-token after confirmation
+        let channelId = channel_token.compute_channel_id();
+        assert_eq!(channelId, cust_state.get_wallet().channelId);
+        let (close_token, pay_token) = merch_state.verify_proof(rng, &channel, &cust_state.w_com, &cust_com_proof, &channelId, b0_cust, b0_merch).unwrap();
+        // unblind tokens and verify signatures
+        assert!(cust_state.verify_close_token(&channel, &close_token));
+
+        assert!(cust_state.verify_pay_token(&channel, &pay_token));
+
+        // pay protocol tests
+        let amount = 10;
+        let (pay_proof, new_com, old_wpk, new_cw) = cust_state.generate_payment(rng, &channel, amount);
+
+        // new pay_token is not sent until revoke_token is obtained from the customer
+        let new_close_token = merch_state.verify_payment(rng, &channel, &pay_proof, &new_com, &old_wpk, amount).unwrap();
+
+        //println!("1 -  Updated close Token : {}", new_close_token);
+        // unblind tokens and verify signatures
+
+        // assuming the pay_proof checks out, can go ahead and update internal state of cust_state
+        assert!(cust_state.update(new_cw));
+        //println!("2 - updated customer wallet!");
+
+        assert!(cust_state.verify_close_token(&channel, &new_close_token));
+        //println!("3 - verified the close token!");
+
+        // invalidate the previous state only if close token checks out
+        let (revoke_msg, revoke_sig) = cust_state.generate_revoke_token(&channel, &new_close_token).unwrap();
+        //println!("4 - Generated revoke token successfully.");
+
+        //println!("5 - Revoke token => {}", revoke_token);
+
+        let new_pay_token = merch_state.verify_revoke_token(&revoke_sig, &revoke_msg, &old_wpk).unwrap();
+        assert!(cust_state.verify_pay_token(&channel, &new_pay_token));
+
+        //println!("Validated revoke token!");
+    }
+
 }

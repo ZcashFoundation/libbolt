@@ -24,6 +24,12 @@ pub fn is_vec_g2_equal<E: Engine>(a: &Vec<E::G2>, b: &Vec<E::G2>) -> bool {
          .all(|(a, b)| a == b)
 }
 
+pub fn encode_as_hexstring(bytes: &Vec<u8>) -> String {
+    let mut ser_hex = hex::encode(bytes);
+    ser_hex.insert(0, '"');
+    ser_hex.push('"');
+    return ser_hex;
+}
 
 pub fn hash_g1_to_fr<E: Engine>(x: &Vec<E::G1>) -> E::Fr {
     let mut x_vec: Vec<u8> = Vec::new();
@@ -39,7 +45,7 @@ pub fn hash_g2_to_fr<E: Engine>(x: &E::G2) -> E::Fr {
     hash_to_fr::<E>(x_vec)
 }
 
-pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
+pub fn fmt_bytes_to_int(bytearray: [u8; 32]) -> String {
     let mut result: String = "".to_string();
     for byte in bytearray.iter() {
         // Decide if you want upper- or lowercase results,
@@ -55,12 +61,13 @@ pub fn fmt_bytes_to_int(bytearray: [u8; 64]) -> String {
     return s;
 }
 
+
 pub fn compute_the_hash<E: Engine>(bytes: &Vec<u8>) -> E::Fr {
-    let mut hasher = sha2::Sha512::new();
+    let mut hasher = sha2::Sha256::new();
     hasher.input(&bytes.as_slice());
     let sha2_digest = hasher.result();
-    let mut hash_buf: [u8; 64] = [0; 64];
-    hash_buf.copy_from_slice(&sha2_digest[0..64]);
+    let mut hash_buf: [u8; 32] = [0; 32];
+    hash_buf.copy_from_slice(&sha2_digest);
     let hexresult = fmt_bytes_to_int(hash_buf);
     return E::Fr::from_str(&hexresult).unwrap();
 }
@@ -89,10 +96,9 @@ pub fn convert_int_to_fr<E: Engine>(value: i64) -> E::Fr {
 
 pub fn compute_pub_key_fingerprint(wpk: &secp256k1::PublicKey) -> String {
     let x_slice = wpk.serialize();
-    let mut hasher = sha2::Sha512::new();
+    let mut hasher = sha2::Sha256::new();
     hasher.input(&x_slice.to_vec());
     let sha2_digest = hasher.result();
-    // let sha2_digest = sha512::hash(&x_slice);
     let h = format!("{:x}", HexSlice::new(&sha2_digest[0..16]));
     return h;
 }
@@ -105,12 +111,12 @@ pub fn hash_buffer_to_fr<'a, E: Engine>(prefix: &'a str, buf: &[u8; 64]) -> E::F
 }
 
 pub fn hash_to_slice(input_buf: &Vec<u8>) -> [u8; 32] {
-    let mut hasher = sha2::Sha512::new();
+    let mut hasher = sha2::Sha256::new();
     hasher.input(&input_buf.as_slice());
     let sha2_digest = hasher.result();
 
     let mut hash_buf: [u8; 32] = [0; 32];
-    hash_buf.copy_from_slice(&sha2_digest[0..32]);
+    hash_buf.copy_from_slice(&sha2_digest);
     return hash_buf;
 }
 
@@ -158,7 +164,7 @@ mod tests {
         let mut two = G2::one();
         two.double();
         assert_eq!(format!("{}", hash_g2_to_fr::<Bls12>(&two).into_repr()),
-                   "0x27cd26f702a777dbf782534ae6bf2ec4aa6cb4617c8366f10f59bef13beb8c56");
+                   "0x6550a1431236024424ac8e7f65781f244b70a38e5b3c275000a2b91089706868");
     }
 
     #[test]
@@ -168,13 +174,13 @@ mod tests {
         let mut x_vec: Vec<u8> = Vec::new();
         x_vec.extend(format!("{}", two).bytes());
         assert_eq!(format!("{}", hash_to_fr::<Bls12>(x_vec).into_repr()),
-                   "0x27cd26f702a777dbf782534ae6bf2ec4aa6cb4617c8366f10f59bef13beb8c56");
+                   "0x6550a1431236024424ac8e7f65781f244b70a38e5b3c275000a2b91089706868");
     }
 
     #[test]
     fn fmt_byte_to_int_works() {
-        assert_eq!(fmt_bytes_to_int([12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123]),
-                   "122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123134312235231231343122352312313431223523123");
+        assert_eq!(fmt_bytes_to_int([12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235]), // , 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123, 13, 43, 12, 235, 23, 123]),
+                   "122352312313431223523123134312235231231343122352312313431223523123134312235");
     }
 
     #[test]

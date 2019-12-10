@@ -1,14 +1,13 @@
 extern crate rand;
-extern crate rand_core;
 extern crate bolt;
-extern crate ff;
-extern crate pairing;
+extern crate ff_bl as ff;
+extern crate pairing_bl as pairing;
 extern crate time;
 extern crate secp256k1;
 
 use bolt::bidirectional;
 use std::time::Instant;
-use pairing::bls12_381::{Bls12};
+use pairing::bn256::Bn256;
 use bolt::handle_bolt_result;
 
 macro_rules! measure_one_arg {
@@ -47,7 +46,7 @@ macro_rules! measure_two_arg {
 
 fn main() {
     println!("******************************************");
-    let mut channel_state = bidirectional::ChannelState::<Bls12>::new(String::from("Channel A -> B"), false);
+    let mut channel_state = bidirectional::ChannelState::<Bn256>::new(String::from("Channel A -> B"), false);
     let rng = &mut rand::thread_rng();
 
     let b0_customer = 150;

@@ -1,10 +1,10 @@
 #[no_mangle]
-pub mod ffishim {
+pub mod ffishim_bn256 {
     extern crate libc;
 
     use bidirectional;
     use ff::ScalarEngine;
-    use pairing::bls12_381::Bls12;
+    use pairing::bn256::Bn256;
 
     use serde::Deserialize;
 
@@ -33,7 +33,7 @@ pub mod ffishim {
     }
 
     pub type ResultSerdeType<T> = Result<T, serde_json::error::Error>;
-    type CURVE = Bls12;
+    type CURVE = Bn256;
 
     fn deserialize_result_object<'a, T>(serialized: *mut c_char) -> ResultSerdeType<T>
         where
@@ -45,15 +45,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_free_string(pointer: *mut c_char) {
-        unsafe {
-            if pointer.is_null() { return; }
-            CString::from_raw(pointer)
-        };
-    }
-
-    #[no_mangle]
-    pub extern fn ffishim_bls12_wtp_check_wpk(ser_wpk: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_wtp_check_wpk(ser_wpk: *mut c_char) -> *mut c_char {
         let wpk_result: ResultSerdeType<secp256k1::PublicKey> = deserialize_result_object(ser_wpk);
         let _wpk = handle_errors!(wpk_result);
 
@@ -64,7 +56,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_channel_setup(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
+    pub extern fn ffishim_bn256_channel_setup(channel_name: *const c_char, third_party_support: u32) -> *mut c_char {
         let bytes = unsafe { CStr::from_ptr(channel_name).to_bytes() };
         let name: &str = str::from_utf8(bytes).unwrap(); // make sure the bytes are UTF-8
 
@@ -82,7 +74,7 @@ pub mod ffishim {
     // INIT
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_init_merchant(ser_channel_state: *mut c_char, name_ptr: *const c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_init_merchant(ser_channel_state: *mut c_char, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
@@ -99,7 +91,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_init_customer(ser_channel_token: *mut c_char, balance_customer: i64, balance_merchant: i64, name_ptr: *const c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_init_customer(ser_channel_token: *mut c_char, balance_customer: i64, balance_merchant: i64, name_ptr: *const c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<CURVE>> = deserialize_result_object(ser_channel_token);
@@ -119,7 +111,7 @@ pub mod ffishim {
     // ESTABLISH
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_establish_customer_generate_proof(ser_channel_token: *mut c_char, ser_customer_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_establish_customer_generate_proof(ser_channel_token: *mut c_char, ser_customer_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<CURVE>> = deserialize_result_object(ser_channel_token);
@@ -141,7 +133,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_generate_channel_id(ser_channel_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_generate_channel_id(ser_channel_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<CURVE>> = deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
@@ -153,7 +145,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_channel_id: *mut c_char, init_cust_bal: i64, init_merch_bal: i64, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_establish_merchant_issue_close_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_com_proof: *mut c_char, ser_channel_id: *mut c_char, init_cust_bal: i64, init_merch_bal: i64, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
@@ -183,7 +175,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_establish_merchant_issue_pay_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_establish_merchant_issue_pay_token(ser_channel_state: *mut c_char, ser_com: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
@@ -205,7 +197,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_verify_close_token(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_verify_close_token(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
@@ -229,7 +221,7 @@ pub mod ffishim {
 
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_establish_customer_final(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, ser_pay_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_establish_customer_final(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, ser_pay_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
         let mut channel_state = handle_errors!(channel_state_result);
@@ -254,7 +246,7 @@ pub mod ffishim {
     // PAY
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_pay_generate_payment_proof(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, amount: i64) -> *mut c_char {
+    pub extern fn ffishim_bn256_pay_generate_payment_proof(ser_channel_state: *mut c_char, ser_customer_state: *mut c_char, amount: i64) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
@@ -274,7 +266,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_pay_verify_payment_proof(ser_channel_state: *mut c_char, ser_pay_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_pay_verify_payment_proof(ser_channel_state: *mut c_char, ser_pay_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
@@ -296,7 +288,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_pay_verify_multiple_payment_proofs(ser_channel_state: *mut c_char, ser_sender_pay_proof: *mut c_char, ser_receiver_pay_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_pay_verify_multiple_payment_proofs(ser_channel_state: *mut c_char, ser_sender_pay_proof: *mut c_char, ser_receiver_pay_proof: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         let rng = &mut rand::thread_rng();
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
@@ -323,7 +315,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_pay_generate_revoke_token(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char, ser_new_cust_state: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_pay_generate_revoke_token(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char, ser_new_cust_state: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
@@ -348,7 +340,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_pay_verify_revoke_token(ser_revoke_token: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_pay_verify_revoke_token(ser_revoke_token: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the revoke token
         let revoke_token_result: ResultSerdeType<bidirectional::RevokeToken> = deserialize_result_object(ser_revoke_token);
         let revoke_token = handle_errors!(revoke_token_result);
@@ -368,7 +360,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_pay_verify_multiple_revoke_tokens(ser_sender_revoke_token: *mut c_char, ser_receiver_revoke_token: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_pay_verify_multiple_revoke_tokens(ser_sender_revoke_token: *mut c_char, ser_receiver_revoke_token: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the revoke tokens
         let sender_revoke_token_result: ResultSerdeType<bidirectional::RevokeToken> = deserialize_result_object(ser_sender_revoke_token);
         let sender_revoke_token = handle_errors!(sender_revoke_token_result);
@@ -393,7 +385,7 @@ pub mod ffishim {
 
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_pay_verify_payment_token(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char, ser_pay_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_pay_verify_payment_token(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char, ser_pay_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
@@ -417,7 +409,7 @@ pub mod ffishim {
     // CLOSE
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_customer_close(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_customer_close(ser_channel_state: *mut c_char, ser_cust_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
@@ -433,7 +425,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_merchant_close(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_address: *const c_char, ser_cust_close: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_merchant_close(ser_channel_state: *mut c_char, ser_channel_token: *mut c_char, ser_address: *const c_char, ser_cust_close: *mut c_char, ser_merch_state: *mut c_char) -> *mut c_char {
         // Deserialize the channel state
         let channel_state_result: ResultSerdeType<bidirectional::ChannelState<CURVE>> = deserialize_result_object(ser_channel_state);
         let channel_state = handle_errors!(channel_state_result);
@@ -469,7 +461,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_wtp_verify_cust_close_message(ser_channel_token: *mut c_char, ser_wpk: *mut c_char, ser_close_msg: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_wtp_verify_cust_close_message(ser_channel_token: *mut c_char, ser_wpk: *mut c_char, ser_close_msg: *mut c_char, ser_close_token: *mut c_char) -> *mut c_char {
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<CURVE>> = deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);
@@ -494,7 +486,7 @@ pub mod ffishim {
     }
 
     #[no_mangle]
-    pub extern fn ffishim_bls12_wtp_verify_merch_close_message(ser_channel_token: *mut c_char, ser_wpk: *mut c_char, ser_merch_close: *mut c_char) -> *mut c_char {
+    pub extern fn ffishim_bn256_wtp_verify_merch_close_message(ser_channel_token: *mut c_char, ser_wpk: *mut c_char, ser_merch_close: *mut c_char) -> *mut c_char {
         // Deserialize the channel token
         let channel_token_result: ResultSerdeType<bidirectional::ChannelToken<CURVE>> = deserialize_result_object(ser_channel_token);
         let channel_token = handle_errors!(channel_token_result);

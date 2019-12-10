@@ -1,8 +1,5 @@
 // cl.rs
 // CL Sigs - Pointcheval Sanders ('06)
-extern crate pairing;
-extern crate rand;
-
 use super::*;
 use pairing::{CurveProjective, Engine};
 use ff::PrimeField;
@@ -12,6 +9,7 @@ use serde::{Serialize, Deserialize};
 use util;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(bound(deserialize = "<E as pairing::Engine>::G1: serde::Deserialize<'de>, <E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct PublicParams<E: Engine> {
     pub g1: E::G1,
     pub g2: E::G2,
@@ -23,6 +21,18 @@ impl<E: Engine> PartialEq for PublicParams<E> {
     }
 }
 
+impl<E: Engine> PublicParams<E> {
+    pub fn from_slice<'de>(ser_g1: &'de [u8], ser_g2: &'de [u8]) -> Self
+        where <E as pairing::Engine>::G1: serde::Deserialize<'de>,
+             <E as pairing::Engine>::G2: serde::Deserialize<'de>
+    {
+        // TODO: handle malformed input errors
+        let g1: E::G1 = serde_json::from_slice(ser_g1).unwrap();
+        let g2: E::G2 = serde_json::from_slice(ser_g2).unwrap();
+
+        PublicParams { g1, g2 }
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SecretKey<E: Engine> {
@@ -51,6 +61,7 @@ impl<E: Engine> PartialEq for SecretKey<E> {
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(bound(deserialize = "<E as pairing::Engine>::G2: serde::Deserialize<'de>"))]
 pub struct PublicKey<E: Engine> {
     pub X: E::G2,
     pub Y: Vec<E::G2>,
@@ -75,6 +86,23 @@ impl<E: Engine> PartialEq for PublicKey<E> {
     }
 }
 
+impl<E: Engine> PublicKey<E> {
+    pub fn from_slice<'de>(ser_x: &'de [u8], ser_y: &'de [u8], y_len: usize, num_elems: usize) -> Self
+        where <E as pairing::Engine>::G2: serde::Deserialize<'de>
+    {
+        let X: E::G2 = serde_json::from_slice(ser_x).unwrap();
+        let mut Y: Vec<E::G2> = Vec::new();
+        let mut start_pos = 0;
+        let mut end_pos = y_len;
+        for _ in 0 .. num_elems {
+            let y = serde_json::from_slice(&ser_y[start_pos .. end_pos]).unwrap();
+            start_pos = end_pos;
+            end_pos += y_len;
+            Y.push(y);
+        }
+        PublicKey { X, Y }
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct BlindPublicKey<E: Engine> {
@@ -119,6 +147,19 @@ impl<E: Engine> PartialEq for Signature<E> {
         self.h == other.h && self.H == other.H
     }
 }
+
+impl<E: Engine> Signature<E> {
+    pub fn from_slice<'de>(ser_h: &'de [u8], ser_H: &'de [u8]) -> Self
+        where <E as pairing::Engine>::G1: serde::Deserialize<'de>
+    {
+        // TODO: handle malformed input errors
+        let h: E::G1 = serde_json::from_slice(ser_h).unwrap();
+        let H: E::G1 = serde_json::from_slice(ser_H).unwrap();
+
+        Signature { h, H }
+    }
+}
+
 
 #[derive(Clone)]
 pub struct KeyPair<E: Engine> {
@@ -682,10 +723,10 @@ mod tests {
         let blindkeypair = BlindKeyPair::<Bls12>::generate(&mut rng, &mpk, l);
 
         let serialized = serde_json::to_vec(&mpk).unwrap();
-        //println!("serialized = {:?}", serialized.len());
+        println!("mpk serialized len = {:?}", serialized.len());
 
         let _mpk_des: PublicParams<Bls12> = serde_json::from_slice(&serialized).unwrap();
-        //println!("{}", mpk_des);
+        //println!("{}", _mpk_des);
 
         //println!("SK => {}", &keypair.secret);
         let sk_serialized = serde_json::to_vec(&keypair.secret).unwrap();
@@ -697,7 +738,7 @@ mod tests {
 
         //println!("PK => {}", &keypair.public);
         let pk_serialized = serde_json::to_vec(&keypair.public).unwrap();
-        //println!("pk_serialized = {:?}", pk_serialized.len());
+        println!("cl pk_serialized len = {:?}", pk_serialized.len());
 
         let _pk_des: PublicKey<Bls12> = serde_json::from_slice(&pk_serialized).unwrap();
         //assert_eq!(pk_des, keypair.public);
@@ -718,6 +759,59 @@ mod tests {
 
         assert_eq!(upk_des, unblind_pk);
         assert_ne!(upk_des, keypair.public);
+    }
+
+    #[test]
+    fn test_compact_public_params_deserialize() {
+        let bin_g1= vec![132, 83, 99, 124, 75, 72, 15, 109, 12, 94, 84, 103, 1, 58, 160, 232, 190, 23, 119, 195, 112, 161, 152, 141, 178, 29, 141, 61, 227, 246, 215, 157, 140, 190, 100, 18, 248, 141, 57, 222, 12, 209, 191, 158, 143, 155, 87, 255];
+        let bin_g2 = vec![147, 63, 33, 190, 248, 155, 91, 211, 249, 169, 1, 147, 101, 104, 219, 88, 204, 131, 38, 167, 25, 191, 86, 67, 139, 188, 171, 101, 154, 32, 234, 92, 3, 66, 235, 159, 7, 47, 16, 83, 3, 201, 13, 227, 179, 184, 101, 102, 21, 88, 153, 208, 93, 0, 57, 108, 250, 231, 74, 192, 82, 111, 13, 211, 12, 51, 224, 198, 121, 15, 63, 129, 25, 218, 193, 47, 182, 248, 112, 185, 163, 23, 175, 169, 76, 214, 36, 184, 142, 222, 48, 212, 157, 35, 115, 181];
+
+        let ser_g1 = util::encode_as_hexstring(&bin_g1);
+        let ser_g2 = util::encode_as_hexstring(&bin_g2);
+
+        let str_g1 = ser_g1.as_bytes();
+        let str_g2 = ser_g2.as_bytes();
+
+        let rec_mpk = PublicParams::<Bls12>::from_slice(&str_g1, &str_g2);
+
+        println!("g1: {}", rec_mpk.g1);
+        println!("g2: {}", rec_mpk.g2);
+
+        let rec_g1_str = serde_json::to_string(&rec_mpk.g1).unwrap();
+        assert_eq!(rec_g1_str, "\"8453637c4b480f6d0c5e5467013aa0e8be1777c370a1988db21d8d3de3f6d79d8cbe6412f88d39de0cd1bf9e8f9b57ff\"");
+
+        let rec_g2_str = serde_json::to_string(&rec_mpk.g2).unwrap();
+        assert_eq!(rec_g2_str, "\"933f21bef89b5bd3f9a901936568db58cc8326a719bf56438bbcab659a20ea5c0342eb9f072f105303c90de3b3b86566155899d05d00396cfae74ac0526f0dd30c33e0c6790f3f8119dac12fb6f870b9a317afa94cd624b88ede30d49d2373b5\"");
+    }
+
+    #[test]
+    fn test_compact_cl_public_key_deserialize() {
+        let bin_g2_x = vec![147, 63, 33, 190, 248, 155, 91, 211, 249, 169, 1, 147, 101, 104, 219, 88, 204, 131, 38, 167, 25, 191, 86, 67, 139, 188, 171, 101, 154, 32, 234, 92, 3, 66, 235, 159, 7, 47, 16, 83, 3, 201, 13, 227, 179, 184, 101, 102, 21, 88, 153, 208, 93, 0, 57, 108, 250, 231, 74, 192, 82, 111, 13, 211, 12, 51, 224, 198, 121, 15, 63, 129, 25, 218, 193, 47, 182, 248, 112, 185, 163, 23, 175, 169, 76, 214, 36, 184, 142, 222, 48, 212, 157, 35, 115, 181];
+        let bin_g2_y1 = vec![143, 76, 112, 7, 35, 99, 254, 7, 255, 225, 69, 13, 99, 32, 92, 186, 234, 175, 230, 0, 202, 144, 1, 216, 187, 248, 152, 76, 229, 74, 156, 94, 4, 16, 132, 119, 157, 172, 231, 164, 207, 88, 41, 6, 234, 78, 73, 58, 19, 104, 236, 127, 5, 231, 248, 150, 53, 197, 85, 194, 110, 93, 1, 73, 24, 96, 149, 133, 109, 194, 16, 190, 244, 184, 254, 192, 52, 21, 205, 109, 18, 83, 189, 175, 208, 147, 74, 32, 181, 126, 224, 136, 250, 126, 224, 186];
+        let bin_g2_y2 = vec![150, 132, 45, 236, 146, 135, 127, 242, 61, 55, 73, 100, 151, 12, 51, 134, 151, 42, 138, 227, 105, 54, 121, 7, 0, 27, 205, 139, 186, 69, 139, 143, 41, 132, 35, 33, 168, 35, 31, 52, 65, 5, 73, 153, 203, 25, 178, 196, 4, 9, 218, 130, 22, 64, 98, 152, 225, 212, 27, 202, 245, 234, 138, 34, 82, 102, 40, 72, 211, 248, 16, 221, 54, 154, 186, 95, 246, 132, 54, 0, 128, 170, 111, 94, 155, 166, 27, 225, 51, 31, 107, 223, 139, 0, 209, 236];
+
+        let ser_g2_x = util::encode_as_hexstring(&bin_g2_x);
+        let ser_g2_y1 = util::encode_as_hexstring(&bin_g2_y1);
+        let ser_g2_y2 = util::encode_as_hexstring(&bin_g2_y2);
+
+        let str_g2_x = ser_g2_x.as_bytes();
+        let str_g2_y1 = ser_g2_y1.as_bytes();
+        let str_g2_y2 = ser_g2_y2.as_bytes();
+
+        let mut vec = Vec::new();
+        vec.extend(str_g2_y1);
+        vec.extend(str_g2_y2);
+
+        let rec_cl_pk = PublicKey::<Bls12>::from_slice(&str_g2_x, &vec.as_slice(), ser_g2_y1.len(), 2);
+
+        let rec_x_str = serde_json::to_string(&rec_cl_pk.X).unwrap();
+        assert_eq!(rec_x_str, "\"933f21bef89b5bd3f9a901936568db58cc8326a719bf56438bbcab659a20ea5c0342eb9f072f105303c90de3b3b86566155899d05d00396cfae74ac0526f0dd30c33e0c6790f3f8119dac12fb6f870b9a317afa94cd624b88ede30d49d2373b5\"");
+
+        let rec_y1_str = serde_json::to_string(&rec_cl_pk.Y[0]).unwrap();
+        assert_eq!(rec_y1_str, "\"8f4c70072363fe07ffe1450d63205cbaeaafe600ca9001d8bbf8984ce54a9c5e041084779dace7a4cf582906ea4e493a1368ec7f05e7f89635c555c26e5d0149186095856dc210bef4b8fec03415cd6d1253bdafd0934a20b57ee088fa7ee0ba\"");
+
+        let rec_y2_str = serde_json::to_string(&rec_cl_pk.Y[1]).unwrap();
+        assert_eq!(rec_y2_str, "\"96842dec92877ff23d374964970c3386972a8ae369367907001bcd8bba458b8f29842321a8231f3441054999cb19b2c40409da8216406298e1d41bcaf5ea8a2252662848d3f810dd369aba5ff684360080aa6f5e9ba61be1331f6bdf8b00d1ec\"");
     }
 }
 
